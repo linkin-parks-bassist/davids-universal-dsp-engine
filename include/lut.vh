@@ -1,0 +1,3 @@
+`define LUT_HANDLE_WIDTH 8
+
+`define LUT_FRAC_WIDTH 4
