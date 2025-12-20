@@ -320,6 +320,9 @@ module top
         output wire mclk_out,
         output wire bclk_out,
         output wire lrclk_out,
+
+        input wire bclk_in,
+        input wire lrclk_in,
         
         input  wire i2s_din,
         output wire i2s_dout
@@ -333,13 +336,6 @@ module top
         .lock(pll_lock), //output lock
         .clkin(crystal) //input clkin
     );
-
-    assign led0 = ~bclk;
-    assign led1 = ~lrclk;
-    assign led2 = ~i2s_dout;
-    assign led3 = ~sample_in[0];
-    assign led4 = ~sample_in[8];
-    assign led5 = ~|sample_in;
 
     assign mclk_out  = mclk;
     assign bclk_out  = bclk;
@@ -416,8 +412,37 @@ module top
     reg first_cycle = 1;
     reg third_cycle = 0;
 
+    reg sample_in_valid_sample = 0;
+    reg sample_in_valid_sync = 0;
+    reg sample_in_valid_prev = 0;
+
+    wire sample_in_valid_edge = sample_in_valid_sync ^ sample_in_valid_prev;
+
+    reg [31:0] mclk_ctr = 0;
+    reg mclk_1sec = 0;
+
+    assign led0 = ~0;
+    assign led1 = ~0;
+    assign led2 = ~0;
+    assign led3 = ~0;
+    assign led4 = ~0;
+    assign led5 = ~0;
+
+    reg any_data = 0;
+
     always @(posedge clk) begin
-        
+        any_data <= any_data | i2s_din;
+
+        /*if (mclk_ctr == 12288000) begin
+            mclk_1sec <= ~mclk_1sec;
+            mclk_ctr <= 0;
+            any_data <= 0;
+        end else begin
+            if (mclk_div_ctr == 4)
+                mclk_ctr <= mclk_ctr + 1;
+        end*/
+
+
         if (mclk_div_ctr == 4) begin
             mclk <= ~mclk;
             mclk_div_ctr <= 0;
@@ -443,7 +468,7 @@ module top
         lrclk_prev <= lrclk;
         divclk_prev <= divclk;
 
-        if (i2s_sample_in_valid) begin
+        if (sample_in_valid_edge) begin
             sample_in <= i2s_sample_in;
         end
 
@@ -459,6 +484,10 @@ module top
 
         if (third_cycle && pll_lock_synced) 
             pll_locked <= 1;
+
+        sample_in_valid_sample <= i2s_sample_in_valid;
+        sample_in_valid_sync   <= sample_in_valid_sample;
+        sample_in_valid_prev   <= sample_in_valid_sync;
     end
 
     wire lrclk;
@@ -466,7 +495,7 @@ module top
 
     i2s_tx_mono_stereo #(.data_width(24)) i2s_tx (
         .rst(reset),
-        .sample_in(sample_in),
+        .sample_in(sample_in >> 3),
         .bclk(bclk),
         .lrclk(lrclk),
         .sdata(i2s_dout)
@@ -475,10 +504,10 @@ module top
     wire signed [23 : 0] i2s_sample_in;
     wire i2s_sample_in_valid;
 
-    i2s_rx_mono #(.data_width(24), .BIT_OFFSET(0)) i2s_rx (
-            .bclk(bclk),
+    i2s_rx_mono #(.data_width(24), .BIT_OFFSET(1)) i2s_rx (
+            .bclk(bclk_in),
             .rst(reset),
-            .lrclk(lrclk),
+            .lrclk(lrclk_in),
             .sdata(i2s_din),
             .sample(i2s_sample_in),
             .sample_valid(i2s_sample_in_valid)

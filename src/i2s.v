@@ -68,7 +68,6 @@ module i2s_rx_mono #(
             sample_valid <= 1'b0;
         end else begin
             lrclk_d      <= lrclk;
-            sample_valid <= 1'b0;
 
             // Half-frame counter: 0..31
             if (lrclk_d != lrclk) begin
@@ -86,7 +85,7 @@ module i2s_rx_mono #(
 
                     if (bit_cnt == BIT_LAST) begin
                         sample       <= {shift_reg[data_width-2:0], sdata};
-                        sample_valid <= 1'b1;
+                        sample_valid <= ~sample_valid;
                     end
                 end
             end
