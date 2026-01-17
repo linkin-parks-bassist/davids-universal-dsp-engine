@@ -613,50 +613,100 @@ module top
         output wire mclk_out,
         output wire bclk_out,
         output wire lrclk_out,
-
-        input wire bclk_in,
-        input wire lrclk_in,
         
         input  wire i2s_din,
         output wire i2s_dout
     );
     
-    wire clk;
+    wire clk_112m;
+    wire clk_11m;
     wire pll_lock;
 
-    Gowin_rPLL your_instance_name(
-        .clkout(clk), //output clkout
-        .lock(pll_lock), //output lock
-        .clkin(crystal) //input clkin
+    reg reset = 1;
+    
+    // Your existing PLL
+    Gowin_rPLL pll(
+        .clkout(clk_112m),
+        .clkoutd(clk_11m),
+        .clkin(crystal),
+        .lock(pll_lock)
     );
 
-    assign mclk_out  = mclk;
-    assign bclk_out  = bclk;
-    assign lrclk_out = lrclk;
-
-    wire divclk = ctr[5];
-    reg divclk_prev;
-    wire divclk_edge = divclk ^ divclk_prev;
-
-
-    reg  lrclk_prev;
-    wire lrclk_edge = lrclk ^ lrclk_prev;
-
-    wire signed [15 : 0]  in_sample_16 = in_sample_24[23:8];
-    wire signed [15 : 0] out_sample_16;// = test_out_sample;
-
-    wire signed [23 : 0]  in_sample_24;
-    wire signed [23 : 0] out_sample_24;// = {4'b0, test_out_sample, 4'b0};//in_sample_24;//{out_sample_16, 8'b0};
-        
-	
-    wire [7:0] spi_in;
-    wire spi_in_valid;
-        
-    wire in_sample_ready;
-    wire invalid_command;
-    wire engine_ready;
+    assign codec_en = pll_lock;
+    assign mclk_out = clk_11m;
     
-    wire [$clog2(spi_fifo_length) : 0] fifo_count;
+    // Internal registers for clock dividers
+    reg [3:0] bclk_counter = 4'd0;  // Divide by 4 from 11.25M to get ~2.8MHz (44.1kHz * 32)
+    reg bclk = 1'b0;
+    
+    reg [5:0] lrclk_counter = 5'd0; // Divide by 64 from 2.8MHz to get 44.1kHz
+    assign lrclk = lrclk_counter[5];
+    
+    // BCLK: clk_11m / 4  -> 2.8224 MHz
+    always @(posedge clk_11m) begin
+        if (pll_lock) begin
+            reset <= 0;
+            bclk_counter <= bclk_counter + 1'b1;
+            if (bclk_counter == 1) begin
+                bclk <= ~bclk;
+                bclk_counter <= 0;
+
+                if (bclk)
+                    lrclk_counter <= lrclk_counter + 1;
+            end
+        end
+    end
+
+    
+    // Assign outputs
+    assign bclk_out = bclk;
+    assign lrclk_out = lrclk;
+    
+    reg [31:0] ctr = 0;
+    reg led_reg = 0;
+
+    always @(posedge clk_112m) begin
+        if (ctr == 56250000) begin
+            led_reg <= ~led_reg;
+            ctr <= 0;
+        end else begin
+            ctr <= ctr + 1;
+        end
+    end
+
+    // LED assignments (example - you can modify these)
+    assign led0 = ~led_reg;
+    assign led1 = ~0;
+    //assign led2 = ~(|sample_in_abs[3:0]);
+    assign led3 = ~sample_in_abs[12];
+    assign led4 = ~sample_in_abs[13];
+    assign led5 = ~(|sample_in_abs[15:14]);
+
+    localparam sample_size = 16;
+
+    reg  [sample_size-1:0] sample_out;
+    wire [sample_size-1:0] sample_in;
+
+    wire [sample_size-1:0] sample_in_abs = sample_in[15] ? -sample_in : sample_in;
+
+    wire sample_valid;
+
+    i2s_trx #(.sample_size(sample_size)) i2s_driver
+    (
+        .bclk(bclk), .lrclk(lrclk), .din(i2s_din), .dout(i2s_dout),
+        .enable(1), .reset(reset), .rx_valid(sample_valid),
+        .tx_l(sample_out), .tx_r(sample_out),
+        .rx_l(sample_in), .rx_r()
+    );
+
+    always @(posedge bclk) begin
+        if (reset) begin
+            sample_out <= 0;
+        end else begin
+            if (sample_valid)
+                sample_out <= sample_in;
+        end
+    end
 
     dsp_engine #(
             .n_blocks(n_blocks), 
@@ -670,8 +720,8 @@ module top
             .clk(0),
             .reset(reset),
 
-            .in_sample(in_sample_16),
-            //.out_sample(out_sample_16),
+            .in_sample(in_sample),
+            .out_sample(out_sample),
         
             .sample_ready(in_sample_ready && !lrclk),
         
@@ -683,128 +733,6 @@ module top
         
             .fifo_count(fifo_count)
         );
-
-    reg [23 : 0] sample_in = 0;
-    wire sample_valid;
-
-    reg [23 : 0] test_out_sample = 0;
-
-    reg [32:0] ctr = 0;
-
-    reg [15:0] mclk_div_ctr = 0;
-    reg [15:0] bclk_div_ctr = 0;
-
-    reg mclk = 0;
-    reg bclk = 0;
-
-    reg pll_lock_sync = 0;
-    reg pll_lock_synced = 0;
-
-    reg pll_locked = 0;
-
-    reg first_cycle = 1;
-    reg third_cycle = 0;
-
-    reg sample_in_valid_sample = 0;
-    reg sample_in_valid_sync = 0;
-    reg sample_in_valid_prev = 0;
-
-    wire sample_in_valid_edge = sample_in_valid_sync ^ sample_in_valid_prev;
-
-    reg [31:0] mclk_ctr = 0;
-    reg mclk_1sec = 0;
-
-    assign led0 = ~0;
-    assign led1 = ~0;
-    assign led2 = ~0;
-    assign led3 = ~0;
-    assign led4 = ~0;
-    assign led5 = ~0;
-
-    reg any_data = 0;
-
-    always @(posedge clk) begin
-        any_data <= any_data | i2s_din;
-
-        /*if (mclk_ctr == 12288000) begin
-            mclk_1sec <= ~mclk_1sec;
-            mclk_ctr <= 0;
-            any_data <= 0;
-        end else begin
-            if (mclk_div_ctr == 4)
-                mclk_ctr <= mclk_ctr + 1;
-        end*/
-
-
-        if (mclk_div_ctr == 4) begin
-            mclk <= ~mclk;
-            mclk_div_ctr <= 0;
-        end
-        else begin
-            mclk_div_ctr <= mclk_div_ctr + 1;
-        end
-
-        if (pll_locked) begin
-            if (bclk_div_ctr == 19) begin
-                bclk <= ~bclk;
-                bclk_div_ctr <= 0;
-            end
-            else begin
-                bclk_div_ctr <= bclk_div_ctr + 1;
-            end
-        end
-
-        ctr = ctr + 1;
-
-        test_out_sample <= test_out_sample + 16;
-        
-        lrclk_prev <= lrclk;
-        divclk_prev <= divclk;
-
-        if (sample_in_valid_edge) begin
-            sample_in <= i2s_sample_in;
-        end
-
-        pll_lock_sync <= pll_lock;
-        pll_lock_synced <= pll_lock_sync;
-
-        if (first_cycle) begin
-            first_cycle <= 0;
-        end
-        else begin
-            third_cycle <= 1;
-        end
-
-        if (third_cycle && pll_lock_synced) 
-            pll_locked <= 1;
-
-        sample_in_valid_sample <= i2s_sample_in_valid;
-        sample_in_valid_sync   <= sample_in_valid_sample;
-        sample_in_valid_prev   <= sample_in_valid_sync;
-    end
-
-    wire lrclk;
-    i2s_lrclk_gen #(.data_width(16)) lrclk_gen (.bclk(bclk), .rst(reset), .lrclk(lrclk));
-
-    i2s_tx_mono_stereo #(.data_width(24)) i2s_tx (
-        .rst(reset),
-        .sample_in(sample_in >> 3),
-        .bclk(bclk),
-        .lrclk(lrclk),
-        .sdata(i2s_dout)
-    );
-
-    wire signed [23 : 0] i2s_sample_in;
-    wire i2s_sample_in_valid;
-
-    i2s_rx_mono #(.data_width(24), .BIT_OFFSET(1)) i2s_rx (
-            .bclk(bclk_in),
-            .rst(reset),
-            .lrclk(lrclk_in),
-            .sdata(i2s_din),
-            .sample(i2s_sample_in),
-            .sample_valid(i2s_sample_in_valid)
-    );
 
     sync_spi_slave spi
     (
