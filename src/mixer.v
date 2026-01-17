@@ -153,7 +153,7 @@ module mixer #(parameter data_width = 16, parameter gain_shift = 4) (
 				2: begin
 					in_sample_out <= prod_a_final;
 					in_sample_ready <= 1;
-					state <= 5;
+					state <= 7;
 				end
 				
 				3: begin
@@ -161,12 +161,22 @@ module mixer #(parameter data_width = 16, parameter gain_shift = 4) (
 				end
 				
 				4: begin
-					out_sample <= prod_sum_final;
-					out_sample_ready <= 1;
+					mul_arg_aa <= prod_sum_final;
+					mul_arg_ab <= output_gain;
 					state <= 5;
 				end
 				
 				5: begin
+					state <= 6;
+				end
+				
+				6: begin
+					out_sample <= prod_a_final;
+					out_sample_ready <= 1;
+					state <= 7;
+				end
+				
+				7: begin
 					state <= 0;
 				end
 			endcase
