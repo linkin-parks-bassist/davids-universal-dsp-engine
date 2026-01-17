@@ -54,12 +54,6 @@ module biquad_unit #(parameter data_width = 16)
 	
 	reg signed [2 * (data_width + 1) : 0] acc;
 	
-	reg signed [2 * (data_width + 1) : 0] b0x0;
-	reg signed [2 * (data_width + 1) : 0] b1x1;
-	reg signed [2 * (data_width + 1) : 0] b2x2;
-	reg signed [2 * (data_width + 1) : 0] a1y1;
-	reg signed [2 * (data_width + 1) : 0] a2y2;
-	
 	reg signed [data_width + 1 : 0] summand_a;
 	reg signed [data_width + 1 : 0] summand_b;
 	
@@ -70,7 +64,7 @@ module biquad_unit #(parameter data_width = 16)
 	
 	reg [data_width + 1 : 0] sample_in_latched;
 	
-	/* a0*x0 + a1*x1 + a2*x2 - b1*y1 - b2*y2 */
+	/* b0*x0 + b1*x1 + b2*x2 - a1*y1 - a2*y2 */
 	
 	always @(posedge clk) begin
 		sum_ext_latched <= sum_ext;
@@ -120,8 +114,8 @@ module biquad_unit #(parameter data_width = 16)
 					f21 <= a1;
 					f22 <= y1;
 					
-					summand_a <= mul_1[2 * (data_width + 1) : data_width];
-					summand_b <= mul_2[2 * (data_width + 1) : data_width];
+					summand_a <= mul_1 >>> (data_width - 1);
+					summand_b <= mul_2 >>> (data_width - 1);
 					
 					state <= `BIQUAD_STATE_CALC2;
 				end

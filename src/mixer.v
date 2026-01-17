@@ -75,10 +75,17 @@ module mixer #(parameter data_width = 16, parameter gain_shift = 4) (
 		if (swap_pipelines)
 			pipeline_swap_requested <= 1;
 		
+		if (set_input_gain)
+			input_gain <= data_in;
+
+		if (set_output_gain)
+			output_gain <= data_in;
+		
 		if (reset) begin
 			pipelines_swapping 	<= 0;
 			current_pipeline 	<= 0;
 			target_pipeline		<= 0;
+			pipeline_swap_requested <= 0;
 			
 			input_gain  <= 1 << (data_width - 1 - gain_shift);
 			output_gain <= 1 << (data_width - 1 - gain_shift);

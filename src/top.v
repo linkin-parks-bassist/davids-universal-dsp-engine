@@ -108,6 +108,8 @@ module top
     reg [4:0] spi_byte_ctr = 0;
 
     always  @(posedge sys_clk) begin
+		tick_engine <= 0;
+    
         if (spi_in_valid)
             spi_capture <= spi_in;
 
@@ -119,6 +121,15 @@ module top
         end else  begin
             ctr <= ctr + 1;
         end
+        
+        if (sample_valid) begin
+			if (!sample_ack) begin
+				tick_engine <= 1;
+				sample_ack <= 1;
+			end
+        end else begin
+			sample_ack <= 0;
+		end
     end
 
     reg [7:0] spi_capture;
@@ -140,6 +151,9 @@ module top
     wire sample_valid;
 
     wire invalid_command;
+    
+    reg tick_engine = 0;
+    reg sample_ack = 0;
 
     i2s_trx #(.sample_size(sample_size)) i2s_driver
     (
@@ -164,7 +178,7 @@ module top
             .in_sample(sample_in),
             .out_sample(sample_out),
         
-            .sample_ready(sample_valid),
+            .sample_ready(tick_engine),
         
             .command_in(spi_in),
             .command_in_ready(spi_in_valid),

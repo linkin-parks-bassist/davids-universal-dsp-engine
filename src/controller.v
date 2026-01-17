@@ -287,6 +287,9 @@ module control_unit_seq
 		input wire pipelines_swapping,
 		output reg [1:0] reset_pipeline,
 		
+		output reg set_input_gain,
+		output reg set_output_gain,
+		
 		output reg next,
 		
 		output reg invalid
@@ -326,6 +329,9 @@ module control_unit_seq
 		block_reg_update 	<= 0;
 		
 		alloc_sram_delay <= 0;
+		
+		set_input_gain  <= 0;
+		set_output_gain <= 0;
 		
 		if (reset) begin
 			state <= `CONTROLLER_STATE_READY;
@@ -391,6 +397,31 @@ module control_unit_seq
 						end
 
 						`COMMAND_RESET_PIPELINE: begin
+							reset_pipeline[target_pipeline] <= 1;
+							state <= `CONTROLLER_STATE_READY;
+						end
+
+						`COMMAND_SET_INPUT_GAIN: begin
+							load_block_number <= 0;
+							load_reg_number	  <= 0;
+							load_data 		  <= 1;
+							load_block_instr  <= 0;
+							
+							state <= `CONTROLLER_STATE_GET_DATA;
+							ret_state <= `CONTROLLER_STATE_SET_INPUT_GAIN;
+						end
+
+						`COMMAND_SET_OUTPUT_GAIN: begin
+							load_block_number <= 0;
+							load_reg_number	  <= 0;
+							load_data 		  <= 1;
+							load_block_instr  <= 0;
+							
+							state <= `CONTROLLER_STATE_GET_DATA;
+							ret_state <= `CONTROLLER_STATE_SET_OUTPUT_GAIN;
+						end
+
+						`COMMAND_SET_OUTPUT_GAIN: begin
 							reset_pipeline[target_pipeline] <= 1;
 							state <= `CONTROLLER_STATE_READY;
 						end
@@ -508,6 +539,16 @@ module control_unit_seq
 
 				`CONTROLLER_STATE_ALLOC_SRAM_DELAY: begin
 					alloc_sram_delay[target_pipeline] <= 1;
+					state <= `CONTROLLER_STATE_READY;
+				end
+
+				`CONTROLLER_STATE_SET_INPUT_GAIN: begin
+					set_input_gain <= 1;
+					state <= `CONTROLLER_STATE_READY;
+				end
+
+				`CONTROLLER_STATE_SET_OUTPUT_GAIN: begin
+					set_output_gain <= 1;
 					state <= `CONTROLLER_STATE_READY;
 				end
 

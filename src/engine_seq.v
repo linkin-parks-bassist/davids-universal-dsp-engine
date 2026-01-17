@@ -96,6 +96,9 @@ module dsp_engine_seq
 
     wire [1:0] reg_write_acks;
     
+    wire set_input_gain;
+    wire set_output_gain;
+    
     pipeline_seq
 		#(
 			.n_blocks(n_blocks),
@@ -211,6 +214,9 @@ module dsp_engine_seq
         .pipelines_swapping(pipelines_swapping),
         .reset_pipeline(reset_pipeline),
         
+        .set_input_gain(set_input_gain),
+        .set_output_gain(set_output_gain),
+        
         .invalid(invalid_command)
     );
 	
@@ -226,7 +232,7 @@ module dsp_engine_seq
         
         .out_sample(out_sample_mixed),
         
-        .data_in(0),
+        .data_in(ctrl_data_out),
         
         .in_sample_valid(apply_input_gain),
         .out_samples_valid(mix_outputs),
@@ -234,8 +240,8 @@ module dsp_engine_seq
         .in_sample_ready(in_sample_valid),
         .out_sample_ready(out_sample_valid),
         
-        .set_input_gain(0),
-        .set_output_gain(0),
+        .set_input_gain(set_input_gain),
+        .set_output_gain(set_output_gain),
         
         .swap_pipelines(swap_pipelines),
         .pipelines_swapping(pipelines_swapping),
