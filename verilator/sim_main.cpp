@@ -1,16 +1,19 @@
 #include <verilated.h>
-#include "Vdsp_engine_seq.h"
+#include "Vtop.h"
 #include "verilated_fst_c.h"
 #include <fstream>
 #include <vector>
 #include <cstdint>
 #include <cstring>
 #include <iostream>
+#include "sim_io.h"
 #include "math.h"
+
+Vtop* dut = new Vtop;
+sim_io_state io;
 
 #define DUMP_WAVEFORM
 
-// ---------------- WAV I/O ----------------
 #pragma pack(push, 1)
 struct WavHeader {
     char     riff[4];
@@ -55,32 +58,91 @@ static bool read_wav16_mono(const char* path,
 }
 
 static bool write_wav16_mono(const char* path,
-                             WavHeader header,
+                             uint32_t sample_rate,
                              const std::vector<int16_t>& samples)
 {
     std::ofstream f(path, std::ios::binary);
     if (!f) return false;
 
-    header.data_size  = samples.size() * sizeof(int16_t);
-    header.chunk_size = 36 + header.data_size;
-    header.byte_rate  = header.sample_rate * 2;
+    WavHeader h{};
+    std::memcpy(h.riff, "RIFF", 4);
+    std::memcpy(h.wave, "WAVE", 4);
+    std::memcpy(h.fmt,  "fmt ", 4);
+    std::memcpy(h.data, "data", 4);
 
-    f.write(reinterpret_cast<const char*>(&header), sizeof(header));
-    f.write(reinterpret_cast<const char*>(samples.data()), header.data_size);
+    h.subchunk1_size = 16;
+    h.audio_format   = 1;   // PCM
+    h.num_channels   = 1;
+    h.sample_rate    = sample_rate;
+    h.bits_per_sample = 16;
+    h.block_align     = 2;
+    h.byte_rate       = sample_rate * 2;
+
+    h.data_size  = samples.size() * 2;
+    h.chunk_size = 36 + h.data_size;
+
+    f.write(reinterpret_cast<const char*>(&h), sizeof(h));
+
+    // Explicit little-endian write (belt + suspenders)
+    for (int16_t s : samples) {
+        uint8_t lo = s & 0xFF;
+        uint8_t hi = (s >> 8) & 0xFF;
+        f.put(lo);
+        f.put(hi);
+    }
+
     return true;
 }
+
 
 VerilatedFstC* tfp = NULL;
 static uint64_t ticks = 0;
 
-void tick(Vdsp_engine_seq* dut)
+void print_state()
 {
-	assert(dut != NULL);
+	printf("\nSystem state: tick %d\n", (int)ticks);
 	
-	dut->clk ^= 1; dut->eval();
+	printf("dut->sys_clk   = %d\n", 	(int)dut->sys_clk);
+	printf("dut->miso      = %d\n", 		(int)dut->miso);
+	printf("dut->mosi      = %d\n", 		(int)dut->mosi);
+	printf("dut->cs        = %d\n", 		(int)dut->cs);
+	printf("dut->sck       = %d\n", 		(int)dut->sck);
+	printf("\n");
+	printf("dut->bclk      = %d\n", 		(int)dut->bclk_out);
+	printf("dut->lrclk     = %d\n", 		(int)dut->lrclk_out);
+	printf("dut->i2s_din   = %d\n", 		(int)dut->i2s_din);
+	printf("dut->i2s_dout  = %d\n", 		(int)dut->i2s_dout);
+	
+	printf("\n");
+	
+	printf("io.sck_counter = %d\n", (int)io.sck_counter);
+	printf("io.spi_bit     = %d\n", (int)io.spi_bit);
+	printf("io.spi_byte    = 0x%04x\n", (int)io.spi_byte);
+	printf("io.sample_in   = %d\n", (int)io.sample_in);
+	printf("io.sample_out  = %d\n", (int)io.sample_out);
+	printf("io.i2s_bit     = %d\n", (int)io.i2s_bit);
+}
+
+int tick()
+{
+	if (!dut)
+		return 1;
+	
+	dut->sys_clk = 1;
+	sim_io_update(dut, &io);
+	dut->eval();
 	if (tfp) tfp->dump(ticks++);
-	dut->clk ^= 1; dut->eval();
+	
+	//print_state();
+	
+	dut->sys_clk = 0;
+	sim_io_update(dut, &io);
+	dut->eval();
 	if (tfp) tfp->dump(ticks++);
+	
+	//print_state();
+	
+	return 0;
 }
 
 int16_t float_to_q_nminus1(float x, int shift)
@@ -155,64 +217,55 @@ int16_t float_to_q15(float x)
 #define COMMAND_SWAP_PIPELINES 		0b00000001
 #define COMMAND_RESET_PIPELINE 		0b00001001
 
-
-void send_input_byte(Vdsp_engine_seq *dut, uint8_t byte)
+int spi_send(uint8_t byte)
 {
-	printf("Sending input byte 0b%08b. FIFO count: %d\n", byte, dut->fifo_count);
-	dut->command_in = byte;
-	
-	dut->command_in_ready = 1;
-	
-	tick(dut);
-	dut->command_in_ready = 0;
-	
-	tick(dut);
+	return spi_enqueue(&io, byte);
 }
 
-void write_block_instr(Vdsp_engine_seq* dut, int block, uint32_t instr)
+void write_block_instr(Vtop* dut, int block, uint32_t instr)
 {
 	printf("Set block %d instruction to %d = 0b%032b\n", block, instr, instr);
-	send_input_byte(dut, COMMAND_WRITE_BLOCK_INSTR);
+	spi_send(COMMAND_WRITE_BLOCK_INSTR);
 	
-	send_input_byte(dut, block);
+	spi_send(block);
 	
-	send_input_byte(dut, (instr >> 24) & 0xFFFF);
+	spi_send((instr >> 24) & 0xFFFF);
 	
-	send_input_byte(dut, (instr >> 16) & 0xFFFF);
+	spi_send((instr >> 16) & 0xFFFF);
 	
-	send_input_byte(dut, (instr >> 8) & 0xFFFF);
+	spi_send((instr >> 8) & 0xFFFF);
 	
-	send_input_byte(dut, instr & 0xFFFF);
+	spi_send(instr & 0xFFFF);
 }
 
-void send_data_command(Vdsp_engine_seq *dut, int command, uint16_t data)
+void send_data_command(Vtop *dut, int command, uint16_t data)
 {
-	send_input_byte(dut, command);
-	send_input_byte(dut, (data >> 8) & 0xFFFF);
-	send_input_byte(dut, data & 0xFFFF);
+	spi_send(command);
+	spi_send((data >> 8) & 0xFFFF);
+	spi_send(data & 0xFFFF);
 }
 
-void write_block_register(Vdsp_engine_seq* dut, int block, int reg, uint16_t val)
+void write_block_register(Vtop* dut, int block, int reg, uint16_t val)
 {
 	printf("Write block register: %d.%d <= %.06f\n", block, reg, (float)(val / (float)(1 << 15)));
 	
 	printf("Send command COMMAND_WRITE_BLOCK_REG\n");
-	send_input_byte(dut, COMMAND_WRITE_BLOCK_REG);
+	spi_send(COMMAND_WRITE_BLOCK_REG);
 	
 	printf("Send block number\n");
-	send_input_byte(dut, block);
+	spi_send(block);
 	
 	printf("Send register number\n");
 	
-	send_input_byte(dut, reg & 0xFFFF);
+	spi_send(reg & 0xFFFF);
 	
 	printf("Send value\n");
-	send_input_byte(dut, (val >> 8) & 0xFFFF);
+	spi_send((val >> 8) & 0xFFFF);
 	
-	send_input_byte(dut, val & 0xFFFF);
+	spi_send(val & 0xFFFF);
 }
 
-void load_biquad(Vdsp_engine_seq* dut,
+void load_biquad(Vtop* dut,
                  int base_block,
                  float b0, float b1, float b2,
                  float a1, float a2)
@@ -289,21 +342,23 @@ int pow2_ceil(int x)
 
 #define MS_TO_SAMPLES(x) ((int)roundf(((float)x * 48.0f)))
 
-void alloc_sram_delay(Vdsp_engine_seq *dut, int ms)
+void alloc_sram_delay(Vtop *dut, int ms)
 {
 	printf("Allocating SRAM delay buffer of size %d\n", pow2_ceil(MS_TO_SAMPLES(ms)));
 	send_data_command(dut, COMMAND_ALLOC_SRAM_DELAY, pow2_ceil(MS_TO_SAMPLES(ms)));
 }
 
-// ---------------- Simulation ----------------
 int main(int argc, char** argv)
 {
     Verilated::commandArgs(argc, argv);
 
-    if (argc < 3) {
+    if (argc < 3)
+    {
         std::cerr << "Usage: " << argv[0] << " in.wav out.wav\n";
         return 1;
     }
+    
+    sim_io_init(&io);
 
     const char* in_path  = argv[1];
     const char* out_path = argv[2];
@@ -316,10 +371,12 @@ int main(int argc, char** argv)
     }
 
     std::vector<int16_t> out_samples;
-    out_samples.reserve(in_samples.size());
+    
+    int n_samples = in_samples.size();
+    
+    out_samples.reserve(n_samples);
 
     // ---------------- Verilator DUT ----------------
-    Vdsp_engine_seq* dut = new Vdsp_engine_seq;
 
 	Verilated::traceEverOn(true);
 	
@@ -329,156 +386,45 @@ int main(int argc, char** argv)
 	tfp->open("./verilator/waveform.fst");
 	#endif
 
-    const int TICKS_PER_SAMPLE = 128;   // <-- change as needed
 
-    // Reset
-    dut->reset = 1;
-    dut->clk = 0;
-    dut->in_sample = 0;
-    dut->sample_ready  = 0;
+	for (int i = 0; i < 16; i++)
+		tick();
 
-    tick(dut);
-    tick(dut);
-    tick(dut);
-    tick(dut);
-    tick(dut);
-    tick(dut);
-    
-    dut->reset = 0;
+	load_biquad(dut, 0, (float)0.0039160767, (float)0.0078321534, (float)0.0039160767, (float)-1.8153179157, (float)0.8309822224);
 
-	// Trivial biquad
-	//load_biquad(dut, 0, 1, 0, 0, 0, 0);
-	
-	// 1kHz LPF
-	//load_biquad(dut, 0, (float)0.0039160767, (float)0.0078321534, (float)0.0039160767, (float)-1.8153179157, (float)0.8309822224);
+	spi_send(COMMAND_SWAP_PIPELINES);
 
-	// 200Hz HPF
-	load_biquad(dut, 0, (float)0.9816555739f, (float)-1.9633111479f, (float)0.9816555739f, (float)-1.9629747014f, (float)0.9636475944f);
-	
-	// 2kHz band-pass
-	//load_biquad(dut, 0, (float)0.1253540215, (float)0.0, (float)-0.1253540215, (float)-1.8713103092, (float)0.9373229892);
-
-	/*write_block_instr(dut, 0, BLOCK_INSTR(BLOCK_INSTR_ENVD,
-		0, 0, 0, 0,
-		0, 0, 0, 0,
-		0));
-	tick(dut);tick(dut);tick(dut);tick(dut);tick(dut);tick(dut);tick(dut);tick(dut);
-	write_block_register(dut, 0, 0, float_to_q15(0.99f));
-	write_block_register(dut, 0, 1, float_to_q15(0.01f));*/
-
-	int delay;
-
-	/*int delay = 254;
-
-	alloc_sram_delay(dut, delay);
-	
-	write_block_instr(dut, 0, BLOCK_INSTR(BLOCK_INSTR_DELAY, 0, 0, 0, 0, 0, 0, 0, 0, 0));
-	write_block_register(dut, 0, 1, MS_TO_SAMPLES(delay));
-	write_block_register(dut, 0, 2, float_to_q15(0.5f));
-	*/
-	
-	/*
-	delay = 127;
-
-	alloc_sram_delay(dut, delay);
-	
-	write_block_instr(dut, 1, BLOCK_INSTR(BLOCK_INSTR_DELAY, 0, 0, 0, 0, 0, 0, 0, 0, 0));
-	write_block_register(dut, 1, 0, 1);
-	write_block_register(dut, 1, 1, MS_TO_SAMPLES(delay));
-	write_block_register(dut, 1, 2, float_to_q15(0.5f));
-	*/
-	//
-	
-	//write_block_instr(dut, 1, BLOCK_INSTR(BLOCK_INSTR_MUL, 0, 0, 0, 0, 0, 0, 0, 0, 0));
-	//write_block_register(dut, 1, 0, float_to_q15(0.5));
-
-
-	//write_block_instr(dut, 0, BLOCK_INSTR(BLOCK_INSTR_MUL, 0, 0, 0, 0, 0, 1, 0, 0, 0));
-	//write_block_register(dut, 0, 0, float_to_q15(0.7f));
-	
-	/*write_block_instr(dut, 1, BLOCK_INSTR(BLOCK_INSTR_LUT, 0, 0, 0, 0, 0, 1, 0, 0, 0));
-	
-	write_block_instr(dut, 2, BLOCK_INSTR(BLOCK_INSTR_MUL, 0, 0, 0, 0, 0, 1, 0, 0, 0));
-	write_block_register(dut, 2, 0, float_to_q15(0.5));*/
-	
-	/*write_block_register(dut, 0, 0, 10);
-    write_block_instr(dut, 0,
-        BLOCK_INSTR_S(BLOCK_INSTR_ADD, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0));*/
-	
-	send_input_byte(dut, COMMAND_SWAP_PIPELINES);
-
-    // ---------------- Main loop ----------------
-    size_t last_percent = 0;
-
-    for (size_t i = 0; i < in_samples.size(); ++i)
-    {
-		// Feed sample
-        dut->in_sample = static_cast<int16_t>(in_samples[i]);
-        dut->sample_ready  = 1;
-        
-        tick(dut);
-		dut->sample_ready  = 0;
-
-        // Tick pipeline for this sample
-        for (int t = 0; t < TICKS_PER_SAMPLE; ++t)
-        {
-            tick(dut);
-            
-            if (dut->ready)
+	int samples_processed = 0;
+    for (int i = 0; i < (1 << 25); i++)
+	{
+		tick();
+		
+		if (io.i2s_ready)
+		{
+			if (samples_processed < n_samples)
+			{
+				samples_processed++;
+				io.sample_in = static_cast<int16_t>(in_samples[samples_processed]);
+				int16_t y = static_cast<int16_t>(io.sample_out);
+				out_samples.push_back(y);
+				io.i2s_ready = 0;
+				
+				printf("Processed %d/%d samples...\n", samples_processed, n_samples);
+			}
+			else
+			{
 				break;
-        }
-        
-        /*if (i == (1 << 16))
-        {
-			printf("\rSwap pipelines...\n");
-			send_input_byte(dut, COMMAND_SWAP_PIPELINES);
-			send_input_byte(dut, COMMAND_RESET_PIPELINE);
-			printf("Done\n");
-		}
-		
-		if (i == (1 << 16) + (1 << 15))
-		{
-			printf("\rSet up the background pipeline...\n");
-			delay = 127;
-			alloc_sram_delay(dut, delay);
-			
-			write_block_instr(dut, 0, BLOCK_INSTR(BLOCK_INSTR_DELAY, 0, 0, 0, 0, 0, 0, 0, 0, 0));
-			write_block_register(dut, 0, 0, 0);
-			write_block_register(dut, 0, 1, MS_TO_SAMPLES(delay));
-			write_block_register(dut, 0, 2, float_to_q15(0.5f));
-			printf("Done\n");
-		}
-		
-		if (i == (1 << 16) + (1 << 15) + (1 << 14))
-		{
-			printf("\rSwap pipelines...\n");
-			send_input_byte(dut, COMMAND_SWAP_PIPELINES);
-		}*/
-		
-		if (i == (1 << 17))
-			break;
-
-        // Capture output
-        int16_t y = static_cast<int16_t>(dut->out_sample);
-        out_samples.push_back(y);
-
-        // Progress report
-        if (i % 1024 == 0)
-		{
-			size_t percent = (100 * i) / in_samples.size();
-			
-			std::cout << "\rProgress: " << i << "/" << in_samples.size() << " samples processed ("<< percent << "% done)" << std::flush;
+			}
 		}
     }
 
-    std::cout << "\rProgress: " << in_samples.size() << "/" << in_samples.size() << " samples processed (100% done)" << std::endl;
-    
     #ifdef DUMP_WAVEFORM
 	tfp->close();
 	delete tfp;
 	#endif
 	
-    if (!write_wav16_mono(out_path, header, out_samples)) {
+    if (!write_wav16_mono(out_path, header.sample_rate, out_samples))
+    {
         std::cerr << "Failed to write WAV\n";
         return 1;
     }

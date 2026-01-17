@@ -1,1 +1,19 @@
-verilator src/pipeline.v src/block.v src/lut.v src/pipeline_seq.v src/rr_arbiter.v src/lut_master.v src/controller.v src/sram.v src/delay_master.v src/spi.v src/i2s.v src/fifo.v src/mixer.v src/top.v src/seq.v --top-module dsp_engine_seq  -Wno-fatal -Isrc -Iinclude -cc --trace-fst -exe verilator/sim_main.cpp && make -C obj_dir -j -f Vdsp_engine_seq.mk Vdsp_engine_seq
+verilator  src/pipeline.v 			\
+		   src/block.v 				\
+		   src/lut.v 				\
+		   src/pipeline_seq.v 		\
+		   src/rr_arbiter.v 		\
+		   src/lut_master.v 		\
+		   src/controller.v 		\
+		   src/sram.v 				\
+		   src/delay_master.v 		\
+		   src/spi.v 				\
+		   src/i2s.v 				\
+		   src/fifo.v 				\
+		   src/mixer.v 				\
+		   src/top.v 				\
+		   src/seq.v 				\
+		   src/engine_seq.v 		\
+		   src/biquad.v				\
+	--top-module top  -Wno-fatal -Isrc -Iinclude -cc --trace-fst -exe verilator/sim_io.cpp verilator/sim_main.cpp \
+	&& make -C obj_dir -j -f Vtop.mk Vtop

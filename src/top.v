@@ -1,6 +1,6 @@
 module top
 	#(
-		parameter n_blocks 			= 3,
+		parameter n_blocks 			= 255,
 		parameter n_block_registers = 4,
 		parameter n_channels 		= 4,
 		parameter data_width 		= 16,
@@ -9,7 +9,11 @@ module top
 		parameter spi_fifo_length	= 32
 	)
     (
+		`ifndef verilator
         input wire crystal,
+        `else
+        input wire sys_clk,
+        `endif
 
         input  wire cs,
         input  wire mosi,
@@ -33,32 +37,51 @@ module top
         output wire codec_en
     );
     
-    wire clk_112m;
-    wire clk_11m;
     wire pll_lock;
+    
+    `ifndef verilator
+    wire sys_clk;
+    wire mclk;
+    `else
+    reg mclk = 0;
+    assign pll_lock = 1;
+    `endif
 
     reg reset = 1;
     
+    `ifndef verilator
     // Your existing PLL
     Gowin_rPLL pll(
-        .clkout(clk_112m),
-        .clkoutd(clk_11m),
+        .clkout(sys_clk),
+        .clkoutd(mclk),
         .clkin(crystal),
         .lock(pll_lock)
     );
+    `else
+    reg [2:0] mclk_ctr = 0;
+    
+    always @(posedge sys_clk) begin
+		if (mclk_ctr == 4) begin
+			mclk <= ~mclk;
+			mclk_ctr <= 0;
+		end else begin
+			mclk_ctr <= mclk_ctr + 1;
+		end    
+    end
+    `endif
 
     assign codec_en = pll_lock;
-    assign mclk_out = clk_11m;
+    assign mclk_out = mclk;
     
     // Internal registers for clock dividers
     reg [3:0] bclk_counter = 4'd0;  // Divide by 4 from 11.25M to get ~2.8MHz (44.1kHz * 32)
     reg bclk = 1'b0;
     
-    reg [5:0] lrclk_counter = 5'd0; // Divide by 64 from 2.8MHz to get 44.1kHz
+    reg [5:0] lrclk_counter = 5'd0; // Divide by 64 from 2.8MHz to get ~44.1kHz
     assign lrclk = lrclk_counter[5];
     
-    // BCLK: clk_11m / 4  -> 2.8224 MHz
-    always @(posedge clk_11m) begin
+    // BCLK: mclk / 4  -> 2.8224 MHz
+    always @(posedge mclk) begin
         if (pll_lock) begin
             reset <= 0;
             bclk_counter <= bclk_counter + 1'b1;
@@ -74,7 +97,7 @@ module top
 
     
     // Assign outputs
-    assign bclk_out = bclk;
+    assign bclk_out  = bclk;
     assign lrclk_out = lrclk;
     
     reg [31:0] ctr = 0;
@@ -84,7 +107,7 @@ module top
 
     reg [4:0] spi_byte_ctr = 0;
 
-    always  @(posedge clk_112m) begin
+    always  @(posedge sys_clk) begin
         if (spi_in_valid)
             spi_capture <= spi_in;
 
@@ -135,7 +158,7 @@ module top
             .sram_bank_size(sram_bank_size),
             .spi_fifo_length(spi_fifo_length)
         ) engine (
-            .clk(clk_112m),
+            .clk(sys_clk),
             .reset(reset),
 
             .in_sample(sample_in),
@@ -154,7 +177,7 @@ module top
 
     sync_spi_slave spi
         (
-            .clk(clk_112m),
+            .clk(sys_clk),
             .reset(reset),
 
             .sck(sck),

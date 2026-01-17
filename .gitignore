@@ -3,6 +3,9 @@ impl/temp/rtl_parser_arg.json
 <<<<<<< Updated upstream
 
 .fst
+.wav
+verilator/*.wav
+
 verilator/waveform.vst
 =======
 dude.gprj.user

@@ -2,7 +2,7 @@
 
 module dsp_engine_seq
 	#(
-		parameter n_blocks 			= 256,
+		parameter n_blocks 			= 255,
 		parameter n_block_registers = 16,
 		parameter data_width 		= 16,
 		parameter n_channels 		= 16,
