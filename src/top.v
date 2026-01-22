@@ -41,7 +41,7 @@ module top
     
     `ifndef verilator
     wire sys_clk;
-    wire mclk;
+    reg mclk;
     `else
     reg mclk = 0;
     assign pll_lock = 1;
@@ -53,22 +53,36 @@ module top
     // Your existing PLL
     Gowin_rPLL pll(
         .clkout(sys_clk),
-        .clkoutd(mclk),
+        //.clkoutd(mclk),
         .clkin(crystal),
         .lock(pll_lock)
     );
     `else
+    
+    `endif
+
     reg [2:0] mclk_ctr = 0;
     
     always @(posedge sys_clk) begin
 		if (mclk_ctr == 4) begin
 			mclk <= ~mclk;
 			mclk_ctr <= 0;
+
+            if (pll_lock) begin
+                reset <= 0;
+                bclk_counter <= bclk_counter + 1'b1;
+                if (bclk_counter == 1) begin
+                    bclk <= ~bclk;
+                    bclk_counter <= 0;
+
+                    if (bclk)
+                        lrclk_counter <= lrclk_counter + 1;
+                end
+            end
 		end else begin
 			mclk_ctr <= mclk_ctr + 1;
 		end    
     end
-    `endif
 
     assign codec_en = pll_lock;
     assign mclk_out = mclk;
@@ -79,9 +93,9 @@ module top
     
     reg [5:0] lrclk_counter = 5'd0; // Divide by 64 from 2.8MHz to get ~44.1kHz
     assign lrclk = lrclk_counter[5];
-    
+
     // BCLK: mclk / 4  -> 2.8224 MHz
-    always @(posedge mclk) begin
+    /*always @(posedge mclk) begin
         if (pll_lock) begin
             reset <= 0;
             bclk_counter <= bclk_counter + 1'b1;
@@ -93,7 +107,7 @@ module top
                     lrclk_counter <= lrclk_counter + 1;
             end
         end
-    end
+    end*/
 
     
     // Assign outputs
@@ -108,6 +122,10 @@ module top
     reg [4:0] spi_byte_ctr = 0;
 
 
+    reg reg_write_blinker = 0;
+    reg [31:0] reg_write_blink_ctr = 0;
+    reg instr_write_blinker = 0;
+    reg [31:0] instr_write_blink_ctr = 0;
     reg spi_valid_blinker = 0;
     reg [31:0] spi_valid_blink_ctr = 0;
 
@@ -119,6 +137,36 @@ module top
                 spi_valid_blink_ctr <= spi_valid_blink_ctr - 1;
             end else begin
                 spi_valid_blinker <= 0;
+            end
+        end
+
+        if (reg_write_blinker) begin
+            if (|reg_write_blink_ctr) begin
+                reg_write_blink_ctr <= reg_write_blink_ctr - 1;
+            end else begin
+                reg_write_blinker <= 0;
+            end
+        end
+
+        if (reg_write_ack) begin
+            if (!reg_write_blinker) begin
+                reg_write_blinker <= 1;
+                reg_write_blink_ctr <= 50500000;
+            end
+        end
+
+        if (instr_write_blinker) begin
+            if (|instr_write_blink_ctr) begin
+                instr_write_blink_ctr <= instr_write_blink_ctr - 1;
+            end else begin
+                instr_write_blinker <= 0;
+            end
+        end
+
+        if (instr_write_ack) begin
+            if (!instr_write_blinker) begin
+                instr_write_blinker <= 1;
+                instr_write_blink_ctr <= 50500000;
             end
         end
 
@@ -157,10 +205,12 @@ module top
     assign led3 = ~(|sample_in_abs[15:12]);
     assign led4 = ~(|sample_out_abs[15:12]);*/
 
-    assign led0 = ~(spi_valid_blinker);
-    assign led1 = ~(|spi_capture[3:2]);
-    assign led3 = ~(|spi_capture[5:4]);
-    assign led4 = ~(|spi_capture[7:6]);
+    assign led0 = ~(current_pipeline);
+    assign led1 = ~(control_state[5]);
+    assign led3 = ~(control_state[6]);
+    assign led4 = ~(control_state[7]);
+
+    wire [7:0] control_state;
 
     localparam sample_size = 16;
 
@@ -177,9 +227,14 @@ module top
     reg tick_engine = 0;
     reg sample_ack = 0;
 
+    wire reg_write_ack;
+    wire instr_write_ack;
+
+    wire current_pipeline;
+
     i2s_trx #(.sample_size(sample_size)) i2s_driver
     (
-        .bclk(bclk), .lrclk(lrclk), .din(i2s_din), .dout(i2s_dout),
+        .sys_clk(sys_clk), .bclk(bclk), .lrclk(lrclk), .din(i2s_din), .dout(i2s_dout),
         .enable(1'b1), .reset(reset), .rx_valid(sample_valid),
         .tx_l(sample_out), .tx_r(sample_out),
         .rx_l(sample_in), .rx_r()
@@ -205,12 +260,12 @@ module top
             .command_in(spi_in),
             .command_in_ready(spi_in_valid),
             .invalid_command(invalid_command),
-        
+
             .ready(engine_ready),
         
             .fifo_count(fifo_count),
 
-            .current_pipeline()
+            .current_pipeline(current_pipeline)
         );
 
     sync_spi_slave spi

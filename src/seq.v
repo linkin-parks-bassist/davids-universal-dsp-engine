@@ -29,6 +29,7 @@ module dsp_core #(
 		input wire signed [data_width 	  					 - 1 : 0] command_reg_write_val,
 		
 		output reg reg_write_ack,
+        output reg instr_write_ack,
 		
 		output reg lut_req,
 		output reg signed [`LUT_HANDLE_WIDTH - 1 : 0] lut_handle,
@@ -51,6 +52,15 @@ module dsp_core #(
 	reg signed [data_width - 1 : 0] mul_req_b;
 	
 	wire signed [2 * data_width - 1 : 0] mul_result = mul_req_a * mul_req_b;
+
+	reg signed  [2 * data_width - 1 : 0] mul_result_latched;
+    wire signed [2 * data_width - 1 : 0] mul_result_latched_shifted =
+            $signed(mul_result_latched) >>> (data_width - 1 - instr_shift_latched);
+	reg signed  [2 * data_width - 1 : 0] mul_result_latched_shifted_latched;
+	wire signed [2 * data_width - 1 : 0] mul_result_latched_shifted_latched_saturated =
+        (mul_result_latched_shifted_latched > sat_max) ?  sat_max[data_width-1:0] :
+		(mul_result_latched_shifted_latched < sat_min) ?  sat_min[data_width-1:0] :
+							   mul_result_latched_shifted_latched[data_width-1:0];
 	
 	wire mul_ready = ~wait_one;
 	
@@ -63,6 +73,7 @@ module dsp_core #(
 	// Instruction decoding
 	//
 	wire [`BLOCK_INSTR_OP_WIDTH - 1 : 0] operation;
+	reg [`BLOCK_INSTR_OP_WIDTH - 1 : 0] operation_latched;
 	
 	wire [`BLOCK_REG_ADDR_WIDTH - 1 : 0] src_a;
 	wire [`BLOCK_REG_ADDR_WIDTH - 1 : 0] src_b;
@@ -75,8 +86,10 @@ module dsp_core #(
 	wire dest_reg;
 
 	wire saturate;
+    reg saturate_latched;
 
 	wire [`SHIFT_WIDTH - 1 : 0] instr_shift;
+	reg [`SHIFT_WIDTH - 1 : 0] instr_shift_latched;
 	
 	wire [`BLOCK_RES_ADDR_WIDTH - 1 : 0] res_addr;
 	
@@ -147,22 +160,6 @@ module dsp_core #(
 	
     wire [data_width - 1 : 0] sum_final = saturate ? sum_sat : sum_nsat;
 
-	//
-	// Saturation and format compensation for muls
-	//
-
-	// Arithmetic shift
-	wire signed [2 * data_width - 1 : 0] mul_result_shifted =
-		$signed(mul_result) >>> (data_width - 1 - instr_shift);
-
-	// Final saturation and narrowing
-	wire signed [data_width-1:0] mul_result_sat =
-		(mul_result_shifted > sat_max) ?  sat_max[data_width-1:0] :
-		(mul_result_shifted < sat_min) ?  sat_min[data_width-1:0] :
-							   mul_result_shifted[data_width-1:0];
-	
-    wire signed [data_width-1:0] mul_result_nsat = mul_result_shifted[data_width-1:0];
-    wire signed [data_width-1:0] mul_result_final = saturate ? mul_result_sat : mul_result_nsat;
 	
 	reg [12:0] state = `BLOCK_STATE_READY;
 	reg [12:0] ret_state;
@@ -215,6 +212,7 @@ module dsp_core #(
 	always @(posedge clk) begin
 		wait_one <= 0;
 		reg_write_ack <= 0;
+        instr_write_ack <= 0;
 		
 		instr 		<= instrs	[current_block];
 		reg_fetch 	<= regs		[reg_fetch_addr];
@@ -224,11 +222,12 @@ module dsp_core #(
 		if (command_instr_write) begin
 			instrs[command_block_target] <= command_instr_write_val;
 			last_block <= (command_block_target > last_block) ? command_block_target : last_block;
+            instr_write_ack <= 1;
 		end
 		
 		command_reg_write_prev <= command_reg_write;
 		
-		if (command_reg_write & ~ command_reg_write_prev)
+		if (command_reg_write & ~command_reg_write_prev)
 			command_reg_write_rose <= 1;
 		
 		if (mem_write) begin
@@ -389,12 +388,16 @@ module dsp_core #(
 				end
 				
 				`CORE_STATE_BLOCK_START: begin
+                    saturate_latched <= saturate;
+                    instr_shift_latched <= instr_shift;
+                    operation_latched <= operation;
+                    
 					state <= `CORE_STATE_FETCH_SRC_A;
 					ret_state <= `CORE_STATE_DISPATCH;
 				end
 					
 				`CORE_STATE_DISPATCH: begin
-					case (operation)
+					case (operation_latched)
 						`BLOCK_INSTR_NOP: begin
 							state <= `CORE_STATE_CONTINUE;
 						end
@@ -519,7 +522,17 @@ module dsp_core #(
 				end
 				
 				`CORE_STATE_MUL_2: begin
-					work <= mul_result_final;
+                    mul_result_latched <= mul_result;
+                    state <= `CORE_STATE_MUL_3;
+                end
+
+				`CORE_STATE_MUL_3: begin
+                    mul_result_latched_shifted_latched <= mul_result_latched_shifted;
+                    state <= `CORE_STATE_MUL_4;
+                end
+
+                `CORE_STATE_MUL_4: begin
+					work <= saturate_latched ? mul_result_latched_shifted_latched_saturated : mul_result_latched_shifted_latched;
 					state <= `CORE_STATE_FINISH_BLOCK;
 				end
 
@@ -536,13 +549,23 @@ module dsp_core #(
 				end
 				
 				`CORE_STATE_MAD_3: begin
-					summand_a <= mul_result_final;
+                    mul_result_latched <= mul_result;
+                    state <= `CORE_STATE_MAD_4;
+                end
+
+                `CORE_STATE_MAD_4: begin
+                    mul_result_latched_shifted_latched <= mul_result_latched_shifted;
+                    state <= `CORE_STATE_MAD_5;
+                end
+
+                `CORE_STATE_MAD_5: begin
+					summand_a <= saturate_latched ? mul_result_latched_shifted_latched_saturated : mul_result_latched_shifted_latched;
 					summand_b <= src_c_latched;
 					
-					state <= `CORE_STATE_MAD_4;
+					state <= `CORE_STATE_MAD_6;
 				end
 				
-				`CORE_STATE_MAD_4: begin
+				`CORE_STATE_MAD_6: begin
 					work <= sum_final;
 					state <= `CORE_STATE_FINISH_BLOCK;
 				end
@@ -577,7 +600,17 @@ module dsp_core #(
 				end
 				
 				`CORE_STATE_MAC_2: begin
-					accumulator <= accumulator + mul_result_shifted;
+                    mul_result_latched <= mul_result;
+                    state <= `CORE_STATE_MAC_3;
+                end
+				
+				`CORE_STATE_MAC_3: begin
+                    mul_result_latched_shifted_latched <= mul_result_latched_shifted;
+                    state <= `CORE_STATE_MAC_4;
+                end
+
+				`CORE_STATE_MAC_4: begin
+					accumulator <= accumulator + mul_result_latched_shifted_latched;
 					state <= `CORE_STATE_CONTINUE;
 				end
 			endcase

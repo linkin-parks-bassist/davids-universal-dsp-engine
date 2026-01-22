@@ -208,8 +208,6 @@ module dsp_engine_seq
 			.block_reg_write(block_reg_write),
 			.block_reg_update(block_reg_update),
 			
-			.reg_write_ack(reg_write_acks),
-			
 			.alloc_sram_delay(alloc_sram_delay),
 			
 			.swap_pipelines(swap_pipelines),

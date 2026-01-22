@@ -261,13 +261,15 @@ endmodule
 
 module control_unit_seq
 	#(
-		parameter n_blocks 		= 32,
-		parameter n_block_registers 	= 16,
-		parameter data_width 	= 16
+		parameter n_blocks 	    	= 32,
+		parameter n_block_registers = 16,
+		parameter data_width 	    = 16
 	)
 	(
 		input wire clk,
 		input wire reset,
+
+        output wire [7:0] control_state,
 		
 		input wire [7:0] in_byte,
 		input wire in_ready,
@@ -276,8 +278,6 @@ module control_unit_seq
 		output reg [$clog2(n_blocks) + `BLOCK_REG_ADDR_WIDTH - 1 : 0] reg_target,
 		output reg [`BLOCK_INSTR_WIDTH    - 1 : 0] instr_out,
 		output reg [data_width 			  - 1 : 0] data_out,
-		
-		input wire [1:0] reg_write_ack,
 		
 		output reg [1:0] block_instr_write,
 		output reg [1:0] block_reg_write,
@@ -301,6 +301,7 @@ module control_unit_seq
 	
 	localparam instr_n_bytes = `BLOCK_INSTR_WIDTH / 8;
 	
+    assign control_state = state;
 	reg [7:0] state = `CONTROLLER_STATE_READY;
 	reg [7:0] ret_state;
 	
@@ -317,6 +318,8 @@ module control_unit_seq
 	reg wait_one = 0;
 	
 	wire target_pipeline = ~command[3];
+
+    assign ready = (state == `CONTROLLER_STATE_READY);
 	
 	always @(posedge clk) begin
 		wait_one <= 0;
@@ -378,7 +381,7 @@ module control_unit_seq
 							load_block_instr  <= 0;
 							
 							state <= `CONTROLLER_STATE_GET_BLOCK_NUMBER;
-							ret_state <= `CONTROLLER_STATE_UPDATE_BLOCK_REG;
+							ret_state <= `CONTROLLER_STATE_WRITE_BLOCK_REG;
 						end
 
 						`COMMAND_ALLOC_SRAM_DELAY: begin
@@ -518,18 +521,6 @@ module control_unit_seq
 
 				`CONTROLLER_STATE_WRITE_BLOCK_REG: begin
 					block_reg_write[target_pipeline] <= 1;
-					state <= `CONTROLLER_STATE_WRITE_BLOCK_REG_WAIT;
-				end
-					
-				`CONTROLLER_STATE_WRITE_BLOCK_REG_WAIT: begin
-					if (!wait_one && reg_write_ack[target_pipeline]) begin
-						block_reg_write[target_pipeline] <= 0;
-						state <= `CONTROLLER_STATE_READY;
-					end
-				end
-
-				`CONTROLLER_STATE_UPDATE_BLOCK_REG: begin
-					block_reg_update[target_pipeline] <= 1;
 					state <= `CONTROLLER_STATE_READY;
 				end
 

@@ -1,3 +1,7 @@
+`define PIPELINE_READY 			0
+`define PIPELINE_PROCESSING 	1
+`define PIPELINE_INVALID	 	2
+
 module pipeline_seq
 	#(
 		parameter n_blocks 			= 256,
@@ -29,6 +33,7 @@ module pipeline_seq
 		input wire reg_update,
 		input wire reg_write,
 		output wire reg_write_ack,
+        output wire instr_write_ack,
 	
 		input wire alloc_sram_delay
 	);
@@ -166,6 +171,7 @@ module pipeline_seq
 		.command_reg_write_val(ctrl_data),
 		
 		.reg_write_ack(reg_write_ack),
+		.instr_write_ack(instr_write_ack),
 		
 		.lut_req(lut_req),
 		.lut_handle(lut_req_handle),
