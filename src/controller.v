@@ -111,7 +111,7 @@ module control_unit
 							load_block_instr  <= 0;
 							
 							state <= `CONTROLLER_STATE_GET_BLOCK_NUMBER;
-							ret_state <= `CONTROLLER_STATE_UPDATE_BLOCK_REG;
+							ret_state <= `COMMAND_WRITE_BLOCK_REG;
 						end
 
 						`COMMAND_ALLOC_SRAM_DELAY: begin
@@ -230,11 +230,6 @@ module control_unit
 
 				`CONTROLLER_STATE_WRITE_BLOCK_REG: begin
 					block_reg_write[target_pipeline] <= 1;
-					state <= `CONTROLLER_STATE_READY;
-				end
-
-				`CONTROLLER_STATE_UPDATE_BLOCK_REG: begin
-					block_reg_update[target_pipeline] <= 1;
 					state <= `CONTROLLER_STATE_READY;
 				end
 

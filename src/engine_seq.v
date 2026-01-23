@@ -43,7 +43,6 @@ module dsp_engine_seq
     wire pipeline_a_error;
     wire pipeline_b_error;
 
-    //wire current_pipeline;
     wire pipelines_swapping;
 
     wire [1:0] block_instr_write;
