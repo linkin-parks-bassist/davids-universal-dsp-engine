@@ -94,6 +94,8 @@ module dsp_core #(
 	wire [`BLOCK_RES_ADDR_WIDTH - 1 : 0] res_addr;
 	
 	instr_decoder #(.data_width(data_width)) dec(
+		.clk(clk),
+		
 		.instr(instr),
 		
 		.operation(operation),

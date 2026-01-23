@@ -1,19 +1,1241 @@
-#include <stdlib.h>
-#include <stdint.h>
+#include <cstdio>
+#include <cstdint>
 #include <string.h>
-#include <stdio.h>
 #include <math.h>
+#include "sim_ctrl.h"
+#include "sim_io.h"
 
-#include "sim_main.h"
+#define NO_ERROR 			0
+#define ERR_NULL_PTR 		1
+#define ERR_BAD_ARGS 		2
+#define ERR_ALLOC_FAIL 		3
+#define ERR_UNIMPLEMENTED 	4
 
-#define IBM(x) ((1u << x) - 1)
+#define m_alloc 	malloc
+#define m_realloc 	realloc
+#define m_strndup 	strndup
+#define m_free 		free
 
-int range_bits(int x, int n, int start)
+char bin_buf[35];
+
+char *binary_print_16(uint16_t x)
 {
-	return (x >> start) & ((1u << n) - 1);
+	sprintf(bin_buf, "0b%016b", x);
+	return bin_buf;
 }
 
-uint32_t encode_type_a_instr(int opcode, int src_a, int src_b, int src_c, int dest,
+int16_t float_to_q_nminus1(float x, int shift)
+{
+    int n = 15 - shift;
+
+    float scale = (float)(1 << n);
+
+    float max =  (float)((1 << 15) - 1) / scale;
+    float min = -(float)(1 << 15)       / scale;
+
+    if (x > max) x = max;
+    if (x < min) x = min;
+
+    return (int16_t)lrintf(x * scale);
+}
+
+
+int16_t float_to_q15(float x)
+{
+	if (x >= 0.999969482421875f) return  32767;
+    if (x <= -1.0f)              return -32768;
+    
+    return (int16_t)lrintf(x * 32768.0f);
+}
+
+m_dsp_block *new_m_dsp_block()
+{
+	m_dsp_block *result = (m_dsp_block*)m_alloc(sizeof(m_dsp_block));
+	
+	for (int i = 0; i < N_BLOCKS_REGS; i++)
+		result->reg_vals[i] = NULL;
+	
+	return result;
+}
+
+m_dsp_block *new_m_dsp_block_with_instr(m_dsp_block_instr instr)
+{
+	m_dsp_block *result = (m_dsp_block*)m_alloc(sizeof(m_dsp_block));
+	
+	for (int i = 0; i < N_BLOCKS_REGS; i++)
+		result->reg_vals[i] = NULL;
+	
+	result->instr = instr;
+	
+	return result;
+}
+
+int m_dsp_block_add_register_val(m_dsp_block *blk, int i, m_dsp_register_val *p)
+{
+	if (!blk || !p || i < 0 || i > N_BLOCKS_REGS)
+		return ERR_NULL_PTR;
+
+	p->reg = i;
+	
+	blk->reg_vals[i] = p;
+	return NO_ERROR;
+}
+
+// Compute arity in the sense of, how many sub-dq's it uses.
+// this is used to guard accesses to the array dq->sub_dqs.
+// therefore, if in doubt, return 0.
+// it should not return x if dq->val.sub_dq[x-1]
+// is not a valid pointer to another dq
+int m_derived_quantity_arity(m_derived_quantity *dq)
+{
+	if (!dq) return NO_ERROR;
+	
+	// if the type is nonsense, return 0
+	if (dq->type < 0 || dq->type > M_DERIVED_QUANTITY_TYPE_MAX_VAL)
+		return NO_ERROR;
+	
+	if (dq->type == M_DERIVED_QUANTITY_CONST_FLT || dq->type == M_DERIVED_QUANTITY_CONST_INT || dq->type == M_DERIVED_QUANTITY_REFERENCE)
+		return NO_ERROR;
+	
+	// arity is at least 1 if we reach this point. there are more arity 1 types than arity 2, but also arity 2 will
+	// be more common, bc arithmetic. and none of arity 3. therefore, check the arity 2 case, then return 1 otherwise
+	if (dq->type == M_DERIVED_QUANTITY_FCALL_ADD
+	 || dq->type == M_DERIVED_QUANTITY_FCALL_SUB
+	 || dq->type == M_DERIVED_QUANTITY_FCALL_MUL
+	 || dq->type == M_DERIVED_QUANTITY_FCALL_DIV
+	 || dq->type == M_DERIVED_QUANTITY_FCALL_POW)
+		return 2;
+	
+	return ERR_NULL_PTR;
+}
+
+#define DQ_MAX_RECURSION_DEPTH 256
+
+static float m_derived_quantity_compute_rec(m_derived_quantity *dq, m_parameter_pll *params, int depth)
+{
+	if (!dq) return 0.0;
+	
+	if (dq->type == M_DERIVED_QUANTITY_REFERENCE)
+	{
+		if (!dq->val.ref_name || !params)
+			return 0.0;
+		
+		m_parameter_pll *current;
+		m_parameter *param;
+		
+		int cmplen = strlen(dq->val.ref_name) + 1;
+		
+		current = params;
+		
+		while (current)
+		{
+			param = current->data;
+			if (param && param->name_internal)
+			{
+				if (strncmp(dq->val.ref_name, param->name_internal, cmplen) == 0)
+					return param->value;
+			}
+			
+			current = current->next;
+		}
+		
+		return 0.0;
+	}
+	
+	if (dq->type == M_DERIVED_QUANTITY_CONST_FLT)
+	{
+		return dq->val.val_float;
+	}
+	else if (dq->type == M_DERIVED_QUANTITY_CONST_INT)
+	{
+		return (float)dq->val.val_int;
+	}
+	
+	if (depth > DQ_MAX_RECURSION_DEPTH || !dq->val.sub_dqs)
+		return 0.0;
+	
+	float x = 0.0;
+	float ret_val = 0.0;
+	
+	switch (dq->type)
+	{
+		case M_DERIVED_QUANTITY_FCALL_ADD:
+			ret_val = (m_derived_quantity_compute_rec(dq->val.sub_dqs[0], params, depth + 1) + m_derived_quantity_compute_rec(dq->val.sub_dqs[1], params, depth + 1));
+			break;
+
+		case M_DERIVED_QUANTITY_FCALL_SUB:
+			ret_val = m_derived_quantity_compute_rec(dq->val.sub_dqs[0], params, depth + 1) - m_derived_quantity_compute_rec(dq->val.sub_dqs[1], params, depth + 1);
+			break;
+
+		case M_DERIVED_QUANTITY_FCALL_MUL:
+			ret_val = m_derived_quantity_compute_rec(dq->val.sub_dqs[0], params, depth + 1) * m_derived_quantity_compute_rec(dq->val.sub_dqs[1], params, depth + 1);
+			break;
+
+		case M_DERIVED_QUANTITY_FCALL_DIV:
+			x = m_derived_quantity_compute_rec(dq->val.sub_dqs[1], params, depth + 1);
+			
+			if (fabsf(x) < 1e-20)
+				return 0.0; // avoid division by zero by just returning 0 lol. idk. what else to do?
+			
+			ret_val = m_derived_quantity_compute_rec(dq->val.sub_dqs[0], params, depth + 1) / x;
+			break;
+
+		case M_DERIVED_QUANTITY_FCALL_ABS:
+			ret_val = fabs(m_derived_quantity_compute_rec(dq->val.sub_dqs[0], params, depth + 1));
+			break;
+
+		case M_DERIVED_QUANTITY_FCALL_SQR: x = m_derived_quantity_compute_rec(dq->val.sub_dqs[0], params, depth + 1); ret_val = x * x;
+			break;
+
+		case M_DERIVED_QUANTITY_FCALL_EXP:
+			ret_val = exp(m_derived_quantity_compute_rec(dq->val.sub_dqs[0], params, depth + 1));
+			break;
+
+		case M_DERIVED_QUANTITY_FCALL_LOG:
+			ret_val = log(m_derived_quantity_compute_rec(dq->val.sub_dqs[0], params, depth + 1));
+			break;
+
+		case M_DERIVED_QUANTITY_FCALL_POW:
+			ret_val = pow(m_derived_quantity_compute_rec(dq->val.sub_dqs[0], params, depth + 1),
+						  m_derived_quantity_compute_rec(dq->val.sub_dqs[1], params, depth + 1));
+			break;
+		case M_DERIVED_QUANTITY_FCALL_SIN:
+			ret_val = sin(m_derived_quantity_compute_rec(dq->val.sub_dqs[0], params, depth + 1));
+			break;
+
+		case M_DERIVED_QUANTITY_FCALL_COS:
+			ret_val = cos(m_derived_quantity_compute_rec(dq->val.sub_dqs[0], params, depth + 1));
+			break;
+
+		case M_DERIVED_QUANTITY_FCALL_TAN:
+			ret_val = tan(m_derived_quantity_compute_rec(dq->val.sub_dqs[0], params, depth + 1));
+			break;
+	}
+	
+	return ret_val;
+}
+
+float m_derived_quantity_compute(m_derived_quantity *dq, m_parameter_pll *params)
+{
+	return m_derived_quantity_compute_rec(dq, params, 0);
+}
+
+int m_derived_quantity_references_param_rec(m_derived_quantity *dq, m_parameter *param, int depth)
+{
+	if (!dq || !param)
+		return NO_ERROR;
+	
+	if (!param->name_internal)
+		return NO_ERROR;
+	
+	int arity = m_derived_quantity_arity(dq);
+	
+	if (arity == 0)
+	{
+		if (dq->type != M_DERIVED_QUANTITY_REFERENCE)
+			return NO_ERROR;
+	
+		if (!dq->val.ref_name)
+				return NO_ERROR;
+			
+		return (strncmp(dq->val.ref_name, param->name_internal, strlen(dq->val.ref_name) + 1) == 0);
+	}
+	
+	if (depth > DQ_MAX_RECURSION_DEPTH)
+		return NO_ERROR;
+	
+	for (int i = 0; i < arity; i++)
+	{
+		if (m_derived_quantity_references_param_rec(dq->val.sub_dqs[i], param, depth + 1))
+			return ERR_NULL_PTR;
+	}
+	
+	return NO_ERROR;
+}
+
+int m_derived_quantity_references_param(m_derived_quantity *dq, m_parameter *param)
+{
+	return m_derived_quantity_references_param_rec(dq, param, 0);
+}
+
+int m_dsp_block_uses_param(m_dsp_block *blk, m_parameter *param)
+{
+	if (!blk || !param)
+		return NO_ERROR;
+	
+	for (int i = 0; i < M_DSP_BLOCK_N_REGS; i++)
+	{
+		if (blk->reg_vals[i])
+		{
+			if (m_derived_quantity_references_param(blk->reg_vals[i]->dq, param))
+				return ERR_NULL_PTR;
+		}
+	}
+	
+	return NO_ERROR;
+}
+
+int m_fpga_transfer_batch_append_block_register_write(m_fpga_transfer_batch *batch, int block_no, m_dsp_register_val *reg_val, m_parameter_pll *params)
+{
+	if (!batch)
+		return ERR_NULL_PTR;
+	
+	if (!reg_val)
+		return ERR_NULL_PTR;
+	
+	if (!reg_val->dq)
+		return ERR_BAD_ARGS;
+	
+	int ret_val;
+	
+	if ((ret_val = m_fpga_batch_append(batch, COMMAND_WRITE_BLOCK_REG)) != NO_ERROR) return ret_val;
+	
+	if (N_BLOCKS > 255)
+	{
+		if ((ret_val = m_fpga_batch_append(batch, (block_no & 0xFF00) >> 8)) != NO_ERROR) return ret_val;
+	}
+	
+	if ((ret_val = m_fpga_batch_append(batch, block_no & 0x00FF)) != NO_ERROR) return ret_val;
+	if ((ret_val = m_fpga_batch_append(batch, reg_val->reg)) 	  != NO_ERROR) return ret_val;
+	
+	int16_t s;
+	
+	if (reg_val->format == DSP_REG_FORMAT_LITERAL)
+	{
+		s = reg_val->dq->val.val_int;
+	}
+	else
+	{
+		float v = m_derived_quantity_compute(reg_val->dq, params);
+		
+		s = float_to_q_nminus1(v, reg_val->format);
+	}
+	
+	if ((ret_val = m_fpga_batch_append(batch, (s & 0xFF00) >> 8)) != NO_ERROR) return ret_val;
+	if ((ret_val = m_fpga_batch_append(batch, (s & 0x00FF))) 	  != NO_ERROR) return ret_val;
+	
+	return NO_ERROR;
+}
+
+int m_fpga_transfer_batch_append_block_register_update(m_fpga_transfer_batch *batch, int block_no, m_dsp_register_val *reg_val, m_parameter_pll *params)
+{
+	if (!batch)
+		return ERR_NULL_PTR;
+	
+	if (!reg_val)
+		return ERR_NULL_PTR;
+	
+	if (!reg_val->dq)
+		return ERR_BAD_ARGS;
+	
+	int ret_val;
+	
+	if ((ret_val = m_fpga_batch_append(batch, COMMAND_UPDATE_BLOCK_REG)) != NO_ERROR) return ret_val;
+	
+	if (N_BLOCKS > 255)
+	{
+		if ((ret_val = m_fpga_batch_append(batch, (block_no & 0xFF00) >> 8)) != NO_ERROR) return ret_val;
+	}
+	
+	if ((ret_val = m_fpga_batch_append(batch, block_no & 0x00FF)) != NO_ERROR) return ret_val;
+	if ((ret_val = m_fpga_batch_append(batch, reg_val->reg)) 	  != NO_ERROR) return ret_val;
+	
+	int16_t s;
+	
+	if (reg_val->format == DSP_REG_FORMAT_LITERAL)
+	{
+		s = reg_val->dq->val.val_int;
+	}
+	else
+	{
+		float v = m_derived_quantity_compute(reg_val->dq, params);
+		
+		s = float_to_q_nminus1(v, reg_val->format);
+	}
+	
+	if ((ret_val = m_fpga_batch_append(batch, (s & 0xFF00) >> 8)) != NO_ERROR) return ret_val;
+	if ((ret_val = m_fpga_batch_append(batch, (s & 0x00FF))) 	  != NO_ERROR) return ret_val;
+	
+	return NO_ERROR;
+}
+
+int m_fpga_transfer_batch_append_block_register_writes(m_fpga_transfer_batch *batch, m_dsp_block *blk, int blk_index, m_parameter_pll *params)
+{
+	if (!batch || !blk)
+		return ERR_NULL_PTR;
+	
+	int ret_val;
+	
+	for (int j = 0; j < N_BLOCKS_REGS; j++)
+	{
+		if (blk->reg_vals[j])
+		{
+			if ((ret_val = m_fpga_transfer_batch_append_block_register_write(batch, blk_index, blk->reg_vals[j], params)) != NO_ERROR)
+				return ret_val;
+		}
+	}
+	
+	return NO_ERROR;
+}
+
+int m_fpga_transfer_batch_append_block_register_updates(m_fpga_transfer_batch *batch, m_dsp_block *blk, int blk_index, m_parameter_pll *params)
+{
+	if (!batch || !blk)
+		return ERR_NULL_PTR;
+	
+	int ret_val;
+	
+	for (int j = 0; j < N_BLOCKS_REGS; j++)
+	{
+		if (blk->reg_vals[j])
+		{
+			if ((ret_val = m_fpga_transfer_batch_append_block_register_update(batch, blk_index, blk->reg_vals[j], params)) != NO_ERROR)
+				return ret_val;
+		}
+	}
+	
+	return NO_ERROR;
+}
+
+int m_dsp_block_instr_encode_resource_aware(const m_fpga_resource_report *cxt, m_fpga_resource_report *local, m_dsp_block *blk, uint32_t *out)
+{
+	if (!cxt || !local || !blk || !out)
+		return ERR_NULL_PTR;
+	
+	local->blocks = 0;
+	local->memory = 0;
+	local->sdelay = 0;
+	local->ddelay = 0;
+	
+	m_dsp_block_instr rectified = blk->instr;
+	
+	if (m_dsp_block_instr_format(blk->instr) == INSTR_FORMAT_B)
+	{
+		switch (blk->instr.opcode)
+		{
+			case BLOCK_INSTR_DELAY:
+				rectified.res_addr += cxt->ddelay;
+				local->ddelay = blk->instr.res_addr + 1;
+				break;
+			
+			case BLOCK_INSTR_SAVE:
+			case BLOCK_INSTR_LOAD:
+				rectified.res_addr += cxt->memory;
+				local->memory = blk->instr.res_addr + 1;
+				break;
+		}
+	}
+	
+	*out = m_encode_dsp_block_instr(rectified);
+	
+	local->blocks = 1;
+	
+	return NO_ERROR;
+}
+
+int m_dsp_blocks_encode_resource_aware(const m_fpga_resource_report *cxt, m_fpga_resource_report *report, m_dsp_block **blocks, int n, uint32_t *out)
+{
+	if (!cxt || !report || !blocks || !out)
+		return ERR_NULL_PTR;
+	
+	int ret_val;
+	m_fpga_resource_report local;
+	
+	for (int i = 0; i < n; i++)
+	{
+		if (!blocks[i])
+			continue;
+		
+		ret_val = m_dsp_block_instr_encode_resource_aware(cxt, &local, blocks[i], &out[i]);
+		
+		report->blocks += local.blocks;
+		
+		report->memory 	= (local.memory > report->memory) ? local.memory : report->memory;
+		report->sdelay 	= (local.sdelay > report->sdelay) ? local.sdelay : report->sdelay;
+		report->ddelay 	= (local.ddelay > report->ddelay) ? local.ddelay : report->ddelay;
+	}
+	
+	return NO_ERROR;
+}
+
+int m_fpga_transfer_batch_append_effect_register_writes(
+		m_fpga_transfer_batch *batch,
+		m_effect_desc *eff, int blocks_start,
+		m_parameter_pll *params
+	)
+{
+	if (!eff || !batch)
+		return ERR_NULL_PTR;
+	
+	if (!eff->blocks)
+		return ERR_BAD_ARGS;
+	
+	for (int i = 0; i < eff->n_blocks; i++)
+	{
+		if (eff->blocks[i])
+			m_fpga_transfer_batch_append_block_register_writes(batch, eff->blocks[i], blocks_start + i, params);
+	}
+	
+	return NO_ERROR;
+}
+
+int m_fpga_transfer_batch_append_effect_register_updates(
+		m_fpga_transfer_batch *batch,
+		m_effect_desc *eff, int blocks_start,
+		m_parameter_pll *params
+	)
+{
+	if (!eff || !batch)
+		return ERR_NULL_PTR;
+	
+	if (!eff->blocks)
+		return ERR_BAD_ARGS;
+	
+	for (int i = 0; i < eff->n_blocks; i++)
+	{
+		if (eff->blocks[i])
+			m_fpga_transfer_batch_append_block_register_updates(batch, eff->blocks[i], blocks_start + i, params);
+	}
+	
+	return NO_ERROR;
+}
+
+int m_fpga_transfer_batch_append_effect(
+		m_effect_desc *eff,
+		const m_fpga_resource_report *cxt,
+		m_fpga_resource_report *report,
+		m_parameter_pll *params,
+		m_fpga_transfer_batch *batch
+	)
+{
+	if (!eff || !cxt || !report || !batch)
+		return ERR_NULL_PTR;
+	
+	if (eff->n_blocks == 0)
+		return NO_ERROR;
+	
+	if (!eff->blocks || eff->n_blocks > N_BLOCKS)
+		return ERR_BAD_ARGS;
+	
+	uint32_t instr_seq[eff->n_blocks];
+	
+	*report = m_empty_fpga_resource_report();
+	
+	m_dsp_blocks_encode_resource_aware(cxt, report, eff->blocks, eff->n_blocks, instr_seq);
+	
+	int ret_val;
+	
+	int block_n;
+	for (int i = 0; i < eff->n_blocks; i++)
+	{
+		block_n = i + cxt->blocks;
+		
+		if ((ret_val = m_fpga_batch_append(batch, COMMAND_WRITE_BLOCK_INSTR)) != NO_ERROR) return ret_val;
+		if (N_BLOCKS > 255)
+		{
+			if ((ret_val = m_fpga_batch_append(batch, (block_n & 0xFF00) >> 8)) != NO_ERROR) return ret_val;
+		}
+		if ((ret_val = m_fpga_batch_append(batch, block_n & 0x00FF)) != NO_ERROR) return ret_val;
+		
+		if ((ret_val = m_fpga_batch_append(batch, (instr_seq[i] & 0xFF000000) >> 24)) != NO_ERROR) return ret_val;
+		if ((ret_val = m_fpga_batch_append(batch, (instr_seq[i] & 0x00FF0000) >> 16)) != NO_ERROR) return ret_val;
+		if ((ret_val = m_fpga_batch_append(batch, (instr_seq[i] & 0x0000FF00) >> 8 )) != NO_ERROR) return ret_val;
+		if ((ret_val = m_fpga_batch_append(batch, (instr_seq[i] & 0x000000FF) >> 0 )) != NO_ERROR) return ret_val;
+	}
+	
+	if ((ret_val = m_fpga_transfer_batch_append_effect_register_writes(batch, eff, cxt->blocks, params)) != NO_ERROR) return ret_val;
+	
+	return NO_ERROR;
+}
+
+/*
+typedef struct m_derived_quantity
+{
+	int type;
+	union {
+		float val_float;
+		int16_t val_int;
+		char *ref_name;
+		struct m_derived_quantity **sub_dqs;
+	} val;
+} m_derived_quantity;
+*/
+
+m_derived_quantity m_derived_quantity_const_float(float v)
+{
+	m_derived_quantity result;
+	result.type = M_DERIVED_QUANTITY_CONST_FLT;
+	result.val.val_float = v;
+	return result;
+}
+
+m_derived_quantity m_derived_quantity_const_int(int v)
+{
+	m_derived_quantity result;
+	result.type = M_DERIVED_QUANTITY_CONST_FLT;
+	result.val.val_int = v;
+	return result;
+}
+
+m_derived_quantity *new_m_derived_quantity_const_float(float v)
+{
+	m_derived_quantity *result = m_alloc(sizeof(m_derived_quantity));
+	
+	if (!result)
+		return NULL;
+	
+	*result = m_derived_quantity_const_float(v);
+	
+	return result;
+}
+
+
+m_derived_quantity *new_m_derived_quantity_const_int(int v)
+{
+	m_derived_quantity *result = m_alloc(sizeof(m_derived_quantity));
+	
+	if (!result)
+		return NULL;
+	
+	*result = m_derived_quantity_const_int(v);
+	
+	return result;
+}
+
+m_derived_quantity *new_m_derived_quantity_from_string_rec(char *str, char **next)
+{
+	if (!str)
+		return NULL;
+	
+	m_derived_quantity *dq = (m_derived_quantity*)m_alloc(sizeof(m_derived_quantity));
+	
+	if (!dq)
+		return NULL;
+	
+	dq->type = M_DERIVED_QUANTITY_CONST_FLT;
+	dq->val.val_float = 0.0;
+	
+	int pos = 0;
+	
+	int bufpos = 0;
+	int len = strlen(str);
+	
+	char buf[len];
+	
+	int state = 0;
+	char c;
+	
+	int arithmetic = 0;
+	int unary_call = 0;
+	int binary_call = 0;
+	int type = 0;
+	
+	char *sub_next = NULL;
+	
+	while (pos < len)
+	{
+		c = str[pos];
+		
+		switch (state)
+		{
+			case -1:
+				m_free(dq);
+				return NULL;
+				
+			case 0:
+				if (c == ' ')
+					break;
+				
+				if (c == '(')
+				{
+					pos++;
+					continue;
+				}
+				
+				if (c == 0)
+				{
+					state = -1;
+				}
+				else if (c == '+')
+				{
+					dq->type = M_DERIVED_QUANTITY_FCALL_ADD;
+					binary_call = 1;
+				}
+				else if (c == '-')
+				{
+					dq->type = M_DERIVED_QUANTITY_FCALL_SUB;
+					binary_call = 1;
+				}
+				else if (c == '*')
+				{
+					dq->type = M_DERIVED_QUANTITY_FCALL_MUL;
+					binary_call = 1;
+				}
+				else if (c == '/')
+				{
+					dq->type = M_DERIVED_QUANTITY_FCALL_DIV;
+					binary_call = 1;
+				}
+				else if (('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || c == '_')
+				{
+					state = 1;
+					buf[0] = c;
+					bufpos = 1;
+				}
+				else if ('0' <= c && c <= '9')
+				{
+					state = 2;
+					buf[0] = c;
+					bufpos = 1;
+				}
+				else
+				{
+					state = -1;
+				}
+				
+				break;
+				
+			case 1:
+				if (('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || ('0' <= c && c <= '9') || c == '_')
+				{
+					buf[bufpos++] = c;
+				}
+				else if (c == ' ' || c == ')' || c == 0)
+				{
+					buf[bufpos++] = 0;
+					
+					if (strcmp(buf, "abs") == 0)
+					{
+						dq->type = M_DERIVED_QUANTITY_FCALL_ABS;
+						unary_call = 1;
+					}
+					else if (strcmp(buf, "sqr") == 0)
+					{
+						dq->type = M_DERIVED_QUANTITY_FCALL_SQR;
+						unary_call = 1;
+					}
+					else if (strcmp(buf, "exp") == 0)
+					{
+						dq->type = M_DERIVED_QUANTITY_FCALL_EXP;
+						unary_call = 1;
+					}
+					else if (strcmp(buf, "log") == 0)
+					{
+						dq->type = M_DERIVED_QUANTITY_FCALL_LOG;
+						unary_call = 1;
+					}
+					else if (strcmp(buf, "sin") == 0)
+					{
+						dq->type = M_DERIVED_QUANTITY_FCALL_SIN;
+						unary_call = 1;
+					}
+					else if (strcmp(buf, "cos") == 0)
+					{
+						dq->type = M_DERIVED_QUANTITY_FCALL_COS;
+						unary_call = 1;
+					}
+					else if (strcmp(buf, "tan") == 0)
+					{
+						dq->type = M_DERIVED_QUANTITY_FCALL_TAN;
+						unary_call = 1;
+					}
+					else  if (strcmp(buf, "pow") == 0)
+					{
+						dq->type = M_DERIVED_QUANTITY_FCALL_POW;
+						binary_call = 1;
+					}
+					else
+					{
+						dq->type = M_DERIVED_QUANTITY_REFERENCE;
+						dq->val.ref_name = m_strndup(buf, len);
+						if (next) *next = &str[pos+1];
+						return dq;
+					}
+				}
+				else
+				{
+					state = -1;
+				}
+				
+				break;
+			
+			case 2:
+				if (('0' <= c && c <= '9') || c == '.')
+				{
+					buf[bufpos++] = c;
+				}
+				else if (c == ' ' || c == ')' || c == ',' || c == 0)
+				{
+					buf[bufpos] = 0;
+					
+					dq->type = M_DERIVED_QUANTITY_CONST_FLT;
+					dq->val.val_float = strtof(buf, NULL);
+					
+					if (next)
+						*next = &str[pos+1];
+					
+					return dq;
+				}
+				else
+				{
+					state = -1;
+				}
+				
+				break;
+			
+			default:
+				state = -1;
+				break;
+		}
+		
+		if (unary_call)
+		{
+			dq->val.sub_dqs = (m_derived_quantity**)m_alloc(sizeof(m_derived_quantity*) * 1);
+			if (!dq->val.sub_dqs) // alloc fail; delete everything and bail
+			{
+				m_free(dq);
+				return NULL;
+			}
+			dq->val.sub_dqs[0] = new_m_derived_quantity_from_string_rec(&str[pos+1], next);
+			
+			return dq;
+		}
+		
+		if (binary_call)
+		{
+			dq->val.sub_dqs = (m_derived_quantity**)m_alloc(sizeof(m_derived_quantity*) * 2);
+			if (!dq->val.sub_dqs) // alloc fail; delete everything and bail
+			{
+				m_free(dq);
+				return NULL;
+			}
+			dq->val.sub_dqs[0] = new_m_derived_quantity_from_string_rec(&str[pos+1], &sub_next);
+			dq->val.sub_dqs[1] = new_m_derived_quantity_from_string_rec(sub_next, next);
+			
+			return dq;
+		}
+		
+		pos++;
+	}
+	
+	return dq;
+}
+
+m_derived_quantity *new_m_derived_quantity_from_string(char *str)
+{
+	return new_m_derived_quantity_from_string_rec(str, NULL);
+}
+
+/*
+typedef struct
+{
+	int reg;
+	int format;
+	
+	m_derived_quantity dq;
+} m_dsp_register_val;
+*/
+
+/*
+typedef struct
+{
+	m_dsp_block_instr instr;
+	m_dsp_register_val *reg_vals[M_DSP_BLOCK_N_REGS];
+} m_dsp_block;
+*/
+
+/*
+typedef struct
+{
+	const char *name;
+	
+	int n_blocks;
+	int block_array_len;
+	m_dsp_block **blocks;
+	
+	int n_params;
+	int param_array_len;
+	m_parameter **params;
+} m_effect_desc;
+*/
+
+m_effect_desc *new_m_effect_desc(const char *name)
+{
+	printf("Creating effect descriptor...\n");
+	m_effect_desc *result = (m_effect_desc*)m_alloc(sizeof(m_effect_desc));
+	
+	printf("Sucessfully allocated struct\n");
+	if (!result)
+		return NULL;
+	
+	result->blocks = (m_dsp_block**)m_alloc(sizeof(m_dsp_block*) * 32);
+	
+	if (!result->blocks)
+	{
+		m_free(result);
+		return NULL;
+	}
+	
+	printf("Sucessfully allocated block array\n");
+	
+	result->block_array_len = 32;
+	result->n_blocks = 0;
+	
+	for (int i = 0; i < result->block_array_len; i++)
+		result->blocks[i] = NULL;
+	
+	result->params = (m_parameter**)m_alloc(sizeof(m_parameter*) * 32);
+	
+	if (!result->params)
+	{
+		m_free(result->blocks);
+		m_free(result);
+		return NULL;
+	}
+	
+	printf("Sucesffully allocated parameter array\n");
+	
+	result->param_array_len = 32;
+	result->n_params = 0;
+	
+	for (int i = 0; i < result->param_array_len; i++)
+		result->params[i] = NULL;
+	
+	result->name = name;
+	
+	printf("Returning %p\n", result);
+	
+	return result;
+}
+
+int m_effect_desc_add_block(m_effect_desc *eff, m_dsp_block *blk)
+{
+	if (!eff || !blk)
+		return ERR_NULL_PTR;
+	
+	if (eff->n_blocks < eff->block_array_len)
+	{
+		eff->blocks[eff->n_blocks++] = blk;
+	}
+	else
+	{
+		return ERR_UNIMPLEMENTED; // dont care at the moment
+	}
+	
+	return NO_ERROR;
+}
+
+int m_effect_desc_add_param(m_effect_desc *eff, m_parameter *param)
+{
+	printf("m_effect_desc_add_param, eff = %p, param = %p\n", eff, param);
+	if (!eff || !param)
+		return ERR_NULL_PTR;
+	
+	printf("eff->n_params = %d\n", eff->n_params);
+	
+	if (eff->n_params < eff->param_array_len)
+	{
+		printf("There is room. Adding\n");
+		eff->params[eff->n_params++] = param;
+		printf("eff->n_params = %d\n", eff->n_params);
+	}
+	else
+	{
+		printf("Oh no!\n");
+		return ERR_UNIMPLEMENTED; // dont care at the moment
+	}
+	
+	return NO_ERROR;
+}
+
+m_dsp_register_val *new_m_dsp_register_val(int reg, int format, m_derived_quantity *dq)
+{
+	if (!dq)
+		return NULL;
+	
+	m_dsp_register_val *result = (m_dsp_register_val*)m_alloc(sizeof(m_dsp_register_val));
+	
+	if (!result)
+		return NULL;
+	
+	result->reg = reg;
+	result->format = format;
+	result->dq = dq;
+	
+	return result;
+}
+
+m_dsp_register_val *new_m_dsp_register_val_literal(int reg, int16_t literal_value)
+{
+	m_dsp_register_val *result = (m_dsp_register_val*)m_alloc(sizeof(m_dsp_register_val));
+	
+	result->reg = reg;
+	result->format = DSP_REG_FORMAT_LITERAL;
+	
+	result->dq = new_m_derived_quantity_const_int(literal_value);
+	
+	return result;
+}
+
+int m_effect_desc_add_register_val(m_effect_desc *eff, int block_no, int reg, int format, char *expr)
+{
+	if (!eff)
+		return ERR_NULL_PTR;
+	
+	if (block_no < 0 || block_no > eff->n_blocks || reg < 0 || reg > N_BLOCKS_REGS)
+		return ERR_BAD_ARGS;
+	
+	m_dsp_register_val *bp = new_m_dsp_register_val(reg, format, new_m_derived_quantity_from_string(expr));
+	
+	return m_dsp_block_add_register_val(eff->blocks[block_no], reg, bp);
+}
+
+int m_effect_desc_add_add_cc(m_effect_desc *eff, int src_a, int src_b, int dest)
+{
+	if (!eff)
+		return ERR_NULL_PTR;
+	
+	m_dsp_block *blk = new_m_dsp_block_with_instr(m_dsp_block_instr_type_a_str(BLOCK_INSTR_ADD, src_a, src_b, 0, dest, 0, 0, 0, 0, 0, 0));
+	m_effect_desc_add_block(eff, blk);
+	
+	return NO_ERROR;
+}
+
+int m_effect_desc_add_mul_cc(m_effect_desc *eff, int src_a, int src_b, int dest)
+{
+	if (!eff)
+		return ERR_NULL_PTR;
+	
+	m_dsp_block *blk = new_m_dsp_block_with_instr(m_dsp_block_instr_type_a_str(BLOCK_INSTR_MUL, src_a, src_b, 0, dest, 0, 0, 0, 0, 0, 0));
+	m_effect_desc_add_block(eff, blk);
+	
+	return NO_ERROR;
+}
+
+int m_effect_desc_add_const_mul_rc(m_effect_desc *eff, int src_a, float v, int dest)
+{
+	if (!eff)
+		return ERR_NULL_PTR;
+	
+	if (fabsf(v) > (float)(1 << SHIFT_WIDTH))
+		return 2;
+	
+	float fmt = 1.0;
+	int shift = 0;
+	
+	while (fabsf(v) > fmt)
+	{
+		fmt *= 2.0;
+		shift++;
+	}
+	
+	m_dsp_block *blk = new_m_dsp_block_with_instr(m_dsp_block_instr_type_a_str(BLOCK_INSTR_MUL, src_a, 0, 0, dest, 0, 1, 0, 0, shift, 0));
+	m_dsp_block_add_register_val(blk, 0, new_m_dsp_register_val(0, shift, new_m_derived_quantity_const_float(v)));
+	m_effect_desc_add_block(eff, blk);
+	
+	return NO_ERROR;
+}
+
+int m_effect_desc_add_mad_ccc(m_effect_desc *eff, int src_a, int src_b, int src_c, int dest)
+{
+	if (!eff)
+		return ERR_NULL_PTR;
+	
+	m_dsp_block *blk = new_m_dsp_block_with_instr(m_dsp_block_instr_type_a_str(BLOCK_INSTR_MUL, src_a, src_b, src_c, dest, 0, 0, 0, 0, 0, 0));
+	m_effect_desc_add_block(eff, blk);
+	
+	return NO_ERROR;
+}
+
+int m_effect_desc_add_mad_ccr(m_effect_desc *eff, int src_a, float v, int src_c, int dest)
+{
+	if (!eff)
+		return ERR_NULL_PTR;
+	
+	if (fabsf(v) > (float)(1 << SHIFT_WIDTH))
+		return 2;
+	
+	float fmt = 1.0;
+	int shift = 0;
+	
+	while (fabsf(v) > fmt)
+	{
+		fmt *= 2.0;
+		shift++;
+	}
+	
+	m_dsp_block *blk = new_m_dsp_block_with_instr(m_dsp_block_instr_type_a_str(BLOCK_INSTR_MUL, src_a, 0, src_c, 0, 0, 1, 0, 0, shift, 0));
+	m_dsp_block_add_register_val(blk, 0, new_m_dsp_register_val(0, shift, new_m_derived_quantity_const_float(v)));
+	m_effect_desc_add_block(eff, blk);
+	
+	return NO_ERROR;
+}
+
+int m_effect_desc_add_macz_cc(m_effect_desc *eff, int src_a, int src_b)
+{
+	if (!eff)
+		return ERR_NULL_PTR;
+	
+	m_dsp_block *blk = new_m_dsp_block_with_instr(m_dsp_block_instr_type_a_str(BLOCK_INSTR_MACZ, src_a, src_b, 0, 0, 0, 0, 0, 0, 0, 0));
+	m_effect_desc_add_block(eff, blk);
+	
+	return NO_ERROR;
+}
+
+int m_effect_desc_add_macz_rc(m_effect_desc *eff, int src_a, float v)
+{
+	if (!eff)
+		return ERR_NULL_PTR;
+	
+	if (fabsf(v) > (float)(1 << SHIFT_WIDTH))
+		return 2;
+	
+	float fmt = 1.0;
+	int shift = 0;
+	
+	while (fabsf(v) > fmt)
+	{
+		fmt *= 2.0;
+		shift++;
+	}
+	
+	m_dsp_block *blk = new_m_dsp_block_with_instr(m_dsp_block_instr_type_a_str(BLOCK_INSTR_MACZ, src_a, 0, 0, 0, 0, 1, 0, 0, 0, 0));
+	m_dsp_block_add_register_val(blk, 0, new_m_dsp_register_val(0, shift, new_m_derived_quantity_const_float(v)));
+	m_effect_desc_add_block(eff, blk);
+	
+	return NO_ERROR;
+}
+
+int m_effect_desc_add_mac_cc(m_effect_desc *eff, int src_a, int src_b)
+{
+	if (!eff)
+		return ERR_NULL_PTR;
+	
+	m_dsp_block *blk = new_m_dsp_block_with_instr(m_dsp_block_instr_type_a_str(BLOCK_INSTR_MAC, src_a, src_b, 0, 0, 0, 0, 0, 0, 0, 0));
+	m_effect_desc_add_block(eff, blk);
+	
+	return NO_ERROR;
+}
+
+int m_effect_desc_add_mac_cc_ns(m_effect_desc *eff, int src_a, int src_b)
+{
+	if (!eff)
+		return ERR_NULL_PTR;
+	
+	m_dsp_block *blk = new_m_dsp_block_with_instr(m_dsp_block_instr_type_a_str(BLOCK_INSTR_MAC, src_a, src_b, 0, 0, 0, 0, 0, 0, 0, 1));
+	m_effect_desc_add_block(eff, blk);
+	
+	return NO_ERROR;
+}
+
+int m_effect_desc_add_mac_rc(m_effect_desc *eff, int src_a, float v)
+{
+	if (!eff)
+		return ERR_NULL_PTR;
+	
+	if (fabsf(v) > (float)(1 << SHIFT_WIDTH))
+		return 2;
+	
+	float fmt = 1.0;
+	int shift = 0;
+	
+	while (fabsf(v) > fmt)
+	{
+		fmt *= 2.0;
+		shift++;
+	}
+	
+	m_dsp_block *blk = new_m_dsp_block_with_instr(m_dsp_block_instr_type_a_str(BLOCK_INSTR_MAC, src_a, 0, 0, 0, 0, 1, 0, 0, shift, 0));
+	m_dsp_block_add_register_val(blk, 0, new_m_dsp_register_val(0, shift, new_m_derived_quantity_const_float(v)));
+	m_effect_desc_add_block(eff, blk);
+	
+	return NO_ERROR;
+}
+
+int m_effect_desc_add_mac_rc_ns(m_effect_desc *eff, int src_a, float v)
+{
+	if (!eff)
+		return ERR_NULL_PTR;
+	
+	if (fabsf(v) > (float)(1 << SHIFT_WIDTH))
+		return ERR_BAD_ARGS;
+	
+	float fmt = 1.0;
+	int shift = 0;
+	
+	while (fabsf(v) > fmt)
+	{
+		fmt *= 2.0;
+		shift++;
+	}
+	
+	m_dsp_block *blk = new_m_dsp_block_with_instr(m_dsp_block_instr_type_a_str(BLOCK_INSTR_MAC, src_a, 0, 0, 0, 0, 1, 0, 0, shift, 1));
+	m_dsp_block_add_register_val(blk, 0, new_m_dsp_register_val(0, shift, new_m_derived_quantity_const_float(v)));
+	m_effect_desc_add_block(eff, blk);
+	
+	return NO_ERROR;
+}
+
+int m_effect_desc_add_mac_rc_ns_sh(m_effect_desc *eff, int src_a, float v, int shift)
+{
+	if (!eff)
+		return ERR_NULL_PTR;
+	
+	m_dsp_block *blk = new_m_dsp_block_with_instr(m_dsp_block_instr_type_a_str(BLOCK_INSTR_MAC, src_a, 0, 0, 0, 0, 1, 0, 0, shift, 1));
+	m_dsp_block_add_register_val(blk, 0, new_m_dsp_register_val(0, shift, new_m_derived_quantity_const_float(v)));
+	m_effect_desc_add_block(eff, blk);
+	
+	return NO_ERROR;
+}
+
+int m_effect_desc_add_load(m_effect_desc *eff, int addr, int dest)
+{
+	if (!eff)
+		return ERR_NULL_PTR;
+	
+	m_dsp_block *blk = new_m_dsp_block_with_instr(m_dsp_block_instr_type_b_str(BLOCK_INSTR_LOAD, 0, 0, dest, addr));
+	m_effect_desc_add_block(eff, blk);
+	
+	return NO_ERROR;
+}
+
+int m_effect_desc_add_save(m_effect_desc *eff, int src_a, int addr)
+{
+	if (!eff)
+		return ERR_NULL_PTR;
+	
+	m_dsp_block *blk = new_m_dsp_block_with_instr(m_dsp_block_instr_type_b_str(BLOCK_INSTR_SAVE, src_a, 0, 0, addr));
+	m_effect_desc_add_block(eff, blk);
+	
+	return NO_ERROR;
+}
+
+int m_effect_desc_add_mov_acc(m_effect_desc *eff, int dest)
+{
+	if (!eff)
+		return ERR_NULL_PTR;
+	
+	m_dsp_block *blk = new_m_dsp_block_with_instr(m_dsp_block_instr_type_a_str(BLOCK_INSTR_MOV_ACC, 0, 0, 0, dest, 0, 0, 0, 0, 0, 0));
+	m_effect_desc_add_block(eff, blk);
+	
+	return NO_ERROR;
+}
+
+int m_effect_desc_add_mov_acc_sh(m_effect_desc *eff, int dest, int shift)
+{
+	if (!eff)
+		return ERR_NULL_PTR;
+	
+	m_dsp_block *blk = new_m_dsp_block_with_instr(m_dsp_block_instr_type_a_str(BLOCK_INSTR_MOV_ACC, 0, 0, 0, dest, 0, 0, 0, 0, 1, 0));
+	m_effect_desc_add_block(eff, blk);
+	
+	return NO_ERROR;
+}
+
+#define IBM(x) ((1u << (x)) - 1)
+#define range_bits(x, n, start) (((x) >> (start)) & IBM(n))
+
+uint32_t m_enc_dsp_block_type_a_instr(int opcode, int src_a, int src_b, int src_c, int dest,
 										 int a_reg, int b_reg, int c_reg, int dest_reg, int shift, int sat)
 {
 	return ((uint32_t)opcode)
@@ -26,10 +1248,10 @@ uint32_t encode_type_a_instr(int opcode, int src_a, int src_b, int src_c, int de
 		| ((uint32_t)!!c_reg 	<< (BLOCK_INSTR_OP_TYPE_START + 2))
 		| ((uint32_t)!!dest_reg	<< (BLOCK_INSTR_OP_TYPE_START + 3))
 		| ((uint32_t)(shift & IBM(SHIFT_WIDTH)) << (BLOCK_INSTR_PMS_START))
-		| ((uint32_t)!!sat   << (BLOCK_INSTR_OP_TYPE_START + SHIFT_WIDTH + 1));
+		| ((uint32_t)!!sat   << (BLOCK_INSTR_OP_TYPE_START + 4));
 }
 
-uint32_t encode_type_b_instr(int opcode, int src_a, int src_b, int dest, int res_addr)
+uint32_t m_enc_dsp_block_type_b_instr(int opcode, int src_a, int src_b, int dest, int res_addr)
 {
 	return ((uint32_t)opcode)
 		| ((uint32_t)(src_a & IBM(BLOCK_REG_ADDR_WIDTH)) 	<< (0 * BLOCK_REG_ADDR_WIDTH + BLOCK_INSTR_OP_WIDTH))
@@ -38,63 +1260,68 @@ uint32_t encode_type_b_instr(int opcode, int src_a, int src_b, int dest, int res
 		| ((uint32_t)(res_addr & IBM(BLOCK_RES_ADDR_WIDTH)) << (3 * BLOCK_REG_ADDR_WIDTH + BLOCK_INSTR_OP_WIDTH));
 }
 
-uint32_t encode_block_instr(int opcode, int src_a, int src_b, int src_c, int dest, int a_reg, int b_reg, int c_reg, int dest_reg, int shift, int sat, int res_addr)
+uint32_t m_enc_dsp_block_instr(int opcode, int src_a, int src_b, int src_c, int dest, int a_reg, int b_reg, int c_reg, int dest_reg, int shift, int sat, int res_addr)
 {
 	if (opcode == BLOCK_INSTR_DELAY
 	 || opcode == BLOCK_INSTR_SAVE
 	 || opcode == BLOCK_INSTR_LOAD)
-	{
-		return encode_type_b_instr(opcode, src_a, src_b, dest, res_addr);
-	}
-	else
-	{
-		return encode_type_a_instr(opcode, src_a, src_b, src_c, dest, a_reg, b_reg, c_reg, dest_reg, shift, sat);
-	}
+		return m_enc_dsp_block_type_b_instr(opcode, src_a, src_b, dest, res_addr);
+	
+	return m_enc_dsp_block_type_a_instr(opcode, src_a, src_b, src_c, dest, a_reg, b_reg, c_reg, dest_reg, shift, sat);
 }
 
-uint32_t encode_block_instr_str(block_instr instr)
-{
-	return encode_block_instr(
-		instr.opcode,
-		instr.src_a, instr.src_b, instr.src_c, instr.dest,
-		instr.src_a_reg, instr.src_b_reg, instr.src_c_reg, instr.dest_reg,
-		instr.shift, instr.sat, instr.res_addr
-	);
-}
-
-int opcode_format(int opcode)
+int m_fpga_block_opcode_format(int opcode)
 {
 	return (opcode == BLOCK_INSTR_DELAY
 		 || opcode == BLOCK_INSTR_SAVE
 		 || opcode == BLOCK_INSTR_LOAD) ? INSTR_FORMAT_B : INSTR_FORMAT_A;
 }
 
-int instr_format(block_instr instr)
+int m_dsp_block_instr_format(m_dsp_block_instr instr)
 {
-	return opcode_format(instr.opcode);
+	return m_fpga_block_opcode_format(instr.opcode);
 }
 
-resource_report empty_resource_report()
+uint32_t m_encode_dsp_block_instr(m_dsp_block_instr instr)
 {
-	return (resource_report){0, 0, 0};
+	if (m_fpga_block_opcode_format(instr.opcode) == INSTR_FORMAT_B)
+	{
+		return m_enc_dsp_block_type_b_instr(
+			instr.opcode,
+			instr.src_a,
+			instr.src_b,
+			instr.dest,
+			instr.res_addr);
+	}
+	else
+	{
+		return m_enc_dsp_block_type_a_instr(instr.opcode,
+			instr.src_a, 	 instr.src_b, 	  instr.src_c, 	   instr.dest,
+			instr.src_a_reg, instr.src_b_reg, instr.src_c_reg, instr.dest_reg,
+			instr.shift, instr.sat);
+	}
 }
 
-void print_resource_report(const resource_report *res)
+m_dsp_block_instr m_dsp_block_instr_type_a_str(int opcode, int src_a, int src_b, int src_c, int dest, int a_reg, int b_reg, int c_reg, int dest_reg, int shift, int sat)
 {
-	if (!res) 	printf("(NULL)\n");
-	else 		printf("Resource usage report:\n\t Blocks: %d\n\t Delays: %d\n\t Memory: %d\n", res->block_usage, res->sram_delay_usage, res->mem_usage);
+	return (m_dsp_block_instr){opcode, src_a, src_b, src_c, dest, a_reg, b_reg, c_reg, dest_reg, shift, sat};
 }
 
-block_instr unpack_instr_code(uint32_t code)
+m_dsp_block_instr m_dsp_block_instr_type_b_str(int opcode, int src_a, int src_b, int dest, int res_addr)
 {
-	block_instr result;
+	return (m_dsp_block_instr){opcode, src_a, src_b, 0, dest, 0, 0, 0, 0, 0, 0, res_addr};
+}
+
+m_dsp_block_instr m_decode_dsp_block_instr(uint32_t code)
+{
+	m_dsp_block_instr result;
 	
 	result.opcode = range_bits(code, BLOCK_INSTR_OP_WIDTH, 0);
 	
 	result.src_a = range_bits(code, BLOCK_REG_ADDR_WIDTH, 0 * BLOCK_REG_ADDR_WIDTH + BLOCK_INSTR_OP_WIDTH);
 	result.src_b = range_bits(code, BLOCK_REG_ADDR_WIDTH, 1 * BLOCK_REG_ADDR_WIDTH + BLOCK_INSTR_OP_WIDTH);
 	
-	switch (instr_format(result))
+	switch (m_dsp_block_instr_format(result))
 	{
 		case INSTR_FORMAT_A:
 			result.src_c = range_bits(code, BLOCK_REG_ADDR_WIDTH, 2 * BLOCK_REG_ADDR_WIDTH + BLOCK_INSTR_OP_WIDTH);
@@ -105,9 +1332,9 @@ block_instr unpack_instr_code(uint32_t code)
 			result.src_c_reg = range_bits(code, 1, BLOCK_INSTR_OP_TYPE_START + 2);
 			result.dest_reg  = range_bits(code, 1, BLOCK_INSTR_OP_TYPE_START + 3);
 			
-			result.shift = range_bits(code, SHIFT_WIDTH, BLOCK_INSTR_PMS_START);
+			result.shift = range_bits(code, 4, BLOCK_INSTR_PMS_START);
 			
-			result.sat = range_bits(code, 1, BLOCK_INSTR_PMS_START + SHIFT_WIDTH + 1);
+			result.sat = range_bits(code, 1, BLOCK_INSTR_OP_TYPE_START + 4);
 			break;
 		
 		case INSTR_FORMAT_B:
@@ -126,14 +1353,133 @@ block_instr unpack_instr_code(uint32_t code)
 			result.res_addr = range_bits(code, BLOCK_RES_ADDR_WIDTH, 3 * BLOCK_REG_ADDR_WIDTH + BLOCK_INSTR_OP_WIDTH);
 			break;
 	}
-	
-	
 
     return result;
 }
 
+m_fpga_transfer_batch m_new_fpga_transfer_batch()
+{
+	m_fpga_transfer_batch seq;
+	
+	seq.buf = m_alloc(sizeof(uint32_t) * N_BLOCKS);
+	seq.len = 0;
+	seq.buf_len = (int)(sizeof(uint32_t) * N_BLOCKS);
+	
+	return seq;
+}
 
-char *opcode_to_string(uint32_t opcode)
+void m_free_fpga_transfer_batch(m_fpga_transfer_batch batch)
+{
+	if (batch.buf) m_free(batch.buf);
+}
+
+int m_fpga_batch_append_32(m_fpga_transfer_batch *seq, uint32_t x)
+{
+	uint8_t bytes[4];
+	
+	bytes[0] = range_bits(x, 8, 24);
+	bytes[1] = range_bits(x, 8, 16);
+	bytes[2] = range_bits(x, 8,  8);
+	bytes[3] = range_bits(x, 8,  0);
+	
+	int ret_val;
+	
+	if ((ret_val = m_fpga_batch_append(seq, bytes[0])) != NO_ERROR)
+		return ret_val;
+	
+	if ((ret_val = m_fpga_batch_append(seq, bytes[1])) != NO_ERROR)
+		return ret_val;
+	
+	if ((ret_val = m_fpga_batch_append(seq, bytes[2])) != NO_ERROR)
+		return ret_val;
+	
+	if ((ret_val = m_fpga_batch_append(seq, bytes[3])) != NO_ERROR)
+		return ret_val;
+	
+	return ret_val;
+}
+
+int m_fpga_batch_append_16(m_fpga_transfer_batch *seq, uint16_t x)
+{
+	uint8_t bytes[2];
+	
+	bytes[0] = range_bits(x, 8,  8);
+	bytes[1] = range_bits(x, 8,  0);
+	
+	int ret_val;
+	
+	if ((ret_val = m_fpga_batch_append(seq, bytes[0])) != NO_ERROR)
+		return ret_val;
+	
+	if ((ret_val = m_fpga_batch_append(seq, bytes[1])) != NO_ERROR)
+		return ret_val;
+	
+	return ret_val;
+}
+
+int m_fpga_batch_append(m_fpga_transfer_batch *seq, uint8_t byte)
+{
+	if (!seq)
+		return ERR_NULL_PTR;
+	
+	if (seq->len >= seq->buf_len)
+	{
+		uint8_t *new_ptr = m_realloc(seq->buf,(seq->buf_len * 2) * sizeof(uint8_t));
+		
+		if (!new_ptr)
+			return ERR_ALLOC_FAIL;
+		
+		seq->buf = new_ptr;
+		seq->buf_len *= 2;
+	}
+	
+	seq->buf[seq->len++] = byte;
+	
+	return NO_ERROR;
+}
+
+
+int m_fpga_batch_concat(m_fpga_transfer_batch *seq, m_fpga_transfer_batch *seq2)
+{
+	if (!seq || !seq2)
+		return ERR_NULL_PTR;
+	
+	if (!seq2->buf)
+		return ERR_BAD_ARGS;
+	
+	if (!seq->buf)
+	{
+		seq->buf = m_alloc(seq2->len);
+		
+		if (!seq->buf)
+			return ERR_ALLOC_FAIL;
+		
+		seq->buf_len = seq2->len;
+		seq->len = 0;
+	}
+	else if (seq->len + seq2->len > seq->buf_len)
+	{
+		int new_len = seq->buf_len;
+		while (new_len < seq->len + seq2->len)
+			new_len *= 2;
+		
+		uint8_t *new_ptr = m_realloc(seq->buf, new_len * sizeof(uint8_t));
+		
+		if (!new_ptr) return ERR_ALLOC_FAIL;
+		
+		seq->buf_len = new_len;
+		seq->buf = new_ptr;
+	}
+	
+	for (int i = 0; i < seq2->len; i++)
+		seq->buf[seq->len + i] = seq2->buf[i];
+	
+	seq->len += seq2->len;
+	
+	return 0;
+}
+
+char *m_dsp_block_opcode_to_string(uint32_t opcode)
 {
 	switch (opcode)
 	{
@@ -161,13 +1507,13 @@ char *opcode_to_string(uint32_t opcode)
 	return NULL;
 }
 
-void print_instruction(block_instr instr)
+void print_instruction(m_dsp_block_instr instr)
 {
-	switch (instr_format(instr))
+	switch (m_dsp_block_instr_format(instr))
 	{
 		case INSTR_FORMAT_A:
 			printf("Instruction = %s(%d, %d, %d, %d, %d, %d, %d, %d, %d, %d)",
-						opcode_to_string(instr.opcode),
+						m_dsp_block_opcode_to_string(instr.opcode),
 						instr.src_a,
 						instr.src_b,
 						instr.src_c,
@@ -182,7 +1528,7 @@ void print_instruction(block_instr instr)
 		
 		case INSTR_FORMAT_B:
 			printf("Instruction = %s(%d, %d, %d, 0x%04x)",
-						opcode_to_string(instr.opcode),
+						m_dsp_block_opcode_to_string(instr.opcode),
 							instr.src_a,
 							instr.src_b,
 							instr.dest,
@@ -191,1023 +1537,21 @@ void print_instruction(block_instr instr)
 	}
 }
 
-int rectify_block_instr(const resource_report *cxt, resource_report *local, block *blk, uint32_t *out)
+int m_fpga_batch_print(m_fpga_transfer_batch seq)
 {
-	if (!cxt || !local || !blk || !out)
-		return 1;
+	int n = seq.len;
 	
-	local->block_usage 		= 0;
-	local->mem_usage   		= 0;
-	local->sram_delay_usage = 0;
+	printf("Reading out FPGA transfer batch %p (length %d)\n", seq.buf, n);
 	
-	block_instr rectified = blk->instr;
-	
-	if (instr_format(blk->instr) == INSTR_FORMAT_B)
+	if (!seq.buf)
 	{
-		switch (blk->instr.opcode)
-		{
-			case BLOCK_INSTR_DELAY:
-				rectified.res_addr += cxt->sram_delay_usage;
-				local->sram_delay_usage = blk->instr.res_addr + 1;
-				break;
-			
-			case BLOCK_INSTR_SAVE:
-			case BLOCK_INSTR_LOAD:
-				rectified.res_addr += cxt->mem_usage;
-				local->mem_usage = blk->instr.res_addr + 1;
-				break;
-		}
+		printf("Buffer is NULL!\n");
 	}
 	
-	*out = encode_block_instr_str(rectified);
-	
-	local->block_usage = 1;
-	
-	return 0;
-}
-
-int rectify_block_sequence(const resource_report *cxt, resource_report *report, block **blocks, int n, uint32_t *out)
-{
-	if (!cxt || !report || !blocks || !out)
-		return 1;
-	
-	int ret_val;
-	resource_report local;
-	
-	for (int i = 0; i < n; i++)
+	if (n < 1)
 	{
-		if (!blocks[i])
-			continue;
-		
-		ret_val = rectify_block_instr(cxt, &local, blocks[i], &out[i]);
-		
-		report->block_usage += local.block_usage;
-		
-		report->mem_usage 			= (local.mem_usage > report->mem_usage) ? local.mem_usage : report->mem_usage;
-		report->sram_delay_usage 	= (local.sram_delay_usage > report->sram_delay_usage) ? local.sram_delay_usage : report->sram_delay_usage;
+		printf("Batch has no bytes!\n");
 	}
-	
-	return 0;
-}
-
-int16_t float_to_q_nminus1(float x, int shift)
-{
-    int n = 15 - shift;
-
-    float scale = (float)(1 << n);
-
-    float max =  (float)((1 << 15) - 1) / scale;
-    float min = -(float)(1 << 15)       / scale;
-
-    if (x > max) x = max;
-    if (x < min) x = min;
-
-    return (int16_t)lrintf(x * scale);
-}
-
-float eval_derived_quantity_expr(derived_quantity_expr *expr)
-{	
-	float x;
-	
-	if (!expr)
-		return 0.0;
-	
-	float ret_val;
-	
-	switch (expr->call)
-	{
-		case DQE_CALL_CONST: ret_val = expr->value; break;
-		case DQE_CALL_PARAM: ret_val = (expr->param) ? expr->param->value : 0; break;
-		case DQE_CALL_ADD: ret_val = (eval_derived_quantity_expr(expr->sub_exprs[0]) + eval_derived_quantity_expr(expr->sub_exprs[1])); break;
-		case DQE_CALL_SUB: ret_val = eval_derived_quantity_expr(expr->sub_exprs[0]) - eval_derived_quantity_expr(expr->sub_exprs[1]); break;
-		case DQE_CALL_MUL: ret_val = eval_derived_quantity_expr(expr->sub_exprs[0]) * eval_derived_quantity_expr(expr->sub_exprs[1]); break;
-		case DQE_CALL_DIV: ret_val = eval_derived_quantity_expr(expr->sub_exprs[0]) / eval_derived_quantity_expr(expr->sub_exprs[1]); break;
-		case DQE_CALL_ABS: ret_val = fabs(eval_derived_quantity_expr(expr->sub_exprs[0])); break;
-		case DQE_CALL_SQR: x = eval_derived_quantity_expr(expr->sub_exprs[0]); ret_val = x * x; break;
-		case DQE_CALL_EXP: ret_val = exp(eval_derived_quantity_expr(expr->sub_exprs[0])); break;
-		case DQE_CALL_LOG: ret_val = log(eval_derived_quantity_expr(expr->sub_exprs[0])); break;
-		case DQE_CALL_POW: ret_val = pow(eval_derived_quantity_expr(expr->sub_exprs[0]), eval_derived_quantity_expr(expr->sub_exprs[1])); break;
-		case DQE_CALL_SIN: ret_val = sin(eval_derived_quantity_expr(expr->sub_exprs[0])); break;
-		case DQE_CALL_COS: ret_val = cos(eval_derived_quantity_expr(expr->sub_exprs[0])); break;
-		case DQE_CALL_TAN: ret_val = tan(eval_derived_quantity_expr(expr->sub_exprs[0])); break;
-	}
-	
-	return ret_val;
-}
-
-int block_register_write_bytes(int block_no, block_register reg, uint8_t *out, int max)
-{
-	if (!out)
-		return 0;
-	
-	if (max < 5)
-		return 0;
-	
-	if (N_BLOCKS > 255 && max < 6)
-		return 0;
-	
-	int pos = 0;
-	out[pos++] = COMMAND_WRITE_BLOCK_REG;
-	
-	if (N_BLOCKS > 255)
-		out[pos++] = (block_no & 0xFF00) >> 8;
-	
-	out[pos++] = block_no & 0x00FF;
-	
-	out[pos++] = reg.reg;
-	
-	int16_t s;
-	
-	if (reg.literal)
-	{
-		s = reg.literal_value;
-	}
-	else
-	{
-		float v = eval_derived_quantity_expr(reg.expr);
-		
-		s = float_to_q_nminus1(v, reg.format);
-	}
-	
-	out[pos++] = (s & 0xFF00) >> 8;
-	out[pos++] = (s & 0x00FF);
-	
-	return pos;
-}
-
-int effect_bytes(effect *eff, const resource_report *cxt, resource_report *report, uint8_t *out, int max)
-{
-	if (!eff || !cxt || !report || !out)
-		return 0;
-	
-	uint32_t *instr_sequence = (uint32_t*)malloc(eff->n_blocks * sizeof(uint32_t));
-	
-	*report = empty_resource_report();
-	
-	rectify_block_sequence(cxt, report, eff->blocks, eff->n_blocks, instr_sequence);
-	
-	int pos = 0;
-	int block_n;
-	for (int i = 0; i < eff->n_blocks && pos + 6 < max; i++)
-	{
-		block_n = i + cxt->block_usage;
-		
-		out[pos++] = COMMAND_WRITE_BLOCK_INSTR;
-		out[pos++] = block_n;
-		out[pos++] = (instr_sequence[i] & 0xFF000000) >> 24;
-		out[pos++] = (instr_sequence[i] & 0x00FF0000) >> 16;
-		out[pos++] = (instr_sequence[i] & 0x0000FF00) >> 8;
-		out[pos++] = (instr_sequence[i] & 0x000000FF) >> 0;
-		
-		for (int j = 0; j < N_BLOCKS_REGS; j++)
-		{
-			if (eff->blocks[i]->regs[j])
-				pos += block_register_write_bytes(block_n, *eff->blocks[i]->regs[j], &out[pos], max - pos);
-		}
-	}
-	
-	return pos;
-}
-
-pipeline *new_pipeline()
-{
-	pipeline *result = (pipeline*)malloc(sizeof(pipeline));
-	
-	result->effects = (effect**)malloc(sizeof(effect*) * 64);
-	result->n_effects = 0;
-	result->effect_array_len = 64;
-	
-	return result;
-}
-
-int pipeline_add_effect(pipeline *pl, effect *eff)
-{
-	if (!pl || !eff)
-		return 1;
-	
-	if (pl->n_effects < pl->effect_array_len)
-	{
-		pl->effects[pl->n_effects++] = eff;
-	}
-	else
-	{
-		return 2; // dont care at the moment
-	}
-	
-	return 0;
-}
-
-effect *new_effect()
-{
-	effect *result = (effect*)malloc(sizeof(effect));
-	
-	result->blocks = (block**)malloc(sizeof(block*) * 32);
-	result->block_array_len = 32;
-	result->n_blocks = 0;
-	
-	result->params = (parameter**)malloc(sizeof(parameter*) * 32);
-	result->param_array_len = 32;
-	result->n_params = 0;
-	
-	return result;
-}
-
-int effect_add_block(effect *eff, block *blk)
-{
-	if (!eff || !blk)
-		return 1;
-	
-	if (eff->n_blocks < eff->block_array_len)
-	{
-		eff->blocks[eff->n_blocks++] = blk;
-	}
-	else
-	{
-		return 2; // dont care at the moment
-	}
-	
-	return 0;
-}
-
-int effect_add_param(effect *eff, parameter *param)
-{
-	if (!eff || !param)
-		return 1;
-	
-	if (eff->n_params < eff->param_array_len)
-	{
-		eff->params[eff->n_params++] = param;
-	}
-	else
-	{
-		return 2; // dont care at the moment
-	}
-	
-	return 0;
-}
-
-block *new_block()
-{
-	block *result = (block*)malloc(sizeof(block));
-	
-	for (int i = 0; i < N_BLOCKS_REGS; i++)
-		result->regs[i] = NULL;
-	
-	return result;
-}
-
-block_instr block_instr_type_a_str(int opcode, int src_a, int src_b, int src_c, int dest, int a_reg, int b_reg, int c_reg, int dest_reg, int shift, int sat)
-{
-	return (block_instr){opcode, src_a, src_b, src_c, dest, a_reg, b_reg, c_reg, dest_reg, shift, sat};
-}
-
-block_instr block_instr_type_b_str(int opcode, int src_a, int src_b, int dest, int res_addr)
-{
-	return (block_instr){opcode, src_a, src_b, 0, dest, 0, 0, 0, 0, 0, 0, res_addr};
-}
-
-block *new_block_with_instr(block_instr instr)
-{
-	block *result = (block*)malloc(sizeof(block));
-	
-	for (int i = 0; i < N_BLOCKS_REGS; i++)
-		result->regs[i] = NULL;
-	
-	result->instr = instr;
-	
-	return result;
-}
-
-parameter *new_parameter(char *name, float val)
-{
-	parameter *result = (parameter*)malloc(sizeof(parameter));
-	
-	result->value = val;
-	result->name = name;
-	
-	return result;
-}
-
-block_register *new_block_register(int reg, int format, derived_quantity_expr *dqe)
-{
-	block_register *result = (block_register*)malloc(sizeof(block_register));
-	
-	result->literal = 0;
-	result->reg = reg;
-	result->format = format;
-	result->expr = dqe;
-	
-	return result;
-}
-
-block_register *new_block_register_literal(int reg, int16_t literal_value)
-{
-	block_register *result = (block_register*)malloc(sizeof(block_register));
-	
-	result->literal = 1;
-	result->literal_value = literal_value;
-	result->reg = reg;
-	result->format = 0;
-	
-	result->expr = NULL;
-	
-	return result;
-}
-
-int block_add_register(block *blk, int i, block_register *p)
-{
-	if (!blk || !p || i < 0 || i > N_BLOCKS_REGS)
-		return 1;
-
-	p->reg = i;
-	
-	blk->regs[i] = p;
-	return 0;
-}
-
-derived_quantity_expr *new_const_dqe(float v)
-{
-	derived_quantity_expr *dqe = (derived_quantity_expr*)malloc(sizeof(derived_quantity_expr));
-	
-	dqe->value = v;
-	dqe->call = DQE_CALL_CONST;
-	dqe->sub_exprs = NULL;
-	
-	return dqe;
-}
-
-derived_quantity_expr *new_param_dqe(parameter *param)
-{
-	derived_quantity_expr *dqe = (derived_quantity_expr*)malloc(sizeof(derived_quantity_expr));
-	
-	dqe->param = param;
-	dqe->call = DQE_CALL_PARAM;
-	dqe->sub_exprs = NULL;
-	
-	return dqe;
-}
-
-derived_quantity_expr *new_unary_call_dqe(int call, derived_quantity_expr *arg)
-{
-	derived_quantity_expr *dqe = (derived_quantity_expr*)malloc(sizeof(derived_quantity_expr));
-	
-	dqe->call = call;
-	dqe->call = DQE_CALL_PARAM;
-	dqe->sub_exprs = (derived_quantity_expr**)malloc(sizeof(derived_quantity_expr*));
-	dqe->sub_exprs[0] = arg;
-	
-	return dqe;
-}
-
-derived_quantity_expr *new_dqe_from_expr(char *str, parameter **params, int n_params, char **next)
-{
-	if (!str)
-		return NULL;
-	
-	derived_quantity_expr *dqe = (derived_quantity_expr*)malloc(sizeof(derived_quantity_expr));
-	
-	dqe->param = NULL;
-	dqe->sub_exprs = NULL;
-	
-	int pos = 0;
-	
-	int bufpos = 0;
-	char buf[256];
-	
-	int state = 0;
-	char c;
-	
-	parameter *param;
-	
-	int arithmetic = 0;
-	int unary_call = 0;
-	int binary_call = 0;
-	int type = 0;
-	
-	char *sub_next = NULL;
-	
-	while (1)
-	{
-		c = str[pos];
-		
-		switch (state)
-		{
-			case -1:
-				free(dqe);
-				return NULL;
-				
-			case 0:
-				if (c == ' ')
-					break;
-				
-				if (c == '(')
-				{
-					pos++;
-					continue;
-				}
-				
-				if (c == 0)
-				{
-					state = -1;
-				}
-				else if (c == '+')
-				{
-					dqe->call = DQE_CALL_ADD;
-					binary_call = 1;
-				}
-				else if (c == '-')
-				{
-					dqe->call = DQE_CALL_SUB;
-					binary_call = 1;
-				}
-				else if (c == '*')
-				{
-					dqe->call = DQE_CALL_MUL;
-					binary_call = 1;
-				}
-				else if (c == '/')
-				{
-					dqe->call = DQE_CALL_DIV;
-					binary_call = 1;
-				}
-				else if (('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || c == '_')
-				{
-					state = 1;
-					buf[0] = c;
-					bufpos = 1;
-				}
-				else if ('0' <= c && c <= '9')
-				{
-					state = 2;
-					buf[0] = c;
-					bufpos = 1;
-				}
-				else
-				{
-					state = -1;
-				}
-				
-				break;
-				
-			case 1:
-				if (('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || c == '_')
-				{
-					buf[bufpos++] = c;
-				}
-				else if (c == ' ' || c == ')' || c == '0')
-				{
-					buf[bufpos++] = 0;
-					
-					if (strcmp(buf, "abs") == 0)
-					{
-						dqe->call = DQE_CALL_ABS;
-						unary_call = 1;
-					}
-					else if (strcmp(buf, "sqr") == 0)
-					{
-						dqe->call = DQE_CALL_SQR;
-						unary_call = 1;
-					}
-					else if (strcmp(buf, "exp") == 0)
-					{
-						dqe->call = DQE_CALL_EXP;
-						unary_call = 1;
-					}
-					else if (strcmp(buf, "log") == 0)
-					{
-						dqe->call = DQE_CALL_LOG;
-						unary_call = 1;
-					}
-					else if (strcmp(buf, "sin") == 0)
-					{
-						dqe->call = DQE_CALL_SIN;
-						unary_call = 1;
-					}
-					else if (strcmp(buf, "cos") == 0)
-					{
-						dqe->call = DQE_CALL_COS;
-						unary_call = 1;
-					}
-					else if (strcmp(buf, "tan") == 0)
-					{
-						dqe->call = DQE_CALL_TAN;
-						unary_call = 1;
-					}
-					else  if (strcmp(buf, "pow") == 0)
-					{
-						dqe->call = DQE_CALL_POW;
-						binary_call = 1;
-					}
-					else if (params)
-					{
-						for (int i = 0; i < n_params; i++)
-						{
-							if (!params[i])
-								continue;
-							
-							if (strcmp(params[i]->name, buf) == 0)
-							{
-								dqe->call = DQE_CALL_PARAM;
-								dqe->param = params[i];
-								if (next)
-									*next = &str[pos+1];
-								return dqe;
-							}
-						}
-						
-						state = -1;
-					}
-					else
-					{
-						state = -1;
-					}
-				}
-				else
-				{
-					state = -1;
-				}
-				
-				break;
-			
-			case 2:
-				if (('0' <= c && c <= '9') || c == '.')
-				{
-					buf[bufpos++] = c;
-				}
-				else if (c == ' ' || c == ')' || c == ',' || c == 0)
-				{
-					buf[bufpos] = 0;
-					
-					dqe->call = DQE_CALL_CONST;
-					dqe->value = strtof(buf, NULL);
-					
-					if (next)
-						*next = &str[pos+1];
-					
-					return dqe;
-				}
-				else
-				{
-					state = -1;
-				}
-				
-				break;
-			
-			default:
-				state = -1;
-		}
-		
-		if (unary_call)
-		{
-			dqe->sub_exprs = (derived_quantity_expr**)malloc(sizeof(derived_quantity_expr*) * 1);
-			dqe->sub_exprs[0] = new_dqe_from_expr(&str[pos+1], params, n_params, next);
-			
-			return dqe;
-		}
-		
-		if (binary_call)
-		{
-			dqe->sub_exprs = (derived_quantity_expr**)malloc(sizeof(derived_quantity_expr*) * 2);
-			dqe->sub_exprs[0] = new_dqe_from_expr(&str[pos+1], params, n_params, &sub_next);
-			dqe->sub_exprs[1] = new_dqe_from_expr(sub_next, params, n_params, next);
-			
-			return dqe;
-		}
-		
-		pos++;
-	}
-	
-	return dqe;
-}
-
-int effect_set_reg(effect *eff, int block_no, int reg, int format, char *expr)
-{
-	if (!eff)
-		return 1;
-	
-	if (block_no < 0 || block_no > eff->n_blocks || reg < 0 || reg > N_BLOCKS_REGS)
-		return 2;
-	
-	block_register *bp = new_block_register(reg, format, new_dqe_from_expr(expr, eff->params, eff->n_params, NULL));
-	
-	block_add_register(eff->blocks[block_no], reg, bp);
-	
-	return 0;
-}
-
-int effect_add_add_cc(effect *eff, int src_a, int src_b, int dest)
-{
-	if (!eff)
-		return 1;
-	
-	block *add_block = new_block_with_instr(block_instr_type_a_str(BLOCK_INSTR_ADD, src_a, src_b, 0, dest, 0, 0, 0, 0, 0, 0));
-	effect_add_block(eff, add_block);
-	
-	return 0;
-}
-
-int effect_add_mul_cc(effect *eff, int src_a, int src_b, int dest)
-{
-	if (!eff)
-		return 1;
-	
-	block *blk = new_block_with_instr(block_instr_type_a_str(BLOCK_INSTR_MUL, src_a, src_b, 0, dest, 0, 0, 0, 0, 0, 0));
-	effect_add_block(eff, blk);
-	
-	return 0;
-}
-
-derived_quantity_expr *const_dqe(float v)
-{
-	derived_quantity_expr *res = (derived_quantity_expr*)malloc(sizeof(derived_quantity_expr));
-	res->call = DQE_CALL_CONST;
-	res->value = v;
-	res->sub_exprs = NULL;
-	return res;
-}
-
-int effect_add_const_mul_rc(effect *eff, int src_a, float v, int dest)
-{
-	if (!eff)
-		return 1;
-	
-	if (abs(v) > (float)(1 << SHIFT_WIDTH))
-		return 2;
-	
-	float fmt = 1.0;
-	int shift = 0;
-	
-	while (abs(v) > fmt)
-	{
-		fmt *= 2.0;
-		shift++;
-	}
-	
-	block *blk = new_block_with_instr(block_instr_type_a_str(BLOCK_INSTR_MUL, src_a, 0, 0, dest, 0, 1, 0, 0, shift, 0));
-	block_add_register(blk, 0, new_block_register(0, shift, const_dqe(v)));
-	effect_add_block(eff, blk);
-	
-	return 0;
-}
-
-int effect_add_mad_ccc(effect *eff, int src_a, int src_b, int src_c, int dest)
-{
-	if (!eff)
-		return 1;
-	
-	block *blk = new_block_with_instr(block_instr_type_a_str(BLOCK_INSTR_MUL, src_a, src_b, src_c, dest, 0, 0, 0, 0, 0, 0));
-	effect_add_block(eff, blk);
-	
-	return 0;
-}
-
-int effect_add_mad_ccr(effect *eff, int src_a, float v, int src_c, int dest)
-{
-	if (!eff)
-		return 1;
-	
-	if (abs(v) > (float)(1 << SHIFT_WIDTH))
-		return 2;
-	
-	float fmt = 1.0;
-	int shift = 0;
-	
-	while (abs(v) > fmt)
-	{
-		fmt *= 2.0;
-		shift++;
-	}
-	
-	block *blk = new_block_with_instr(block_instr_type_a_str(BLOCK_INSTR_MUL, src_a, 0, src_c, 0, 0, 1, 0, 0, shift, 0));
-	block_add_register(blk, 0, new_block_register(0, shift, const_dqe(v)));
-	effect_add_block(eff, blk);
-	
-	return 0;
-}
-
-int effect_add_macz_cc(effect *eff, int src_a, int src_b)
-{
-	if (!eff)
-		return 1;
-	
-	block *blk = new_block_with_instr(block_instr_type_a_str(BLOCK_INSTR_MACZ, src_a, src_b, 0, 0, 0, 0, 0, 0, 0, 0));
-	effect_add_block(eff, blk);
-	
-	return 0;
-}
-
-int effect_add_macz_rc(effect *eff, int src_a, float v)
-{
-	if (!eff)
-		return 1;
-	
-	if (abs(v) > (float)(1 << SHIFT_WIDTH))
-		return 2;
-	
-	float fmt = 1.0;
-	int shift = 0;
-	
-	while (abs(v) > fmt)
-	{
-		fmt *= 2.0;
-		shift++;
-	}
-	
-	block *blk = new_block_with_instr(block_instr_type_a_str(BLOCK_INSTR_MACZ, src_a, 0, 0, 0, 0, 1, 0, 0, 0, 0));
-	block_add_register(blk, 0, new_block_register(0, shift, const_dqe(v)));
-	effect_add_block(eff, blk);
-	
-	return 0;
-}
-
-int effect_add_mac_cc(effect *eff, int src_a, int src_b)
-{
-	if (!eff)
-		return 1;
-	
-	block *blk = new_block_with_instr(block_instr_type_a_str(BLOCK_INSTR_MAC, src_a, src_b, 0, 0, 0, 0, 0, 0, 0, 0));
-	effect_add_block(eff, blk);
-	
-	return 0;
-}
-
-int effect_add_mac_cc_ns(effect *eff, int src_a, int src_b)
-{
-	if (!eff)
-		return 1;
-	
-	block *blk = new_block_with_instr(block_instr_type_a_str(BLOCK_INSTR_MAC, src_a, src_b, 0, 0, 0, 0, 0, 0, 0, 1));
-	effect_add_block(eff, blk);
-	
-	return 0;
-}
-
-int effect_add_mac_rc(effect *eff, int src_a, float v)
-{
-	if (!eff)
-		return 1;
-	
-	if (abs(v) > (float)(1 << SHIFT_WIDTH))
-		return 2;
-	
-	float fmt = 1.0;
-	int shift = 0;
-	
-	while (abs(v) > fmt)
-	{
-		fmt *= 2.0;
-		shift++;
-	}
-	
-	block *blk = new_block_with_instr(block_instr_type_a_str(BLOCK_INSTR_MAC, src_a, 0, 0, 0, 0, 1, 0, 0, shift, 0));
-	block_add_register(blk, 0, new_block_register(0, shift, const_dqe(v)));
-	effect_add_block(eff, blk);
-	
-	return 0;
-}
-
-int effect_add_mac_rc_ns(effect *eff, int src_a, float v)
-{
-	if (!eff)
-		return 1;
-	
-	if (abs(v) > (float)(1 << SHIFT_WIDTH))
-		return 2;
-	
-	float fmt = 1.0;
-	int shift = 0;
-	
-	while (abs(v) > fmt)
-	{
-		fmt *= 2.0;
-		shift++;
-	}
-	
-	block *blk = new_block_with_instr(block_instr_type_a_str(BLOCK_INSTR_MAC, src_a, 0, 0, 0, 0, 1, 0, 0, shift, 1));
-	block_add_register(blk, 0, new_block_register(0, shift, const_dqe(v)));
-	effect_add_block(eff, blk);
-	
-	return 0;
-}
-
-int effect_add_mac_rc_ns_sh(effect *eff, int src_a, float v, int shift)
-{
-	if (!eff)
-		return 1;
-	
-	block *blk = new_block_with_instr(block_instr_type_a_str(BLOCK_INSTR_MAC, src_a, 0, 0, 0, 0, 1, 0, 0, shift, 1));
-	block_add_register(blk, 0, new_block_register(0, shift, const_dqe(v)));
-	effect_add_block(eff, blk);
-	
-	return 0;
-}
-
-int effect_add_load(effect *eff, int addr, int dest)
-{
-	if (!eff)
-		return 1;
-	
-	block *blk = new_block_with_instr(block_instr_type_b_str(BLOCK_INSTR_LOAD, 0, 0, dest, addr));
-	effect_add_block(eff, blk);
-	
-	return 0;
-}
-
-int effect_add_save(effect *eff, int src_a, int addr)
-{
-	if (!eff)
-		return 1;
-	
-	block *blk = new_block_with_instr(block_instr_type_b_str(BLOCK_INSTR_SAVE, src_a, 0, 0, addr));
-	effect_add_block(eff, blk);
-	
-	return 0;
-}
-
-int effect_add_mov_acc(effect *eff, int dest)
-{
-	if (!eff)
-		return 1;
-	
-	block *blk = new_block_with_instr(block_instr_type_a_str(BLOCK_INSTR_MOV_ACC, 0, 0, 0, dest, 0, 0, 0, 0, 0, 0));
-	effect_add_block(eff, blk);
-	
-	return 0;
-}
-
-int effect_add_mov_acc_sh(effect *eff, int dest, int shift)
-{
-	if (!eff)
-		return 1;
-	
-	block *blk = new_block_with_instr(block_instr_type_a_str(BLOCK_INSTR_MOV_ACC, 0, 0, 0, dest, 0, 0, 0, 0, 1, 0));
-	effect_add_block(eff, blk);
-	
-	return 0;
-}
-
-effect *create_amplifier_effect(float gain)
-{
-	effect *amp = new_effect();
-	parameter *param = new_parameter("gain", gain);
-	effect_add_param(amp, param);
-	
-	block *blk1 = new_block_with_instr(block_instr_type_a_str(BLOCK_INSTR_MUL, 0, 0, 0, 0, 0, 1, 0, 0, 4, 0));
-	effect_add_block(amp, blk1);
-	effect_set_reg(amp, 0, 0, 4, "pow 10 (/ gain 20)");
-	
-	return amp;
-}
-
-#if 0
-
-void load_biquad(int base_block,
-                 float b0, float b1, float b2,
-                 float a1, float a2)
-{
-	// channels:
-	// ch0 = x[n]
-	// ch1 = x[n]
-	// ch2 = x[n-1]
-	// ch3 = x[n-2]
-	// ch4 = y[n-1]
-	// ch5 = y[n-2]
-	
-	// move previous sample's x[n-1] to ch3
-    write_block_instr(base_block + 0,
-        BLOCK_INSTR_S(BLOCK_INSTR_MOV, 2, 0, 0, 3, 0, 0, 0, 0, 0, 1));
-    // move previous sample's x[n] to ch2
-    write_block_instr(base_block + 1,
-        BLOCK_INSTR_S(BLOCK_INSTR_MOV, 1, 0, 0, 2, 0, 0, 0, 0, 0, 1));
-    // copy x[n] to ch1
-    write_block_instr(base_block + 2,
-        BLOCK_INSTR_S(BLOCK_INSTR_MOV, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1));
-
-	// ch0 = b0*x[n] = b0*ch0
-    write_block_register(base_block + 3, 0, float_to_q_nminus1(b0, 1));
-    write_block_instr(base_block + 3,
-        BLOCK_INSTR_S(BLOCK_INSTR_MUL, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1));
-
-	// ch0 = b0*x[n] + b1*x[n-1] = b1*ch2 + ch0
-    write_block_register(base_block + 4, 0, float_to_q_nminus1(b1, 1));
-    write_block_instr(base_block + 4,
-        BLOCK_INSTR_S(BLOCK_INSTR_MAD, 2, 0, 0, 0, 0, 1, 0, 0, 0, 1));
-
-	// ch0 = b0*x[n] + b1*x[n-1] + b2*x[n-1] = b2*ch3 + ch0
-    write_block_register(base_block + 5, 0, float_to_q_nminus1(b2, 1));
-    write_block_instr(base_block + 5,
-        BLOCK_INSTR_S(BLOCK_INSTR_MAD, 3, 0, 0, 0, 0, 1, 0, 0, 0, 1));
-
-	// ch0 = b0*x[n] + b1*x[n-1] + b2*x[n-1] - a1y[n-1] = -a1*ch4 + ch0
-    write_block_register(base_block + 6, 0, float_to_q_nminus1(-a1, 1));
-    write_block_instr(base_block + 6,
-        BLOCK_INSTR_S(BLOCK_INSTR_MAD, 4, 0, 0, 0, 0, 1, 0, 0, 0, 1));
-
-	// ch0 = b0*x[n] + b1*x[n-1] + b2*x[n-1] - a1y[n-1] - a2y[n-2] = -a2*ch5 + ch0
-    write_block_register(base_block + 7, 0, float_to_q_nminus1(-a2, 1));
-    write_block_instr(base_block + 7,
-        BLOCK_INSTR_S(BLOCK_INSTR_MAD, 5, 0, 0, 0, 0, 1, 0, 0, 0, 1));
-
-	// clamp to [-1, 1)
-	write_block_instr(base_block + 8,
-        BLOCK_INSTR_S(BLOCK_INSTR_CLAMP, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0));
-       
-    // shift back to format
-	write_block_instr(base_block + 9,
-        BLOCK_INSTR_S(BLOCK_INSTR_LSH, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
-
-	// move previous sample's y[n-1] to ch5
-    write_block_instr(base_block + 10,
-        BLOCK_INSTR_S(BLOCK_INSTR_MOV, 4, 0, 0, 5, 0, 0, 0, 0, 0, 0));
-    // move y[n] to ch4
-    write_block_instr(base_block + 11,
-        BLOCK_INSTR_S(BLOCK_INSTR_MOV, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0));
-}
-
-#endif
-
-effect *create_biquad_effect(float b0, float b1, float b2, float a1, float a2)
-{
-	effect *eff = new_effect();
-	
-	// load state from memory
-	effect_add_load(eff, 0, 1); // ch1 = x1
-	effect_add_load(eff, 1, 2); // ch2 = x2
-	effect_add_load(eff, 2, 3); // ch3 = y1
-	effect_add_load(eff, 3, 4); // ch4 = y2
-	
-	effect_add_save(eff, 0, 0); // save (now) x0 to be (next time) x1
-	effect_add_save(eff, 1, 1); // save (now) x1 to be (next time) x2
-	effect_add_save(eff, 3, 3); // save (now) y1 to be (next time) y2
-	
-	block *blk;
-	
-	effect_add_macz_rc	(eff, 0,  b0); // clear accumulator; add b0*x0
-	blk = new_block_with_instr(block_instr_type_a_str(BLOCK_INSTR_MACZ, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1));
-	block_add_register(blk, 0, new_block_register_literal(0, float_to_q_nminus1(b0, 2)));
-	effect_add_block(eff, blk);
-	
-	blk = new_block_with_instr(block_instr_type_a_str(BLOCK_INSTR_MAC, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1));
-	block_add_register(blk, 0, new_block_register_literal(0, float_to_q_nminus1(b1, 2)));
-	effect_add_block(eff, blk);
-	
-	blk = new_block_with_instr(block_instr_type_a_str(BLOCK_INSTR_MAC, 2, 0, 0, 0, 0, 1, 0, 0, 0, 1));
-	block_add_register(blk, 0, new_block_register_literal(0, float_to_q_nminus1(b2, 2)));
-	effect_add_block(eff, blk);
-	
-	blk = new_block_with_instr(block_instr_type_a_str(BLOCK_INSTR_MAC, 3, 0, 0, 0, 0, 1, 0, 0, 0, 1));
-	block_add_register(blk, 0, new_block_register_literal(0, float_to_q_nminus1(-a1, 2)));
-	effect_add_block(eff, blk);
-	
-	blk = new_block_with_instr(block_instr_type_a_str(BLOCK_INSTR_MAC, 4, 0, 0, 0, 0, 1, 0, 0, 0, 1));
-	block_add_register(blk, 0, new_block_register_literal(0, float_to_q_nminus1(-a2, 2)));
-	effect_add_block(eff, blk);
-	
-	blk = new_block_with_instr(block_instr_type_a_str(BLOCK_INSTR_MOV_ACC, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0));
-	effect_add_block(eff, blk);
-	
-	effect_add_save(eff, 0, 2); // save (now) y0 to be (next time) y1
-	
-	return eff;
-}
-
-transfer_sequence new_transfer_sequence()
-{
-	transfer_sequence seq;
-	
-	seq.buf = (uint8_t*)malloc(sizeof(uint8_t) * 256);
-	seq.len = 0;
-	seq.buf_len = 256;
-	
-	return seq;
-}
-
-int tfseq_append(transfer_sequence *tfseq, uint8_t byte)
-{
-	if (!tfseq)
-		return 1;
-	
-	if (tfseq->len >= tfseq->buf_len)
-	{
-		tfseq->buf_len = tfseq->buf_len * 2;
-		tfseq->buf = (uint8_t*)realloc(tfseq->buf, tfseq->buf_len * sizeof(uint8_t));
-	}
-	
-	tfseq->buf[tfseq->len++] = byte;
-	
-	return 0;
-}
-
-int read_out_transfer_sequence(transfer_sequence tfseq)
-{
-	uint8_t *bytes = tfseq.buf;
-	int n = tfseq.len;
-	
-	printf("Reading out transfer sequence %p (length %d)\n", bytes, n);
-	
-	
-	if (!bytes || n < 1)
-		return 1;
 	
 	int i = 0;
 	
@@ -1217,19 +1561,19 @@ int read_out_transfer_sequence(transfer_sequence tfseq)
 	
 	uint8_t byte;
 	
-	int ctr;
+	int ctr = 0;
 	
-	uint8_t reg_no;
-	int16_t value;
-	uint32_t instruction;
+	uint8_t reg_no = 0;
+	int16_t value = 0;
+	uint32_t instruction = 0;
 	
-	block_instr instr_str;
+	m_dsp_block_instr instr_str;
 	
 	while (i < n)
 	{
-		byte = bytes[i];
+		byte = seq.buf[i];
 		
-		printf("\tByte %s%d: 0x%02x = 0b%08b. ", (tfseq.len > 9 && i < 10) ? " " : "", i, byte, byte);
+		printf("\tByte %s%d: 0x%02X. ", (n > 9 && i < 10) ? " " : "", i, byte);
 		
 		switch (state)
 		{
@@ -1255,6 +1599,10 @@ int read_out_transfer_sequence(transfer_sequence tfseq)
 
 					case COMMAND_UPDATE_BLOCK_REG:
 						printf("Command UPDATE_BLOCK_REG");
+						state = 1;
+						ret_state = 3;
+						value = 0;
+						ctr = 0;
 						break;
 
 					case COMMAND_ALLOC_SRAM_DELAY:
@@ -1292,7 +1640,7 @@ int read_out_transfer_sequence(transfer_sequence tfseq)
 					
 					instruction = (instruction << 8) | byte;
 					
-					instr_str = unpack_instr_code(instruction);
+					instr_str = m_decode_dsp_block_instr(instruction);
 					
 					print_instruction(instr_str);
 				}
@@ -1313,12 +1661,12 @@ int read_out_transfer_sequence(transfer_sequence tfseq)
 				{
 					state = 0;
 					
-					value |= byte;
-					printf("Value: 0b%016b", value & 0xFFFF);
+					value = (value << 8) | byte;
+					printf("Value: %s", binary_print_16(value));
 				}
 				else
 				{
-					value = byte << 8;
+					value = (value << 8) | byte;
 					ctr++;
 				}
 				break;
@@ -1336,74 +1684,120 @@ int read_out_transfer_sequence(transfer_sequence tfseq)
 	return 0;
 }
 
-int integrate_resource_report(resource_report *res, resource_report local)
+void write_block_instr(int block, uint32_t instr)
 {
-	if (!res)
-		return 1;
+	spi_send(COMMAND_WRITE_BLOCK_INSTR);
 	
-	res->block_usage += local.block_usage;
-	res->sram_delay_usage += local.sram_delay_usage;
-	res->mem_usage += local.mem_usage;
+	spi_send(block);
 	
-	return 0;
+	spi_send((instr >> 24) & 0xFFFF);
+	
+	spi_send((instr >> 16) & 0xFFFF);
+	
+	spi_send((instr >> 8) & 0xFFFF);
+	
+	spi_send(instr & 0xFFFF);
 }
 
-transfer_sequence pipeline_transfer_sequence(pipeline *pl)
+void send_data_command(int command, uint16_t data)
 {
-	transfer_sequence seq;
-	
-	seq.buf = NULL;
-	seq.buf_len = 0;
-	seq.len = 0;
-	
-	if (!pl)
-		return seq;
-	
-	seq = new_transfer_sequence();
-	
-	resource_report res = empty_resource_report();
-	resource_report eff_usage;
-	
-	uint8_t buf[4096];
-	int count;
-	
-	for (int i = 0; i < pl->n_effects; i++)
-	{
-		count = effect_bytes(pl->effects[i], &res, &eff_usage, buf, 4096);
-		
-		integrate_resource_report(&res, eff_usage);
-		
-		for (int j = 0; j < count; j++)
-			tfseq_append(&seq, buf[j]);
-	}
-	
-	return seq;
+	spi_send(command);
+	spi_send((data >> 8) & 0xFFFF);
+	spi_send(data & 0xFFFF);
 }
 
-int send_transfer_sequence(transfer_sequence seq)
+void write_block_register(int block, int reg, uint16_t val)
 {
-	if (!seq.buf)
-		return 1;
+	printf("Write block register: %d.%d <= %.06f\n", block, reg, (float)(val / (float)(1 << 15)));
 	
-	int i = 0;
-	int ret_val;
+	printf("Send command COMMAND_WRITE_BLOCK_REG\n");
+	spi_send(COMMAND_WRITE_BLOCK_REG);
 	
-	read_out_transfer_sequence(seq);
+	printf("Send block number\n");
+	spi_send(block);
 	
-	while (i < seq.len)
-	{
-		do 
-		{
-			ret_val = spi_send(seq.buf[i]);
+	printf("Send register number\n");
+	
+	spi_send(reg & 0xFFFF);
+	
+	printf("Send value\n");
+	spi_send((val >> 8) & 0xFFFF);
+	
+	spi_send(val & 0xFFFF);
+}
+
+void m_fpga_set_input_gain(float gain_db)
+{
+	float v = powf(10, gain_db / 20.0);
+	uint16_t s = float_to_q_nminus1(v, 5);
 			
-			if (ret_val == 1)
-				tick();
-			else if (ret_val == 2)
-				return 2;
-		} while (ret_val);
-		
-		i++;
-	}
+	printf("Telling FPGA to change input gain to %fdB = %f = 0b%d%d%d%d%d.%d%d%d%d%d%d%d%d%d%d%d\n", gain_db, v,
+		!!(s & (1 << 15)),
+		!!(s & (1 << 14)),
+		!!(s & (1 << 13)),
+		!!(s & (1 << 12)),
+		!!(s & (1 << 11)),
+		!!(s & (1 << 10)),
+		!!(s & (1 << 9)),
+		!!(s & (1 << 8)),
+		!!(s & (1 << 7)),
+		!!(s & (1 << 6)),
+		!!(s & (1 << 5)),
+		!!(s & (1 << 4)),
+		!!(s & (1 << 3)),
+		!!(s & (1 << 2)),
+		!!(s & (1 << 1)),
+		!!(s & (1 << 0)));
 	
-	return 0;
+	spi_send(COMMAND_SET_INPUT_GAIN);
+	spi_send((s & 0xFF00) >> 8);
+	spi_send(s & 0x00FF);
+}
+
+void m_fpga_set_output_gain(float gain_db)
+{
+	float v = powf(10, gain_db / 20.0);
+	uint16_t s = float_to_q_nminus1(v, 5);
+			
+	printf("Telling FPGA to change input gain to %fdB = %f = 0b%d%d%d%d%d.%d%d%d%d%d%d%d%d%d%d%d\n", gain_db, v,
+		!!(s & (1 << 15)),
+		!!(s & (1 << 14)),
+		!!(s & (1 << 13)),
+		!!(s & (1 << 12)),
+		!!(s & (1 << 11)),
+		!!(s & (1 << 10)),
+		!!(s & (1 << 9)),
+		!!(s & (1 << 8)),
+		!!(s & (1 << 7)),
+		!!(s & (1 << 6)),
+		!!(s & (1 << 5)),
+		!!(s & (1 << 4)),
+		!!(s & (1 << 3)),
+		!!(s & (1 << 2)),
+		!!(s & (1 << 1)),
+		!!(s & (1 << 0)));
+	
+	spi_send(COMMAND_SET_OUTPUT_GAIN);
+	spi_send((s & 0xFF00) >> 8);
+	spi_send(s & 0x00FF);
+}
+
+m_fpga_resource_report m_empty_fpga_resource_report()
+{
+	m_fpga_resource_report result;
+	memset(&result, 0, sizeof(m_fpga_resource_report));
+	return result;
+}
+
+int m_fpga_resource_report_integrate(m_fpga_resource_report *cxt, m_fpga_resource_report *local)
+{
+	if (!cxt || !local)
+		return ERR_NULL_PTR;
+	
+	cxt->blocks += local->blocks;
+	cxt->memory += local->memory;
+	cxt->sdelay += local->sdelay;
+	cxt->ddelay += local->ddelay;
+	
+	return NO_ERROR;
 }

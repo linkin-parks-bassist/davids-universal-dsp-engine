@@ -64,7 +64,6 @@ module control_unit
 		
 		block_instr_write 	<= 0;
 		block_reg_write 	<= 0;
-		block_reg_update 	<= 0;
 		
 		alloc_sram_delay <= 0;
 		
@@ -325,7 +324,7 @@ module control_unit_seq
 		reset_pipeline <= 0;
 		
 		block_instr_write 	<= 0;
-		block_reg_update 	<= 0;
+		block_reg_write 	<= 0;
 		
 		alloc_sram_delay <= 0;
 		
@@ -547,5 +546,4 @@ module control_unit_seq
 			endcase
 		end
 	end
-	
 endmodule

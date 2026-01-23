@@ -113,10 +113,89 @@ void print_state()
 	printf("io.i2s_bit     = %d\n", (int)io.i2s_bit);
 }
 
+typedef struct sim_spi_send {
+	m_fpga_transfer_batch batch;
+	int tick;
+	int started;
+	int position;
+	
+	struct sim_spi_send *next;
+} sim_spi_send;
+
+sim_spi_send *send_queue = NULL;
+
+int append_send_queue(m_fpga_transfer_batch batch, int when)
+{	
+	sim_spi_send *new_send = malloc(sizeof(sim_spi_send));
+	
+	if (!new_send) return 1;
+	
+	new_send->batch 	= batch;
+	new_send->tick 		= when;
+	new_send->started 	= 0;
+	new_send->position 	= 0;
+	new_send->next 		= NULL;
+	
+	if (!send_queue)
+	{
+		send_queue = new_send;
+	}
+	else
+	{
+		sim_spi_send *current = send_queue;
+		
+		while (current->next)
+			current = current->next;
+		
+		current->next = new_send;	
+	}
+	
+	return 0;
+}
+
+void pop_send_queue()
+{
+	if (!send_queue)
+		return;
+	
+	sim_spi_send *ol = send_queue;
+	
+	send_queue = send_queue->next;
+	
+	if (ol->batch.buf)
+		free(ol->batch.buf);
+	free(ol);
+}
+
 int tick()
 {
 	if (!dut)
 		return 1;
+	
+	if (send_queue)
+	{
+		if (ticks >= send_queue->tick)
+		{
+			if (!send_queue->started)
+			{
+				send_queue->started = 1;
+				send_queue->position = 0;
+				
+				printf("\nSending batch. ");
+				m_fpga_batch_print(send_queue->batch);
+			}
+			
+			if (send_queue->position >= send_queue->batch.len)
+			{
+				pop_send_queue();
+			}
+			else
+			{
+				if (spi_send(send_queue->batch.buf[send_queue->position]) == 0)
+					send_queue->position++;
+			}
+		}
+	}
 	
 	dut->sys_clk = 1;
 	sim_io_update(&io);
@@ -135,137 +214,6 @@ int tick()
 	return 0;
 }
 
-int16_t float_to_q15(float x)
-{
-	if (x >= 0.999969482421875f) return  32767;
-    if (x <= -1.0f)              return -32768;
-    
-    return (int16_t)lrintf(x * 32768.0f);
-}
-
-#define BLOCK_INSTR(opcode, src_a, src_b, src_c, dest, a_reg, b_reg, c_reg, dest_reg, shift) \
-	BLOCK_INSTR_S(opcode, src_a, src_b, src_c, dest, a_reg, b_reg, c_reg, dest_reg, shift, sat)
-	
-#define BLOCK_INSTR_S(opcode, src_a, src_b, src_c, dest, a_reg, b_reg, c_reg, dest_reg, shift, sat) (\
-		  ((uint32_t)opcode) \
-		| ((uint32_t)src_a 	<< (0 * BLOCK_REG_ADDR_WIDTH + BLOCK_INSTR_OP_WIDTH    )) \
-		| ((uint32_t)src_b 	<< (1 * BLOCK_REG_ADDR_WIDTH + BLOCK_INSTR_OP_WIDTH    )) \
-		| ((uint32_t)src_c 	<< (2 * BLOCK_REG_ADDR_WIDTH + BLOCK_INSTR_OP_WIDTH    )) \
-		| ((uint32_t)dest  	<< (3 * BLOCK_REG_ADDR_WIDTH + BLOCK_INSTR_OP_WIDTH    )) \
-		| ((uint32_t)a_reg 	<< (BLOCK_INSTR_OP_TYPE_START + 0)) \
-		| ((uint32_t)b_reg 	<< (BLOCK_INSTR_OP_TYPE_START + 1)) \
-		| ((uint32_t)c_reg 	<< (BLOCK_INSTR_OP_TYPE_START + 2)) \
-		| ((uint32_t)dest_reg	<< (BLOCK_INSTR_OP_TYPE_START + 3)) \
-		| ((uint32_t)shift << (BLOCK_INSTR_PMS_START)) \
-		| ((uint32_t)sat   << (BLOCK_INSTR_OP_TYPE_START + 4)))
-
-void write_block_instr(int block, uint32_t instr)
-{
-	printf("Set block %d instruction to %d = 0b%032b\n", block, instr, instr);
-	spi_send(COMMAND_WRITE_BLOCK_INSTR);
-	
-	spi_send(block);
-	
-	spi_send((instr >> 24) & 0xFFFF);
-	
-	spi_send((instr >> 16) & 0xFFFF);
-	
-	spi_send((instr >> 8) & 0xFFFF);
-	
-	spi_send(instr & 0xFFFF);
-}
-
-void send_data_command(int command, uint16_t data)
-{
-	spi_send(command);
-	spi_send((data >> 8) & 0xFFFF);
-	spi_send(data & 0xFFFF);
-}
-
-void write_block_register(int block, int reg, uint16_t val)
-{
-	printf("Write block register: %d.%d <= %.06f\n", block, reg, (float)(val / (float)(1 << 15)));
-	
-	printf("Send command COMMAND_WRITE_BLOCK_REG\n");
-	spi_send(COMMAND_WRITE_BLOCK_REG);
-	
-	printf("Send block number\n");
-	spi_send(block);
-	
-	printf("Send register number\n");
-	
-	spi_send(reg & 0xFFFF);
-	
-	printf("Send value\n");
-	spi_send((val >> 8) & 0xFFFF);
-	
-	spi_send(val & 0xFFFF);
-}
-
-void load_biquad(int base_block,
-                 float b0, float b1, float b2,
-                 float a1, float a2)
-{
-	// channels:
-	// ch0 = x[n]
-	// ch1 = x[n]
-	// ch2 = x[n-1]
-	// ch3 = x[n-2]
-	// ch4 = y[n-1]
-	// ch5 = y[n-2]
-	
-	// move previous sample's x[n-1] to ch3
-    write_block_instr(base_block + 0,
-        BLOCK_INSTR_S(BLOCK_INSTR_MOV, 2, 0, 0, 3, 0, 0, 0, 0, 0, 1));
-    // move previous sample's x[n] to ch2
-    write_block_instr(base_block + 1,
-        BLOCK_INSTR_S(BLOCK_INSTR_MOV, 1, 0, 0, 2, 0, 0, 0, 0, 0, 1));
-    // copy x[n] to ch1
-    write_block_instr(base_block + 2,
-        BLOCK_INSTR_S(BLOCK_INSTR_MOV, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1));
-
-	// ch0 = b0*x[n] = b0*ch0
-    write_block_register(base_block + 3, 0, float_to_q_nminus1(b0, 1));
-    write_block_instr(base_block + 3,
-        BLOCK_INSTR_S(BLOCK_INSTR_MUL, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1));
-
-	// ch0 = b0*x[n] + b1*x[n-1] = b1*ch2 + ch0
-    write_block_register(base_block + 4, 0, float_to_q_nminus1(b1, 1));
-    write_block_instr(base_block + 4,
-        BLOCK_INSTR_S(BLOCK_INSTR_MAD, 2, 0, 0, 0, 0, 1, 0, 0, 0, 1));
-
-	// ch0 = b0*x[n] + b1*x[n-1] + b2*x[n-1] = b2*ch3 + ch0
-    write_block_register(base_block + 5, 0, float_to_q_nminus1(b2, 1));
-    write_block_instr(base_block + 5,
-        BLOCK_INSTR_S(BLOCK_INSTR_MAD, 3, 0, 0, 0, 0, 1, 0, 0, 0, 1));
-
-	// ch0 = b0*x[n] + b1*x[n-1] + b2*x[n-1] - a1y[n-1] = -a1*ch4 + ch0
-    write_block_register(base_block + 6, 0, float_to_q_nminus1(-a1, 1));
-    write_block_instr(base_block + 6,
-        BLOCK_INSTR_S(BLOCK_INSTR_MAD, 4, 0, 0, 0, 0, 1, 0, 0, 0, 1));
-
-	// ch0 = b0*x[n] + b1*x[n-1] + b2*x[n-1] - a1y[n-1] - a2y[n-2] = -a2*ch5 + ch0
-    write_block_register(base_block + 7, 0, float_to_q_nminus1(-a2, 1));
-    write_block_instr(base_block + 7,
-        BLOCK_INSTR_S(BLOCK_INSTR_MAD, 5, 0, 0, 0, 0, 1, 0, 0, 0, 1));
-
-	// clamp to [-1, 1)
-	write_block_instr(base_block + 8,
-        BLOCK_INSTR_S(BLOCK_INSTR_CLAMP, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0));
-       
-    // shift back to format
-	write_block_instr(base_block + 9,
-        BLOCK_INSTR_S(BLOCK_INSTR_LSH, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
-
-	// move previous sample's y[n-1] to ch5
-    write_block_instr(base_block + 10,
-        BLOCK_INSTR_S(BLOCK_INSTR_MOV, 4, 0, 0, 5, 0, 0, 0, 0, 0, 0));
-    // move y[n] to ch4
-    write_block_instr(base_block + 11,
-        BLOCK_INSTR_S(BLOCK_INSTR_MOV, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0));
-}
-
-
 int pow2_ceil(int x)
 {
 	int y = 1;
@@ -274,42 +222,6 @@ int pow2_ceil(int x)
 		y = y << 1;
 	
 	return y;
-}
-
-#define MS_TO_SAMPLES(x) ((int)roundf(((float)x * 48.0f)))
-
-void alloc_sram_delay(int ms)
-{
-	printf("Allocating SRAM delay buffer of size %d\n", pow2_ceil(MS_TO_SAMPLES(ms)));
-	send_data_command(COMMAND_ALLOC_SRAM_DELAY, pow2_ceil(MS_TO_SAMPLES(ms)));
-}
-
-void set_input_gain(float gain_db)
-{
-	float v = powf(10, gain_db / 20.0f);
-	uint16_t s = float_to_q_nminus1(v, 5);
-			
-	printf("Telling FPGA to change input gain to %fdB = %f = 0b%d%d%d%d%d.%d%d%d%d%d%d%d%d%d%d%d\n", gain_db, v,
-		!!(s & (1 << 15)),
-		!!(s & (1 << 14)),
-		!!(s & (1 << 13)),
-		!!(s & (1 << 12)),
-		!!(s & (1 << 11)),
-		!!(s & (1 << 10)),
-		!!(s & (1 << 9)),
-		!!(s & (1 << 8)),
-		!!(s & (1 << 7)),
-		!!(s & (1 << 6)),
-		!!(s & (1 << 5)),
-		!!(s & (1 << 4)),
-		!!(s & (1 << 3)),
-		!!(s & (1 << 2)),
-		!!(s & (1 << 1)),
-		!!(s & (1 << 0)));
-	
-	spi_send(COMMAND_SET_INPUT_GAIN);
-	spi_send((s & 0xFF00) >> 8);
-	spi_send(s & 0x00FF);
 }
 
 int main(int argc, char** argv)
@@ -350,10 +262,6 @@ int main(int argc, char** argv)
 	tfp->open("./verilator/waveform.fst");
 	#endif
 
-	pipeline *pl;
-	effect *eff;
-	transfer_sequence tfseq;
-
 	for (int i = 0; i < 16; i++)
 		tick();
 
@@ -361,29 +269,34 @@ int main(int argc, char** argv)
 	
 	printf("Starting...\n");
 	
-    for (int i = 0; i < (1 << 26); i++)
+	m_fpga_transfer_batch batch = m_new_fpga_transfer_batch();
+	
+	m_fpga_batch_append(&batch, 0x90);
+	m_fpga_batch_append(&batch, 0x00);
+	m_fpga_batch_append(&batch, 0x10);
+	m_fpga_batch_append(&batch, 0x40);
+	m_fpga_batch_append(&batch, 0x00);
+	m_fpga_batch_append(&batch, 0x06);
+	m_fpga_batch_append(&batch, 0xe0);
+	m_fpga_batch_append(&batch, 0x00);
+	m_fpga_batch_append(&batch, 0x00);
+	m_fpga_batch_append_16(&batch, (uint16_t)float_to_q_nminus1(0.0001, 4));
+	m_fpga_batch_append(&batch, COMMAND_SWAP_PIPELINES);
+	
+	append_send_queue(batch, 1 << 21);
+	
+	batch = m_new_fpga_transfer_batch();
+	
+	m_fpga_batch_append(&batch, 0xe8);
+	m_fpga_batch_append(&batch, 0x00);
+	m_fpga_batch_append(&batch, 0x00);
+	m_fpga_batch_append_16(&batch, (uint16_t)float_to_q_nminus1(12.0, 4));
+	
+	append_send_queue(batch, 1 << 22);
+	
+    for (int i = 0; i < (1 << 23); i++)
 	{
 		tick();
-		
-		if (i == (1 << 24))
-		{
-			pl = new_pipeline();
-			
-			eff = create_biquad_effect(
-				 0.065323,
-				 0.0,
-				-0.065323,
-				-1.748845,
-				 0.869354
-			);
-			pipeline_add_effect(pl, eff);
-			
-			tfseq = pipeline_transfer_sequence(pl);
-			
-			send_transfer_sequence(tfseq);
-			while (spi_send(COMMAND_SWAP_PIPELINES) == 1)
-				tick();
-		}
 		
 		if (samples_processed % 128 == 0)
 			printf("\rSamples processed: %d/%d (%.2f%%)", samples_processed, n_samples, 100.0 * (float)samples_processed/(float)n_samples);
@@ -417,7 +330,6 @@ int main(int argc, char** argv)
         std::cerr << "Failed to write WAV\n";
         return 1;
     }
-
 
     delete dut;
     return 0;
