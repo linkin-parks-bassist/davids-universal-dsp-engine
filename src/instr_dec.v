@@ -28,9 +28,10 @@ module instr_decoder #(parameter data_width = 16)
 	
 	assign operation = instr[`BLOCK_INSTR_OP_WIDTH - 1 : 0];
 	
-	wire instr_format = (operation == `BLOCK_INSTR_DELAY ||
-						 operation == `BLOCK_INSTR_SAVE  ||
-						 operation == `BLOCK_INSTR_LOAD  ||
+	wire instr_format = (operation == `BLOCK_INSTR_DELAY_READ 	||
+						 operation == `BLOCK_INSTR_DELAY_WRITE 	||
+						 operation == `BLOCK_INSTR_SAVE  		||
+						 operation == `BLOCK_INSTR_LOAD  		||
 						 operation == `BLOCK_INSTR_MOV)
 		? `BLOCK_INSTR_FORMAT_B : `BLOCK_INSTR_FORMAT_A;
 	
@@ -62,15 +63,15 @@ module instr_decoder #(parameter data_width = 16)
 				src_c <= 0;
 				dest  <= instr[3 * `BLOCK_REG_ADDR_WIDTH + `BLOCK_INSTR_OP_WIDTH - 1 : 2 * `BLOCK_REG_ADDR_WIDTH + `BLOCK_INSTR_OP_WIDTH];
 
-				src_a_reg <= 0;
-				src_b_reg <= 0;
+				src_a_reg <= instr[3 * `BLOCK_REG_ADDR_WIDTH + `BLOCK_INSTR_OP_WIDTH + 0];
+				src_b_reg <= instr[3 * `BLOCK_REG_ADDR_WIDTH + `BLOCK_INSTR_OP_WIDTH + 1];
 				src_c_reg <= 0;
-				dest_reg  <= 0;
+				dest_reg  <= instr[3 * `BLOCK_REG_ADDR_WIDTH + `BLOCK_INSTR_OP_WIDTH + 2];
 				
 				saturate <= 0;
 				instr_shift <= 0;
 				
-				res_addr <= instr[3 * `BLOCK_REG_ADDR_WIDTH + `BLOCK_INSTR_OP_WIDTH + `BLOCK_RES_ADDR_WIDTH - 1 : 3 * `BLOCK_REG_ADDR_WIDTH + `BLOCK_INSTR_OP_WIDTH];
+				res_addr <= instr[`BLOCK_INSTR_WIDTH - 1 : `BLOCK_INSTR_WIDTH - `BLOCK_RES_ADDR_WIDTH];
 			end
 		endcase
 	end

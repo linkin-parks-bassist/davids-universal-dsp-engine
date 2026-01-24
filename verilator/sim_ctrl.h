@@ -1,26 +1,30 @@
 #ifndef M_EFFECT_H_
 #define M_EFFECT_H_
 
-#define BLOCK_INSTR_NOP 	0
-#define BLOCK_INSTR_ADD 	1
-#define BLOCK_INSTR_SUB 	2
-#define BLOCK_INSTR_LSH 	3
-#define BLOCK_INSTR_RSH 	4
-#define BLOCK_INSTR_ARSH 	5
-#define BLOCK_INSTR_MUL 	6
-#define BLOCK_INSTR_MAD		7
-#define BLOCK_INSTR_ABS		8
-#define BLOCK_INSTR_LUT		9
-#define BLOCK_INSTR_ENVD 	10
-#define BLOCK_INSTR_DELAY 	11
-#define BLOCK_INSTR_SAVE 	12
-#define BLOCK_INSTR_LOAD	13
-#define BLOCK_INSTR_MOV		14
-#define BLOCK_INSTR_CLAMP	15
-#define BLOCK_INSTR_MACZ	16
-#define BLOCK_INSTR_MAC		17
-#define BLOCK_INSTR_MOV_ACC	18
+#define BLOCK_INSTR_NOP 		0
+#define BLOCK_INSTR_ADD 		1
+#define BLOCK_INSTR_SUB 		2
+#define BLOCK_INSTR_LSH 		3
+#define BLOCK_INSTR_RSH 		4
+#define BLOCK_INSTR_ARSH 		5
+#define BLOCK_INSTR_MUL 		6
+#define BLOCK_INSTR_MAD			7
+#define BLOCK_INSTR_ABS			8
+#define BLOCK_INSTR_LUT			9
+#define BLOCK_INSTR_ENVD 		10
+#define BLOCK_INSTR_DELAY_READ 	11
+#define BLOCK_INSTR_DELAY_WRITE 12
+#define BLOCK_INSTR_SAVE 		13
+#define BLOCK_INSTR_LOAD		14
+#define BLOCK_INSTR_MOV			15
+#define BLOCK_INSTR_CLAMP		16
+#define BLOCK_INSTR_MACZ		17
+#define BLOCK_INSTR_MAC			18
+#define BLOCK_INSTR_MOV_ACC		19
 
+#define STOCK_LUTS 2
+
+#define BLOCK_INSTR_WIDTH	32
 #define BLOCK_INSTR_OP_WIDTH 5
 #define BLOCK_REG_ADDR_WIDTH 4
 
@@ -28,7 +32,7 @@
 #define BLOCK_INSTR_PMS_START		(BLOCK_INSTR_OP_TYPE_START + 5)
 #define SHIFT_WIDTH 4
 
-#define BLOCK_RES_ADDR_WIDTH	8
+#define BLOCK_RES_ADDR_WIDTH		8
 
 #define COMMAND_WRITE_BLOCK_INSTR 	0b10010000
 #define COMMAND_WRITE_BLOCK_REG 	0b11100000
@@ -70,7 +74,7 @@ int m_dsp_block_instr_format(m_dsp_block_instr instr);
 uint32_t m_encode_dsp_block_instr(m_dsp_block_instr instr);
 
 m_dsp_block_instr m_dsp_block_instr_type_a_str(int opcode, int src_a, int src_b, int src_c, int dest, int a_reg, int b_reg, int c_reg, int dest_reg, int shift, int sat);
-m_dsp_block_instr m_dsp_block_instr_type_b_str(int opcode, int src_a, int src_b, int dest, int res_addr);
+m_dsp_block_instr m_dsp_block_instr_type_b_str(int opcode, int src_a, int src_b, int dest, int a_reg, int b_reg, int dest_reg, int res_addr);
 
 typedef struct
 {
@@ -103,6 +107,7 @@ typedef struct
 	unsigned int memory;
 	unsigned int sdelay;
 	unsigned int ddelay;
+	unsigned int luts;
 } m_fpga_resource_report;
 
 m_fpga_resource_report m_empty_fpga_resource_report();
@@ -131,10 +136,14 @@ typedef struct {
 	char *name_internal;
 } m_parameter;
 
+m_parameter *new_m_parameter_wni(const char *name, const char *name_internal, float value, float min, float max);
+
 typedef struct m_parameter_pll {
 	m_parameter *data;
 	struct m_parameter_pll *next;
 } m_parameter_pll;
+
+m_parameter_pll *m_parameter_pll_append(m_parameter_pll *pll, m_parameter *param);
 
 typedef struct m_derived_quantity
 {
@@ -198,6 +207,7 @@ m_effect_desc *new_m_effect_desc(const char *name);
 int m_effect_desc_add_block(m_effect_desc *eff, m_dsp_block *blk);
 int m_effect_desc_add_param(m_effect_desc *eff, m_parameter *param);
 
+int m_effect_desc_add_register_val_literal(m_effect_desc *eff, int block_no, int reg, uint16_t val);
 int m_effect_desc_add_register_val(m_effect_desc *eff, int block_no, int reg, int format, char *expr);
 
 int m_fpga_transfer_batch_append_effect_register_writes(

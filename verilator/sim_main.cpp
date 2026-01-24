@@ -1,8 +1,8 @@
 #include "sim_main.h"
 
-Vtop* dut = new Vtop;
+int samples_processed = 0;
 
-#define DUMP_WAVEFORM
+Vtop* dut = new Vtop;
 
 #pragma pack(push, 1)
 struct WavHeader {
@@ -73,7 +73,6 @@ static bool write_wav16_mono(const char* path,
 
     f.write(reinterpret_cast<const char*>(&h), sizeof(h));
 
-    // Explicit little-endian write (belt + suspenders)
     for (int16_t s : samples) {
         uint8_t lo = s & 0xFF;
         uint8_t hi = (s >> 8) & 0xFF;
@@ -126,7 +125,7 @@ sim_spi_send *send_queue = NULL;
 
 int append_send_queue(m_fpga_transfer_batch batch, int when)
 {	
-	sim_spi_send *new_send = malloc(sizeof(sim_spi_send));
+	sim_spi_send *new_send = (sim_spi_send*)malloc(sizeof(sim_spi_send));
 	
 	if (!new_send) return 1;
 	
@@ -172,44 +171,27 @@ int tick()
 	if (!dut)
 		return 1;
 	
-	if (send_queue)
-	{
-		if (ticks >= send_queue->tick)
-		{
-			if (!send_queue->started)
-			{
-				send_queue->started = 1;
-				send_queue->position = 0;
-				
-				printf("\nSending batch. ");
-				m_fpga_batch_print(send_queue->batch);
-			}
-			
-			if (send_queue->position >= send_queue->batch.len)
-			{
-				pop_send_queue();
-			}
-			else
-			{
-				if (spi_send(send_queue->batch.buf[send_queue->position]) == 0)
-					send_queue->position++;
-			}
-		}
-	}
-	
 	dut->sys_clk = 1;
 	sim_io_update(&io);
 	dut->eval();
+	#ifdef DUMP_WAVEFORM
 	if (tfp) tfp->dump(ticks++);
+	#endif
 	
-	//print_state();
+	#ifdef PRINT_STATE
+	print_state();
+	#endif
 	
 	dut->sys_clk = 0;
 	sim_io_update(&io);
 	dut->eval();
+	#ifdef DUMP_WAVEFORM
 	if (tfp) tfp->dump(ticks++);
+	#endif
 	
-	//print_state();
+	#ifdef PRINT_STATE
+	print_state();
+	#endif
 	
 	return 0;
 }
@@ -264,61 +246,91 @@ int main(int argc, char** argv)
 
 	for (int i = 0; i < 16; i++)
 		tick();
-
-	int samples_processed = 0;
 	
 	printf("Starting...\n");
 	
 	m_fpga_transfer_batch batch = m_new_fpga_transfer_batch();
+	m_parameter_pll *params = NULL;
 	
-	m_fpga_batch_append(&batch, 0x90);
-	m_fpga_batch_append(&batch, 0x00);
-	m_fpga_batch_append(&batch, 0x10);
-	m_fpga_batch_append(&batch, 0x40);
-	m_fpga_batch_append(&batch, 0x00);
-	m_fpga_batch_append(&batch, 0x06);
-	m_fpga_batch_append(&batch, 0xe0);
-	m_fpga_batch_append(&batch, 0x00);
-	m_fpga_batch_append(&batch, 0x00);
-	m_fpga_batch_append_16(&batch, (uint16_t)float_to_q_nminus1(0.0001, 4));
+	m_fpga_batch_append(&batch, COMMAND_ALLOC_SRAM_DELAY);
+	m_fpga_batch_append(&batch, 8192 & 0xFF00);
+	m_fpga_batch_append(&batch, 8192 & 0x00FF);
+	
+	int delay = 4096;
+	
+	m_effect_desc *eff = new_m_effect_desc("Delay");
+	m_parameter *param = new_m_parameter_wni("Delay", "delay", delay, 0.0, 0.0);
+	m_effect_desc_add_param(eff, param);
+	params = m_parameter_pll_append(params, param);
+	param = new_m_parameter_wni("Delay Gain", "delay_gain", -3.0, -30.0, 0.0);
+	m_effect_desc_add_param(eff, param);
+	params = m_parameter_pll_append(params, param);
+	
+	m_dsp_block *blk = new_m_dsp_block_with_instr(m_dsp_block_instr_type_b_str(BLOCK_INSTR_DELAY_READ, 0, 0, 1, 1, 0, 0, 0));
+	m_effect_desc_add_block(eff, blk);
+	m_effect_desc_add_register_val_literal(eff, 0, 0, delay);
+	
+	blk = new_m_dsp_block_with_instr(m_dsp_block_instr_type_a_str(BLOCK_INSTR_MAD, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0));
+	m_effect_desc_add_block(eff, blk);
+	m_effect_desc_add_register_val(eff, 1, 0, 0, "pow 10 (/ delay_gain 20)");
+	
+	blk = new_m_dsp_block_with_instr(m_dsp_block_instr_type_b_str(BLOCK_INSTR_DELAY_WRITE, 0, 0, 0, 0, 0, 0, 0));
+	m_effect_desc_add_block(eff, blk);
+	
+	m_fpga_resource_report res = m_empty_fpga_resource_report();
+	m_fpga_resource_report local;
+	
+	m_fpga_transfer_batch_append_effect(eff, &res, &local, params, &batch);
+	
 	m_fpga_batch_append(&batch, COMMAND_SWAP_PIPELINES);
 	
-	append_send_queue(batch, 1 << 21);
+	append_send_queue(batch, 128);
 	
-	batch = m_new_fpga_transfer_batch();
+	int samples_to_process = (n_samples < MAX_SAMPLES) ? n_samples : MAX_SAMPLES;
 	
-	m_fpga_batch_append(&batch, 0xe8);
-	m_fpga_batch_append(&batch, 0x00);
-	m_fpga_batch_append(&batch, 0x00);
-	m_fpga_batch_append_16(&batch, (uint16_t)float_to_q_nminus1(12.0, 4));
-	
-	append_send_queue(batch, 1 << 22);
-	
-    for (int i = 0; i < (1 << 23); i++)
+    while (samples_processed < samples_to_process)
 	{
 		tick();
 		
 		if (samples_processed % 128 == 0)
-			printf("\rSamples processed: %d/%d (%.2f%%)", samples_processed, n_samples, 100.0 * (float)samples_processed/(float)n_samples);
+			printf("\rSamples processed: %d/%d (%.2f%%)  ", samples_processed, samples_to_process, 100.0 * (float)samples_processed/(float)samples_to_process);
 		
 		if (io.i2s_ready)
 		{
-			if (samples_processed < n_samples)
+			if (send_queue)
 			{
-				samples_processed++;
-				io.sample_in = static_cast<int16_t>(in_samples[samples_processed]);
-				int16_t y = static_cast<int16_t>(io.sample_out);
-				out_samples.push_back(y);
-				io.i2s_ready = 0;
+				if (samples_processed >= send_queue->tick)
+				{
+					if (!send_queue->started)
+					{
+						send_queue->started = 1;
+						send_queue->position = 0;
+						
+						printf("\nSending batch. ");
+						m_fpga_batch_print(send_queue->batch);
+					}
+					
+					if (send_queue->position >= send_queue->batch.len)
+					{
+						pop_send_queue();
+					}
+					else
+					{
+						if (spi_send(send_queue->batch.buf[send_queue->position]) == 0)
+							send_queue->position++;
+					}
+				}
 			}
-			else
-			{
-				break;
-			}
+			
+			samples_processed++;
+			io.sample_in = static_cast<int16_t>(in_samples[samples_processed]);
+			int16_t y = static_cast<int16_t>(io.sample_out);
+			out_samples.push_back(y);
+			io.i2s_ready = 0;
 		}
     }
 
-	printf("\r\n");
+	printf("\rSamples processed: %d/%d (100%%)  \n", samples_to_process, samples_to_process);
 	
     #ifdef DUMP_WAVEFORM
 	tfp->close();

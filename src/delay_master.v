@@ -108,6 +108,12 @@ module delay_master
 		invalid_write 	<= 0;
 		invalid_alloc 	<= 0;
 		
+		read_ready  <= 0;
+		write_ready <= 0;
+		
+		read_wait_one  	<= 0;
+		write_wait_one 	<= 0;
+		
 		if (reset) begin
 			state 			<= 0;
 			read_ready 		<= 1;
@@ -147,14 +153,13 @@ module delay_master
 			end
 				
 			if (!state[0]) begin
-				if (read_req) begin
+				if (!read_wait_one && read_req) begin
 					if (valid_read_handle) begin
 						req_sram_read_addr 	<= read_sram_addr;
 						req_sram_read  		<= 1;
 						read_wait_one		<= 1;
 						
 						state[0] <= 1;
-						read_ready <= 0;
 					end
 					else begin
 						invalid_read <= 1;
@@ -176,11 +181,12 @@ module delay_master
 					req_sram_read 	<= 0;
 					state[0] 		<= 0;
 					read_ready 		<= 1;
+					read_wait_one	<= 1;
 				end
 			end
 			
 			if (!state[1]) begin
-				if (write_req) begin
+				if (!write_wait_one && write_req) begin
 					if (valid_write_handle) begin
 						req_sram_write_addr <= sram_buffer_addrs[trunc_write_handle] + sram_buffer_posns[trunc_write_handle];
 						data_to_sram 		<= write_req_arg;
@@ -209,6 +215,7 @@ module delay_master
 					invalid_write 	<= sram_write_invalid;
 					
 					sram_buffer_posns[trunc_write_handle_latched] <= next_buffer_pos;
+					write_wait_one <= 1;
 				end
 			end
 		end

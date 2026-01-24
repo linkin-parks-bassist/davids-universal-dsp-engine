@@ -109,6 +109,35 @@ int m_derived_quantity_arity(m_derived_quantity *dq)
 	return ERR_NULL_PTR;
 }
 
+m_parameter_pll *m_parameter_pll_append(m_parameter_pll *pll, m_parameter *param)
+{
+	m_parameter_pll *nl = malloc(sizeof(m_parameter_pll));
+	nl->data = param;
+	nl->next = NULL;
+	
+	if (!pll)
+		return nl;
+	
+	m_parameter_pll *current = pll;
+	
+	while (current->next)
+		current = current->next;
+	
+	current->next = nl;
+	
+	return pll;
+}
+
+m_parameter *new_m_parameter_wni(const char *name, const char *name_internal, float value, float min, float max)
+{
+	m_parameter *param = malloc(sizeof(m_parameter));
+	
+	param->name_internal = name_internal;
+	param->value = value;
+	
+	return param;
+}
+
 #define DQ_MAX_RECURSION_DEPTH 256
 
 static float m_derived_quantity_compute_rec(m_derived_quantity *dq, m_parameter_pll *params, int depth)
@@ -406,6 +435,7 @@ int m_dsp_block_instr_encode_resource_aware(const m_fpga_resource_report *cxt, m
 	local->memory = 0;
 	local->sdelay = 0;
 	local->ddelay = 0;
+	local->luts   = 0;
 	
 	m_dsp_block_instr rectified = blk->instr;
 	
@@ -413,7 +443,8 @@ int m_dsp_block_instr_encode_resource_aware(const m_fpga_resource_report *cxt, m
 	{
 		switch (blk->instr.opcode)
 		{
-			case BLOCK_INSTR_DELAY:
+			case BLOCK_INSTR_DELAY_READ:
+			case BLOCK_INSTR_DELAY_WRITE:
 				rectified.res_addr += cxt->ddelay;
 				local->ddelay = blk->instr.res_addr + 1;
 				break;
@@ -422,6 +453,14 @@ int m_dsp_block_instr_encode_resource_aware(const m_fpga_resource_report *cxt, m
 			case BLOCK_INSTR_LOAD:
 				rectified.res_addr += cxt->memory;
 				local->memory = blk->instr.res_addr + 1;
+				break;
+			
+			case BLOCK_INSTR_LUT:
+				if (rectified.res_addr >= STOCK_LUTS)
+				{
+					rectified.res_addr += cxt->luts;
+					local->luts = blk->instr.res_addr + 1;
+				}
 				break;
 		}
 	}
@@ -453,6 +492,7 @@ int m_dsp_blocks_encode_resource_aware(const m_fpga_resource_report *cxt, m_fpga
 		report->memory 	= (local.memory > report->memory) ? local.memory : report->memory;
 		report->sdelay 	= (local.sdelay > report->sdelay) ? local.sdelay : report->sdelay;
 		report->ddelay 	= (local.ddelay > report->ddelay) ? local.ddelay : report->ddelay;
+		report->luts 	= (local.luts   >   report->luts) ? local.luts   : report->luts;
 	}
 	
 	return NO_ERROR;
@@ -977,6 +1017,19 @@ m_dsp_register_val *new_m_dsp_register_val_literal(int reg, int16_t literal_valu
 	return result;
 }
 
+int m_effect_desc_add_register_val_literal(m_effect_desc *eff, int block_no, int reg, uint16_t val)
+{
+	if (!eff)
+		return ERR_NULL_PTR;
+	
+	if (block_no < 0 || block_no > eff->n_blocks || reg < 0 || reg > N_BLOCKS_REGS)
+		return ERR_BAD_ARGS;
+	
+	m_dsp_register_val *bp = new_m_dsp_register_val_literal(reg, val);
+	
+	return m_dsp_block_add_register_val(eff->blocks[block_no], reg, bp);
+}
+
 int m_effect_desc_add_register_val(m_effect_desc *eff, int block_no, int reg, int format, char *expr)
 {
 	if (!eff)
@@ -1193,7 +1246,7 @@ int m_effect_desc_add_load(m_effect_desc *eff, int addr, int dest)
 	if (!eff)
 		return ERR_NULL_PTR;
 	
-	m_dsp_block *blk = new_m_dsp_block_with_instr(m_dsp_block_instr_type_b_str(BLOCK_INSTR_LOAD, 0, 0, dest, addr));
+	m_dsp_block *blk = new_m_dsp_block_with_instr(m_dsp_block_instr_type_b_str(BLOCK_INSTR_LOAD, 0, 0, dest, 0, 0, 0, addr));
 	m_effect_desc_add_block(eff, blk);
 	
 	return NO_ERROR;
@@ -1204,7 +1257,7 @@ int m_effect_desc_add_save(m_effect_desc *eff, int src_a, int addr)
 	if (!eff)
 		return ERR_NULL_PTR;
 	
-	m_dsp_block *blk = new_m_dsp_block_with_instr(m_dsp_block_instr_type_b_str(BLOCK_INSTR_SAVE, src_a, 0, 0, addr));
+	m_dsp_block *blk = new_m_dsp_block_with_instr(m_dsp_block_instr_type_b_str(BLOCK_INSTR_SAVE, src_a, 0, 0, 0, 0, 0, addr));
 	m_effect_desc_add_block(eff, blk);
 	
 	return NO_ERROR;
@@ -1251,30 +1304,36 @@ uint32_t m_enc_dsp_block_type_a_instr(int opcode, int src_a, int src_b, int src_
 		| ((uint32_t)!!sat   << (BLOCK_INSTR_OP_TYPE_START + 4));
 }
 
-uint32_t m_enc_dsp_block_type_b_instr(int opcode, int src_a, int src_b, int dest, int res_addr)
+uint32_t m_enc_dsp_block_type_b_instr(int opcode, int src_a, int src_b, int dest, int src_a_reg, int src_b_reg, int dest_reg, int res_addr)
 {
 	return ((uint32_t)opcode)
 		| ((uint32_t)(src_a & IBM(BLOCK_REG_ADDR_WIDTH)) 	<< (0 * BLOCK_REG_ADDR_WIDTH + BLOCK_INSTR_OP_WIDTH))
 		| ((uint32_t)(src_b & IBM(BLOCK_REG_ADDR_WIDTH)) 	<< (1 * BLOCK_REG_ADDR_WIDTH + BLOCK_INSTR_OP_WIDTH))
 		| ((uint32_t)(dest  & IBM(BLOCK_REG_ADDR_WIDTH))  	<< (2 * BLOCK_REG_ADDR_WIDTH + BLOCK_INSTR_OP_WIDTH))
-		| ((uint32_t)(res_addr & IBM(BLOCK_RES_ADDR_WIDTH)) << (3 * BLOCK_REG_ADDR_WIDTH + BLOCK_INSTR_OP_WIDTH));
+		| ((uint32_t)(!!src_a_reg)							<< (3 * BLOCK_REG_ADDR_WIDTH + BLOCK_INSTR_OP_WIDTH + 0))
+		| ((uint32_t)(!!src_b_reg)							<< (3 * BLOCK_REG_ADDR_WIDTH + BLOCK_INSTR_OP_WIDTH + 1))
+		| ((uint32_t)(!!dest_reg)							<< (3 * BLOCK_REG_ADDR_WIDTH + BLOCK_INSTR_OP_WIDTH + 2))
+		| ((uint32_t)(res_addr & IBM(BLOCK_RES_ADDR_WIDTH)) << (BLOCK_INSTR_WIDTH - BLOCK_RES_ADDR_WIDTH));
 }
 
 uint32_t m_enc_dsp_block_instr(int opcode, int src_a, int src_b, int src_c, int dest, int a_reg, int b_reg, int c_reg, int dest_reg, int shift, int sat, int res_addr)
 {
-	if (opcode == BLOCK_INSTR_DELAY
+	if (opcode == BLOCK_INSTR_DELAY_READ
+	 || opcode == BLOCK_INSTR_DELAY_WRITE
 	 || opcode == BLOCK_INSTR_SAVE
 	 || opcode == BLOCK_INSTR_LOAD)
-		return m_enc_dsp_block_type_b_instr(opcode, src_a, src_b, dest, res_addr);
+		return m_enc_dsp_block_type_b_instr(opcode, src_a, src_b, dest, a_reg, b_reg, dest_reg, res_addr);
 	
 	return m_enc_dsp_block_type_a_instr(opcode, src_a, src_b, src_c, dest, a_reg, b_reg, c_reg, dest_reg, shift, sat);
 }
 
 int m_fpga_block_opcode_format(int opcode)
 {
-	return (opcode == BLOCK_INSTR_DELAY
+	return (opcode == BLOCK_INSTR_DELAY_READ
+		 || opcode == BLOCK_INSTR_DELAY_WRITE
 		 || opcode == BLOCK_INSTR_SAVE
-		 || opcode == BLOCK_INSTR_LOAD) ? INSTR_FORMAT_B : INSTR_FORMAT_A;
+		 || opcode == BLOCK_INSTR_LOAD
+		 || opcode == BLOCK_INSTR_LUT) ? INSTR_FORMAT_B : INSTR_FORMAT_A;
 }
 
 int m_dsp_block_instr_format(m_dsp_block_instr instr)
@@ -1291,6 +1350,9 @@ uint32_t m_encode_dsp_block_instr(m_dsp_block_instr instr)
 			instr.src_a,
 			instr.src_b,
 			instr.dest,
+			instr.src_a_reg,
+			instr.src_b_reg,
+			instr.dest_reg,
 			instr.res_addr);
 	}
 	else
@@ -1307,9 +1369,9 @@ m_dsp_block_instr m_dsp_block_instr_type_a_str(int opcode, int src_a, int src_b,
 	return (m_dsp_block_instr){opcode, src_a, src_b, src_c, dest, a_reg, b_reg, c_reg, dest_reg, shift, sat};
 }
 
-m_dsp_block_instr m_dsp_block_instr_type_b_str(int opcode, int src_a, int src_b, int dest, int res_addr)
+m_dsp_block_instr m_dsp_block_instr_type_b_str(int opcode, int src_a, int src_b, int dest, int a_reg, int b_reg, int dest_reg, int res_addr)
 {
-	return (m_dsp_block_instr){opcode, src_a, src_b, 0, dest, 0, 0, 0, 0, 0, 0, res_addr};
+	return (m_dsp_block_instr){opcode, src_a, src_b, 0, dest, a_reg, b_reg, 0, dest_reg, 0, 0, res_addr};
 }
 
 m_dsp_block_instr m_decode_dsp_block_instr(uint32_t code)
@@ -1494,7 +1556,8 @@ char *m_dsp_block_opcode_to_string(uint32_t opcode)
 		case BLOCK_INSTR_ABS: return (char*)"BLOCK_INSTR_ABS";
 		case BLOCK_INSTR_LUT: return (char*)"BLOCK_INSTR_LUT";
 		case BLOCK_INSTR_ENVD: return (char*)"BLOCK_INSTR_ENVD";
-		case BLOCK_INSTR_DELAY: return (char*)"BLOCK_INSTR_DELAY";
+		case BLOCK_INSTR_DELAY_READ: return (char*)"BLOCK_INSTR_DELAY_READ";
+		case BLOCK_INSTR_DELAY_WRITE: return (char*)"BLOCK_INSTR_DELAY_WRITE";
 		case BLOCK_INSTR_SAVE: return (char*)"BLOCK_INSTR_SAVE";
 		case BLOCK_INSTR_LOAD: return (char*)"BLOCK_INSTR_LOAD";
 		case BLOCK_INSTR_MOV: return (char*)"BLOCK_INSTR_MOV";
@@ -1798,6 +1861,7 @@ int m_fpga_resource_report_integrate(m_fpga_resource_report *cxt, m_fpga_resourc
 	cxt->memory += local->memory;
 	cxt->sdelay += local->sdelay;
 	cxt->ddelay += local->ddelay;
+	cxt->luts 	+= local->luts;
 	
 	return NO_ERROR;
 }

@@ -28,9 +28,6 @@ module dsp_core #(
 		input wire [`BLOCK_INSTR_WIDTH 	  					 - 1 : 0] command_instr_write_val,
 		input wire signed [data_width 	  					 - 1 : 0] command_reg_write_val,
 		
-		output reg reg_write_ack,
-        output reg instr_write_ack,
-		
 		output reg lut_req,
 		output reg signed [`LUT_HANDLE_WIDTH - 1 : 0] lut_handle,
 		output reg signed [data_width - 1 : 0] lut_arg,
@@ -43,7 +40,7 @@ module dsp_core #(
 		output reg signed [data_width - 1 : 0] delay_req_arg,
 		input wire signed [data_width - 1 : 0] delay_req_data_in,
 		input wire delay_read_ready,
-		input wire delay_write_ready
+		input wire delay_write_ack
 	);
 	
 	reg wait_one = 0;
@@ -213,8 +210,6 @@ module dsp_core #(
 	integer i;
 	always @(posedge clk) begin
 		wait_one <= 0;
-		reg_write_ack <= 0;
-        instr_write_ack <= 0;
 		
 		instr 		<= instrs	[current_block];
 		reg_fetch 	<= regs		[reg_fetch_addr];
@@ -224,7 +219,6 @@ module dsp_core #(
 		if (command_instr_write) begin
 			instrs[command_block_target] <= command_instr_write_val;
 			last_block <= (command_block_target > last_block) ? command_block_target : last_block;
-            instr_write_ack <= 1;
 		end
 		
 		command_reg_write_prev <= command_reg_write;
@@ -276,9 +270,17 @@ module dsp_core #(
 						reg_write_addr <= {command_block_target[$clog2(n_blocks) - 1 : 0], command_reg_target[`BLOCK_REG_ADDR_WIDTH - 1 : 0]};
 						reg_write_val <= command_reg_write_val;
 						reg_write <= 1;
-						reg_write_ack <= 1;
 						command_reg_write_rose <= 0;
 					end
+				end
+				
+				`CORE_STATE_BLOCK_START: begin
+                    saturate_latched <= saturate;
+                    instr_shift_latched <= instr_shift;
+                    operation_latched <= operation;
+                    
+					state <= `CORE_STATE_FETCH_SRC_A;
+					ret_state <= `CORE_STATE_DISPATCH;
 				end
 				
 				`CORE_STATE_FINISH_BLOCK: begin
@@ -388,18 +390,9 @@ module dsp_core #(
 						state <= ret_state;
 					end
 				end
-				
-				`CORE_STATE_BLOCK_START: begin
-                    saturate_latched <= saturate;
-                    instr_shift_latched <= instr_shift;
-                    operation_latched <= operation;
-                    
-					state <= `CORE_STATE_FETCH_SRC_A;
-					ret_state <= `CORE_STATE_DISPATCH;
-				end
 					
 				`CORE_STATE_DISPATCH: begin
-					case (operation_latched)
+					case (operation)
 						`BLOCK_INSTR_NOP: begin
 							state <= `CORE_STATE_CONTINUE;
 						end
@@ -467,11 +460,19 @@ module dsp_core #(
 						end
 
 						`BLOCK_INSTR_LUT: begin
-							//bleh
+							lut_arg 	<= ((src_a_latched << instr_shift) & ((1 << data_width) - 1)) | (src_a_latched[data_width - 1] << data_width);
+							lut_handle 	<= res_addr[`LUT_HANDLE_WIDTH - 1 : 0];
+							lut_req 	<= 1;
+							wait_one	<= 1;
+							state 		<= `CORE_STATE_LUT_1;
 						end
 
-						`BLOCK_INSTR_DELAY: begin
-							//bleh
+						`BLOCK_INSTR_DELAY_READ: begin
+							state <= `CORE_STATE_DELAY_READ_1;
+						end
+
+						`BLOCK_INSTR_DELAY_WRITE: begin
+							state <= `CORE_STATE_DELAY_WRITE_1;
 						end
 						
 						`BLOCK_INSTR_MACZ: begin
@@ -573,11 +574,45 @@ module dsp_core #(
 				end
 
 				`CORE_STATE_LUT_1: begin
-					
+					if (!wait_one && lut_ready) begin
+						work <= lut_data;
+						state <= `CORE_STATE_FINISH_BLOCK;
+					end
 				end
 
-				`CORE_STATE_DELAY_1: begin
+				`CORE_STATE_DELAY_READ_1: begin
+					delay_req_handle 	<= res_addr;
+					delay_req_arg 		<= src_a_latched;
+					delay_read_req		<= 1;
+					wait_one			<= 1;
 					
+					state <= `CORE_STATE_DELAY_READ_2;
+				end
+
+				`CORE_STATE_DELAY_READ_2: begin
+					if (!wait_one && delay_read_ready) begin
+						work <= delay_req_data_in;
+						delay_read_req <= 0;
+						
+						state <= `CORE_STATE_FINISH_BLOCK;
+					end
+				end
+
+                `CORE_STATE_DELAY_WRITE_1: begin
+					delay_req_handle 	<= res_addr;
+					delay_req_arg 		<= src_a_latched;
+					delay_write_req		<= 1;
+					wait_one <= 1;
+					
+					state <= `CORE_STATE_DELAY_WRITE_2;
+				end
+				
+				`CORE_STATE_DELAY_WRITE_2: begin
+					if (!wait_one && delay_write_ack) begin
+						delay_write_req <= 0;
+						
+						state <= `CORE_STATE_CONTINUE;
+					end
 				end
 				
 				`CORE_STATE_SAVE_1: begin

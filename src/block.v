@@ -644,7 +644,7 @@ module pipeline_block
                         endcase
                     end
                     
-                    `BLOCK_INSTR_DELAY: begin
+                    `BLOCK_INSTR_DELAY_READ: begin
                         case (state)
                             `BLOCK_STATE_BEGIN: begin
                                 delay_buf_handle 	<= regs[0];

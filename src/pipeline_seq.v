@@ -170,9 +170,6 @@ module pipeline_seq
 		.command_reg_target(reg_target),
 		.command_reg_write_val(ctrl_data),
 		
-		.reg_write_ack(reg_write_ack),
-		.instr_write_ack(instr_write_ack),
-		
 		.lut_req(lut_req),
 		.lut_handle(lut_req_handle),
 		.lut_arg(lut_req_arg),
@@ -185,7 +182,7 @@ module pipeline_seq
 		.delay_req_arg(delay_req_arg),
 		.delay_req_data_in(delay_read_data),
 		.delay_read_ready(delay_read_ready),
-		.delay_write_ready(delay_write_ready)
+		.delay_write_ack(delay_write_ready)
 	);
 	
 	lut_master #(.data_width(data_width)) luts
