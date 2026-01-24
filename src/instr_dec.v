@@ -26,19 +26,21 @@ module instr_decoder #(parameter data_width = 16)
 		output logic [`BLOCK_RES_ADDR_WIDTH - 1 : 0] res_addr
 	);
 	
-	assign operation = instr[`BLOCK_INSTR_OP_WIDTH - 1 : 0];
-	
-	wire instr_format = (operation == `BLOCK_INSTR_DELAY_READ 	||
-						 operation == `BLOCK_INSTR_DELAY_WRITE 	||
-						 operation == `BLOCK_INSTR_SAVE  		||
-						 operation == `BLOCK_INSTR_LOAD  		||
-						 operation == `BLOCK_INSTR_MOV)
-		? `BLOCK_INSTR_FORMAT_B : `BLOCK_INSTR_FORMAT_A;
+	logic instr_format; 
 	
 	localparam operand_type_start_index = 4 * `BLOCK_REG_ADDR_WIDTH + `BLOCK_INSTR_OP_WIDTH;
 	localparam pms_start_index = operand_type_start_index + 5;
 
 	always @(posedge clk) begin
+        operation <= instr[`BLOCK_INSTR_OP_WIDTH - 1 : 0];
+        
+        instr_format <= (operation == `BLOCK_INSTR_DELAY_READ 	||
+						 operation == `BLOCK_INSTR_DELAY_WRITE 	||
+						 operation == `BLOCK_INSTR_SAVE  		||
+						 operation == `BLOCK_INSTR_LOAD  		||
+						 operation == `BLOCK_INSTR_MOV)
+		? `BLOCK_INSTR_FORMAT_B : `BLOCK_INSTR_FORMAT_A;
+
 		case (instr_format)
 			`BLOCK_INSTR_FORMAT_A: begin
 				src_a <= instr[1 * `BLOCK_REG_ADDR_WIDTH + `BLOCK_INSTR_OP_WIDTH - 1 : 0 * `BLOCK_REG_ADDR_WIDTH + `BLOCK_INSTR_OP_WIDTH];
