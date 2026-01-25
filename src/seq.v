@@ -597,12 +597,12 @@ module dsp_core #(
 				end
 				
 				`CORE_STATE_DELAY_WRITE_2: begin
-					if (!wait_one && delay_write_ack) begin
+					//if (!wait_one && delay_write_ack) begin
 						delay_write_req <= 0;
 						
 						current_block <= current_block + 1;
 						state <= `CORE_STATE_CONTINUE;
-					end
+					//end
 				end
 				
 				`CORE_STATE_SAVE_1: begin

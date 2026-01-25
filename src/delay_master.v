@@ -49,8 +49,12 @@ module delay_master
 		output reg write_ready,
 		output reg invalid_read,
 		output reg invalid_write,
-		output reg invalid_alloc
+		output reg invalid_alloc,
+
+        output wire [7:0] n_buffers_used
 	);
+
+    assign n_buffers_used = sram_buffer_next_handle;
 
 	reg [7:0] state;
 	

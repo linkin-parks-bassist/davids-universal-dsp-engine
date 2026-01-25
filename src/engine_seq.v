@@ -27,7 +27,9 @@ module dsp_engine_seq
         
         output wire [$clog2(spi_fifo_length) : 0] fifo_count,
 
-        output wire current_pipeline
+        output wire current_pipeline,
+
+        output wire [7:0] out
     );
     
     reg  signed [data_width - 1 : 0]  in_sample_latched;
@@ -167,7 +169,9 @@ module dsp_engine_seq
 			.reg_write_ack(reg_write_acks[1]),
 			.reg_update(pipeline_b_block_reg_update),
 		
-			.alloc_sram_delay(pipeline_b_alloc_sram_delay)
+			.alloc_sram_delay(pipeline_b_alloc_sram_delay),
+
+            .out(out)
 		);
 	
 	

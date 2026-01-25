@@ -32,9 +32,11 @@ module instr_decoder #(parameter data_width = 16)
 	wire instr_format 		  = instr[5];
 	assign {src_a_reg, src_a} = instr[10: 6];
 	assign {src_b_reg, src_b} = instr[15:11];
-	assign {src_c_reg, src_c} = (instr_format) ? 		5'b0  : instr[20:16];
-	assign dest 			  = (instr_format) ? instr[19:16] : instr[24:21];
-	assign instr_shift		  = (instr_format) ? 		5'b0  : instr[29:25];
-	assign saturate			  = (instr_format) ? 		   1  : instr[30];
-	assign res_addr			  = (instr_format) ? instr[27:20] : 8'b0;
+    always @(posedge clk) begin
+        {src_c_reg, src_c} <= (instr_format) ? 		5'b0  : instr[20:16];
+        dest 			  <= (instr_format) ? instr[19:16] : instr[24:21];
+        instr_shift		  <= (instr_format) ? 		5'b0  : instr[29:25];
+        saturate		<= (instr_format) ? 		   1  : instr[30];
+        res_addr			  <= (instr_format) ? instr[27:20] : 8'b0;
+    end
 endmodule

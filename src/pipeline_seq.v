@@ -35,7 +35,9 @@ module pipeline_seq
 		output wire reg_write_ack,
         output wire instr_write_ack,
 	
-		input wire alloc_sram_delay
+		input wire alloc_sram_delay,
+
+        output wire[7:0] out
 	);
 	
 	reg signed [data_width - 1 : 0] sample_latched;
@@ -261,7 +263,9 @@ module pipeline_seq
 			
 			.invalid_read(invalid_delay_read),
 			.invalid_write(invalid_delay_write),
-			.invalid_alloc(invalid_delay_alloc)
+			.invalid_alloc(invalid_delay_alloc),
+
+            .n_buffers_used(out)
 		);
 endmodule
 

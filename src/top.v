@@ -205,10 +205,10 @@ module top
     assign led3 = ~(|sample_in_abs[15:12]);
     assign led4 = ~(|sample_out_abs[15:12]);*/
 
-    assign led0 = ~(current_pipeline);
-    assign led1 = ~(~current_pipeline);
-    assign led3 = ~(control_state[0]);
-    assign led4 = ~(control_state[1]);
+    assign led0 = ~(|out);
+    assign led1 = ~(engine_ready);
+    assign led3 = ~(|control_state[3:0]);
+    assign led4 = ~(|control_state[7:4]);
 
     wire [7:0] control_state;
 
@@ -231,6 +231,8 @@ module top
     wire instr_write_ack;
 
     wire current_pipeline;
+
+    wire [7:0] out;
 
     i2s_trx #(.sample_size(sample_size)) i2s_driver
     (
@@ -265,7 +267,9 @@ module top
         
             .fifo_count(fifo_count),
 
-            .current_pipeline(current_pipeline)
+            .current_pipeline(current_pipeline),
+
+            .out(out)
         );
 
     sync_spi_slave spi
