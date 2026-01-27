@@ -5,14 +5,14 @@ module instr_decoder #(parameter data_width = 16)
 	(
         input wire clk,
 
-		input wire [`BLOCK_INSTR_WIDTH 	- 1 : 0] instr,
+		input wire [31 : 0] instr,
 		
-		output logic [`BLOCK_INSTR_OP_WIDTH - 1 : 0] operation,
+		output logic [4 : 0] operation,
 		
-		output logic [`BLOCK_REG_ADDR_WIDTH - 1 : 0] src_a,
-		output logic [`BLOCK_REG_ADDR_WIDTH - 1 : 0] src_b,
-		output logic [`BLOCK_REG_ADDR_WIDTH - 1 : 0] src_c,
-		output logic [`BLOCK_REG_ADDR_WIDTH - 1 : 0] dest,
+		output logic [3 : 0] src_a,
+		output logic [3 : 0] src_b,
+		output logic [3 : 0] src_c,
+		output logic [3 : 0] dest,
 		
 		output logic src_a_reg,
 		output logic src_b_reg,
@@ -20,9 +20,11 @@ module instr_decoder #(parameter data_width = 16)
 
 		output logic saturate,
 
-		output logic [`SHIFT_WIDTH - 1 : 0] instr_shift,
+		output logic [4 : 0] instr_shift,
+		output logic no_shift,
 		
-		output logic [`BLOCK_RES_ADDR_WIDTH - 1 : 0] res_addr
+		output logic [7 : 0] res_addr
+		
 	);
 	
 	localparam operand_type_start_index = 4 * `BLOCK_REG_ADDR_WIDTH + `BLOCK_INSTR_OP_WIDTH;
@@ -32,9 +34,12 @@ module instr_decoder #(parameter data_width = 16)
 	wire instr_format 		  = instr[5];
 	assign {src_a_reg, src_a} = instr[10: 6];
 	assign {src_b_reg, src_b} = instr[15:11];
-	assign {src_c_reg, src_c} = (instr_format) ? 		5'b0  : instr[20:16];
-	assign dest 			  = (instr_format) ? instr[19:16] : instr[24:21];
-	assign instr_shift		  = (instr_format) ? 		5'b0  : instr[29:25];
-	assign saturate			  = (instr_format) ? 		   1  : instr[30];
-	assign res_addr			  = (instr_format) ? instr[27:20] : 8'b0;
+	assign no_shift		  	  = instr[31];
+	always @(posedge clk) begin
+		{src_c_reg, src_c} <= (instr_format) ? 		5'b0  : instr[20:16];
+		dest 			  <= (instr_format) ? instr[19:16] : instr[24:21];
+		instr_shift		  <= (instr_format) ? 		5'b0  : instr[29:25];
+		saturate			  <= (instr_format) ? 		   1  : ~instr[30];
+		res_addr			  <= (instr_format) ? instr[27:20] : 8'b0;
+	end
 endmodule

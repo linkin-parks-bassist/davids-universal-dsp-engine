@@ -8,7 +8,7 @@
 #define BLOCK_INSTR_RSH 		4
 #define BLOCK_INSTR_ARSH 		5
 #define BLOCK_INSTR_MUL 		6
-#define BLOCK_INSTR_MAD			7
+#define BLOCK_INSTR_MADD		7
 #define BLOCK_INSTR_ABS			8
 #define BLOCK_INSTR_LUT			9
 #define BLOCK_INSTR_ENVD 		10
@@ -21,6 +21,15 @@
 #define BLOCK_INSTR_MACZ		17
 #define BLOCK_INSTR_MAC			18
 #define BLOCK_INSTR_MOV_ACC		19
+#define BLOCK_INSTR_LINTERP		20
+#define BLOCK_INSTR_FRAC_DELAY	21
+#define BLOCK_INSTR_LOAD_ACC	22
+#define BLOCK_INSTR_SAVE_ACC	23
+#define BLOCK_INSTR_ACC			24
+#define BLOCK_INSTR_CLEAR_ACC	25
+#define BLOCK_INSTR_MOV_UACC	26
+
+#define NO_SHIFT 255
 
 #define STOCK_LUTS 2
 
@@ -62,6 +71,7 @@ typedef struct
 	int src_c_reg;
 	int dest;
 	
+	int no_shift;
 	int shift;
 	int sat;
 	
@@ -71,8 +81,50 @@ typedef struct
 int m_dsp_block_instr_format(m_dsp_block_instr instr);
 uint32_t m_encode_dsp_block_instr(m_dsp_block_instr instr);
 
-m_dsp_block_instr m_dsp_block_instr_type_a_str(int opcode, int src_a, int a_reg, int src_b, int b_reg, int src_c, int c_reg, int dest,  int shift, int sat);
-m_dsp_block_instr m_dsp_block_instr_type_b_str(int opcode, int src_a, int a_reg, int src_b, int b_reg, int dest, int res_addr);
+m_dsp_block_instr m_dsp_block_instr_type_a_str(int opcode, int src_a, int src_a_reg, int src_b, int src_b_reg, int src_c, int src_c_reg, int dest, int shift, int sat);
+m_dsp_block_instr m_dsp_block_instr_type_b_str(int opcode, int src_a, int src_a_reg, int src_b, int src_b_reg, int dest, int res_addr);
+
+m_dsp_block_instr m_dsp_block_instr_nop();
+m_dsp_block_instr m_dsp_block_instr_add(int src_a, int src_a_reg, int src_b, int src_b_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_add_unsat(int src_a, int src_a_reg, int src_b, int src_b_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_sub(int src_a, int src_a_reg, int src_b, int src_b_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_sub_unsat(int src_a, int src_a_reg, int src_b, int src_b_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_lsh(int src_a, int src_a_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_rsh(int src_a, int src_a_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_arsh(int src_a, int src_a_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_lsh4(int src_a, int src_a_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_rsh4(int src_a, int src_a_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_arsh4(int src_a, int src_a_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_lsh8(int src_a, int src_a_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_rsh8(int src_a, int src_a_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_arsh8(int src_a, int src_a_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_mul(int src_a, int src_a_reg, int src_b, int src_b_reg, int dest, int shift);
+m_dsp_block_instr m_dsp_block_instr_mul_noshift(int src_a, int src_a_reg, int src_b, int src_b_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_mul_unsat(int src_a, int src_a_reg, int src_b, int src_b_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_mul_unsat_noshift(int src_a, int src_a_reg, int src_b, int src_b_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_madd(int src_a, int src_a_reg, int src_b, int src_b_reg, int src_c, int src_c_reg, int dest, int shift);
+m_dsp_block_instr m_dsp_block_instr_madd_noshift(int src_a, int src_a_reg, int src_b, int src_b_reg, int src_c, int src_c_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_madd_unsat(int src_a, int src_a_reg, int src_b, int src_b_reg, int src_c, int src_c_reg, int dest, int shift);
+m_dsp_block_instr m_dsp_block_instr_madd_unsat_noshift(int src_a, int src_a_reg, int src_b, int src_b_reg, int src_c, int src_c_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_abs(int src_a, int src_a_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_lut(int src_a, int src_a_reg, int lut, int dest);
+m_dsp_block_instr m_dsp_block_instr_delay_read(int delay, int delay_reg, int buffer, int dest);
+m_dsp_block_instr m_dsp_block_instr_delay_write(int src, int src_reg, int buffer);
+m_dsp_block_instr m_dsp_block_instr_save(int addr, int src, int src_reg);
+m_dsp_block_instr m_dsp_block_instr_load(int addr, int dest);
+m_dsp_block_instr m_dsp_block_instr_mov(int src, int src_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_clamp(int src_a, int src_a_reg, int src_b, int src_b_reg, int src_c, int src_c_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_macz(int src_a, int src_a_reg, int src_b, int src_b_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_mac(int src_a, int src_a_reg, int src_b, int src_b_reg, int src_c, int src_c_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_mov_acc(int dest);
+m_dsp_block_instr m_dsp_block_instr_linterp(int src_a, int src_a_reg, int src_b, int src_b_reg, int src_c, int src_c_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_frac_delay(int src_a, int src_a_reg, int buffer, int dest);
+m_dsp_block_instr m_dsp_block_instr_load_acc(int addr);
+m_dsp_block_instr m_dsp_block_instr_save_acc(int addr);
+m_dsp_block_instr m_dsp_block_instr_acc(int src_a, int src_a_reg);
+m_dsp_block_instr m_dsp_block_instr_accu(int src_a, int src_a_reg);
+m_dsp_block_instr m_dsp_block_instr_clear_acc();
+m_dsp_block_instr m_dsp_block_instr_mov_uacc(int dest);
 
 typedef struct
 {
@@ -183,6 +235,15 @@ m_dsp_block *new_m_dsp_block_with_instr(m_dsp_block_instr instr);
 int m_dsp_block_add_register_val(m_dsp_block *blk, int i, m_dsp_register_val *p);
 int m_dsp_block_uses_param(m_dsp_block *blk, m_parameter *param);
 
+#define M_FPGA_RESOURCE_DDELAY 0
+
+typedef struct {
+	int type;
+	int data;
+} m_fpga_resource_req;
+
+m_fpga_resource_req *new_fpga_resource_req(int type, int data);
+
 typedef struct
 {
 	const char *name;
@@ -194,6 +255,10 @@ typedef struct
 	int n_params;
 	int param_array_len;
 	m_parameter **params;
+	
+	int n_res_reqs;
+	int res_req_array_len;
+	m_fpga_resource_req **res_reqs;
 } m_effect_desc;
 
 typedef struct m_effect_desc_pll {
@@ -204,6 +269,7 @@ typedef struct m_effect_desc_pll {
 m_effect_desc *new_m_effect_desc(const char *name);
 int m_effect_desc_add_block(m_effect_desc *eff, m_dsp_block *blk);
 int m_effect_desc_add_param(m_effect_desc *eff, m_parameter *param);
+int m_effect_desc_add_resource_request(m_effect_desc *eff, m_fpga_resource_req *req);
 
 int m_effect_desc_add_register_val_literal(m_effect_desc *eff, int block_no, int reg, uint16_t val);
 int m_effect_desc_add_register_val(m_effect_desc *eff, int block_no, int reg, int format, char *expr);

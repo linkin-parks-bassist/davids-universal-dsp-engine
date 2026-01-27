@@ -8,10 +8,9 @@
 `define BLOCK_INSTR_RSH 			4
 `define BLOCK_INSTR_ARSH 			5
 `define BLOCK_INSTR_MUL 			6
-`define BLOCK_INSTR_MAD				7
+`define BLOCK_INSTR_MADD			7
 `define BLOCK_INSTR_ABS				8
 `define BLOCK_INSTR_LUT				9
-`define BLOCK_INSTR_ENVD 			10
 `define BLOCK_INSTR_DELAY_READ 		11
 `define BLOCK_INSTR_DELAY_WRITE 	12
 `define BLOCK_INSTR_SAVE 			13
@@ -21,11 +20,16 @@
 `define BLOCK_INSTR_MACZ			17
 `define BLOCK_INSTR_MAC				18
 `define BLOCK_INSTR_MOV_ACC			19
+`define BLOCK_INSTR_LINTERP			20
+`define BLOCK_INSTR_FRAC_DELAY		21
+`define BLOCK_INSTR_LOAD_ACC		22
+`define BLOCK_INSTR_SAVE_ACC		23
+`define BLOCK_INSTR_ACC				24
+`define BLOCK_INSTR_CLEAR_ACC		25
+`define BLOCK_INSTR_MOV_UACC		26
 
 `define BLOCK_OP_TYPE_WIDTH 3
 
-// Note: ensure 4 * `BLOCK_REG_ADDR_WIDTH + `BLOCK_INSTR_OP_WIDTH + 3 < `BLOCK_INSTR_WIDTH
-// and max($clog2(n_channels), $clog2(n_registers)) <= `BLOCK_REG_ADDR_WIDTH
 `define BLOCK_INSTR_WIDTH 		32
 
 `define BLOCK_INSTR_OP_WIDTH 	5
