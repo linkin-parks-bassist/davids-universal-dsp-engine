@@ -14,5 +14,6 @@ verilator  src/pipeline.v 			\
 		   src/seq.v 				\
 		   src/engine_seq.v 		\
 		   src/instr_dec.v 			\
+		   src/linterp.v			\
 	--top-module top  -Wno-fatal -Isrc -Iinclude -cc -CFLAGS -fpermissive -CFLAGS -Wno-error --trace-fst -exe verilator/sim_io.cpp verilator/sim_ctrl.cpp verilator/sim_main.cpp \
 	&& make -C obj_dir -j -f Vtop.mk Vtop
