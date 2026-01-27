@@ -19,23 +19,17 @@ module sram_bank
     output reg invalid_read,
     output reg invalid_write
 );
-
-    // Nothing fancy here: sram_bank is now 100% BRAM-compatible.
-
-    (* ram_style = "block" *)
     reg [data_width-1:0] mem [0:size-1];
 
     always @(posedge clk) begin
         invalid_read  <= 0;
         invalid_write <= 0;
 
-        // synchronous read always occurs
         data_out <= mem[read_addr];
 
         if (write)
             mem[write_addr] <= data_in;
 
-        // bounds check (optional, matches previous behaviour)
         if (read && read_addr >= size)
             invalid_read <= 1;
 

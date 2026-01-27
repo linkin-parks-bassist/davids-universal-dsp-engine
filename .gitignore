@@ -2,11 +2,18 @@ impl/temp/rtl_parser_arg.json
 /impl
 <<<<<<< Updated upstream
 
-.vst
-.wav
-verilator/*.wav
+obj_dir
 
+*.wav
+verilator/*.wav
+verilator/test_wav_in.wav
+verilator/test_wav_out.wav
+
+*.vst
+*.fst
 verilator/waveform.vst
+verilator/waveform.fst
+
 =======
 dude.gprj.user
 >>>>>>> Stashed changes
