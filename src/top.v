@@ -6,7 +6,7 @@ module top
 		parameter data_width 		= 16,
 		parameter n_sram_banks 		= 8,
 		parameter sram_bank_size 	= 1024,
-		parameter spi_fifo_length	= 2048
+		parameter spi_fifo_length	= 512
 	)
     (
 		`ifndef verilator

@@ -558,7 +558,7 @@ module dsp_core #(
 							if (src_b == 4) begin
 								work <= {4'b0, src_a_latched[data_width - 1 : 4]};
 							end else if (src_b == 8) begin
-								work <= {8'b0, src_a_latched[data_width - 1 : 84]};
+								work <= {8'b0, src_a_latched[data_width - 1 : 8]};
 							end else begin
 								work <= {1'b0, src_a_latched[data_width - 1 : 1]};
 							end
