@@ -829,7 +829,6 @@ module dsp_core #(
 				`CORE_STATE_LOAD_1: begin
 					if (!wait_one) begin
 						work <= mem_fetch;
-						current_block <= current_block + 1;
 						state <= `CORE_STATE_FINISH_BLOCK;
 					end
 				end
