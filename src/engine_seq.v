@@ -295,7 +295,7 @@ module dsp_engine_seq
 					apply_input_gain <= 0;
 					
 					sample_ctr <= sample_ctr + 1;
-					pipeline_tick <= 1;
+					pipeline_tick <= 1;	
 					
 					ready <= 0;
 					state <= `ENGINE_STATE_PROCESSING_WAIT;
