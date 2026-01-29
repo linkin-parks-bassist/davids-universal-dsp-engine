@@ -37,7 +37,7 @@ module mixer #(parameter data_width = 16, parameter gain_shift = 4) (
 		
 		input wire swap_pipelines,
 		output reg pipelines_swapping,
-		output reg current_pipeline
+		input wire current_pipeline
 	);
 	
 	/* All gains herein are stored as q5.n */
@@ -101,7 +101,6 @@ module mixer #(parameter data_width = 16, parameter gain_shift = 4) (
 		
 		if (reset) begin
 			pipelines_swapping 	<= 0;
-			current_pipeline 	<= 0;
 			target_pipeline		<= 0;
 			pipeline_swap_requested <= 0;
 			
@@ -129,7 +128,6 @@ module mixer #(parameter data_width = 16, parameter gain_shift = 4) (
 						if (pipelines_swapping) begin
 							if (target_pipeline) begin
 								if (output_a_gain == 0) begin
-									current_pipeline <= 1;
 									output_b_gain <= unity_gain;
 									output_a_gain <= 0;
 									pipelines_swapping <= 0;
@@ -141,7 +139,6 @@ module mixer #(parameter data_width = 16, parameter gain_shift = 4) (
 							end
 							else begin
 								if (output_b_gain == 0) begin
-									current_pipeline <= 0;
 									output_a_gain <= unity_gain;
 									output_b_gain <= 0;
 									pipelines_swapping <= 0;

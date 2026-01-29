@@ -19,6 +19,9 @@ module pipeline_seq
 		input wire clk,
 		input wire reset,
 		
+		input wire full_reset,
+		input wire enable,
+		
 		input wire signed [data_width - 1:0] in_sample,
 		input wire in_valid,
 		
@@ -36,10 +39,12 @@ module pipeline_seq
 		input wire [data_width - 1 : 0] ctrl_data,
 		input wire reg_update,
 		input wire reg_write,
+		
 		output wire reg_write_ack,
         output wire instr_write_ack,
 	
 		input wire alloc_sram_delay,
+		output wire resetting,
 
         output wire[7:0] out
 	);
@@ -102,12 +107,12 @@ module pipeline_seq
 	
 	always @(posedge clk) begin
 		wait_one <= 0;
-		if (reset) begin
+		if (reset | full_reset) begin
 			state 			<= `PIPELINE_READY;
 			sample_latched 	<= 0;
 			ready 			<= 1;
 			invalid 		<= 0;
-			sample_ctr <= 0;
+			sample_ctr 		<= 0;
 		end
 		else begin
 			case (state)
@@ -160,6 +165,8 @@ module pipeline_seq
 		.clk(clk),
 		.reset(reset),
 		
+		.enable(enable),
+		
 		.tick(in_valid),
 		
 		.sample_in(in_sample),
@@ -188,13 +195,16 @@ module pipeline_seq
 		.delay_req_arg(delay_req_arg),
 		.delay_req_data_in(delay_read_data),
 		.delay_read_ready(delay_read_ready),
-		.delay_write_ack(delay_write_ready)
+		.delay_write_ack(delay_write_ready),
+		
+		.full_reset(full_reset),
+		.resetting(resetting)
 	);
 	
 	lut_master #(.data_width(data_width)) luts
 		(
 			.clk(clk),
-			.reset(reset),
+			.reset(reset | full_reset),
 			
 			.lut_handle(lut_req_handle),
 			.req_arg(lut_req_arg),
@@ -209,7 +219,7 @@ module pipeline_seq
 	contiguous_sram #(.data_width(data_width), .addr_width(sram_addr_width), .bank_size(sram_bank_size), .n_banks(n_sram_banks)) sram
 		(
 			.clk(clk),
-			.reset(reset),
+			.reset(reset | full_reset),
 			
 			.read(sram_read),
 			.write(sram_write),
@@ -235,7 +245,7 @@ module pipeline_seq
 		)
 		delays (
 			.clk(clk),
-			.reset(reset),
+			.reset(reset | full_reset),
 			
 			.read_req(delay_read_req),
 			.write_req(delay_write_req),

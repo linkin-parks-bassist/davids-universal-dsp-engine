@@ -8,11 +8,12 @@ module dsp_core #(
 		parameter integer n_blocks			= 256,
 		parameter integer n_channels   		= 16,
 		parameter integer n_registers  		= 16,
-		parameter integer memory_size		= 128
+		parameter integer memory_size		= n_blocks
 	) (
 		input wire clk,
 		input wire reset,
 		
+		input wire enable,
 		input wire tick,
 	
 		input wire signed [data_width - 1 : 0] sample_in,
@@ -42,7 +43,8 @@ module dsp_core #(
 		input wire delay_read_ready,
 		input wire delay_write_ack,
 		
-		input wire reset_state
+		input wire full_reset,
+		output wire resetting
 	);
 	
 	reg wait_one = 0;
@@ -282,6 +284,8 @@ module dsp_core #(
 	reg [$clog2(memory_size) : 0] mem_reset_ctr;
 	reg [$clog2(n_blocks) 	 : 0] blk_reset_ctr;
 	
+	assign resetting = (state == `CORE_STATE_RESETTING);
+	
 	integer i;
 	// Main sequential block
 	always @(posedge clk) begin
@@ -340,7 +344,7 @@ module dsp_core #(
 		if (state != `CORE_STATE_READY)
 			cycle_ctr <= cycle_ctr + 1;
 		
-		if (reset_state) begin
+		if (full_reset) begin
 			state <= `CORE_STATE_RESETTING;
 			
 			mem_reset_ctr <= 0;
@@ -363,19 +367,19 @@ module dsp_core #(
 			case (state)
 				`CORE_STATE_RESETTING: begin
 					if (mem_reset_ctr < memory_size) begin
-						mem_write_addr <= mem_reset_ctr;
-						mem_write_val <= 0;
-						mem_write <= 1;
+						mem_write_addr 	<= mem_reset_ctr;
+						mem_write_val 	<= 0;
+						mem_write 		<= 1;
 						
 						mem_reset_ctr <= mem_reset_ctr + 1;
 					end
 					
 					if (blk_reset_ctr < n_blocks) begin
-						instr_write_addr <= current_block;
-						instr_write_val <= 0;
-						instr_write <= 1;
+						instr_write_addr 	<= blk_reset_ctr;
+						instr_write_val 	<= 0;
+						instr_write			<= 1;
 						
-						current_block <= current_block + 1;
+						blk_reset_ctr <= blk_reset_ctr + 1;
 					end
 					
 					if (mem_reset_ctr >= memory_size && blk_reset_ctr >= n_blocks) begin
@@ -390,7 +394,7 @@ module dsp_core #(
 					
 					// If there is a new sample coming in,
 					// Load it and enter the start state
-					if (tick) begin
+					if (tick && enable) begin
 						ch_regs[0] <= sample_in;
 						
 						current_block <= 0;

@@ -24,10 +24,14 @@ module control_unit
 		output reg [1:0] block_reg_write,
 		output reg [1:0] block_reg_update,
 		output reg [1:0] alloc_sram_delay,
+		output reg [1:0] pipeline_full_reset,
+		output reg [1:0] pipeline_resetting,
+		output reg [1:0] pipeline_enables,
 		
 		output reg swap_pipelines,
+		output reg current_pipeline,
 		input wire pipelines_swapping,
-		output reg [1:0] reset_pipeline,
+		output reg [1:0] pipeline_reset,
 		
 		output reg next,
 		
@@ -59,16 +63,22 @@ module control_unit
 	always @(posedge clk) begin
 		next 	<= 0;
 		invalid <= 0;
-		swap_pipelines <= 0;
-		reset_pipeline <= 0;
+		swap_pipelines   <= 0;
+		current_pipeline <= 0;
+		pipeline_reset 	 <= 0;
+		pipeline_full_reset <= 0;
 		
 		block_instr_write 	<= 0;
 		block_reg_write 	<= 0;
 		
 		alloc_sram_delay <= 0;
 		
+		wait_one <= 0;
+		
 		if (reset) begin
 			state <= `CONTROLLER_STATE_READY;
+			pipeline_enables <= 2'b01;
+			current_pipeline <= 0;
 		end
 		else begin
 			case (state)
@@ -130,7 +140,7 @@ module control_unit
 						end
 
 						`COMMAND_RESET_PIPELINE: begin
-							reset_pipeline[target_pipeline] <= 1;
+							pipeline_reset[target_pipeline] <= 1;
 							state <= `CONTROLLER_STATE_READY;
 						end
 
@@ -139,6 +149,15 @@ module control_unit
 							state <= `CONTROLLER_STATE_READY;
 						end
 					endcase
+				end
+				
+				`CONTROLLER_STATE_SWAP_WAIT: begin
+					if (!wait_one && !pipelines_swapping) begin
+						state <= `CONTROLLER_STATE_READY;
+						current_pipeline <= ~current_pipeline;
+						pipeline_full_reset[0] 	<= 1;
+						pipeline_enables[0] 	<= 0;
+					end
 				end
 				
 				`CONTROLLER_STATE_GET_BLOCK_NUMBER: begin
@@ -162,10 +181,7 @@ module control_unit
 				
 				
 				`CONTROLLER_STATE_GET_REG_NUMBER: begin
-					if (wait_one) begin
-						wait_one <= 0;
-					end
-					else if (in_ready) begin
+					if (!wait_one && in_ready) begin
 						reg_target <= in_byte[`BLOCK_REG_ADDR_WIDTH - 1 : 0];
 						next <= 1;
 						
@@ -180,10 +196,7 @@ module control_unit
 				end
 				
 				`CONTROLLER_STATE_GET_DATA: begin
-					if (wait_one) begin
-						wait_one <= 0;
-					end
-					else if (in_ready) begin
+					if (!wait_one && in_ready) begin
 						data_out <= data_out_in_byte[data_width - 1 : 0];
 						next <= 1;
 						
@@ -203,10 +216,7 @@ module control_unit
 				end
 				
 				`CONTROLLER_STATE_GET_INSTR: begin
-					if (wait_one) begin
-						wait_one <= 0;
-					end
-					else if (in_ready) begin
+					if (!wait_one && in_ready) begin
 						instr_out  <= instr_out_in_byte[`BLOCK_INSTR_WIDTH - 1 : 0];
 						next <= 1;
 						
@@ -223,28 +233,23 @@ module control_unit
 				end
 				
 				`CONTROLLER_STATE_WRITE_BLOCK_INSTR: begin
-					block_instr_write[target_pipeline] <= 1;
-					state <= `CONTROLLER_STATE_READY;
+					if (!pipeline_resetting[target_pipeline]) begin
+						block_instr_write[target_pipeline] <= 1;
+						state <= `CONTROLLER_STATE_READY;
+					end
 				end
 
 				`CONTROLLER_STATE_WRITE_BLOCK_REG: begin
-					block_reg_write[target_pipeline] <= 1;
-					state <= `CONTROLLER_STATE_READY;
+					if (!pipeline_resetting[target_pipeline]) begin
+						block_reg_write[target_pipeline] <= 1;
+						state <= `CONTROLLER_STATE_READY;
+					end
 				end
 
 				`CONTROLLER_STATE_ALLOC_SRAM_DELAY: begin
-					alloc_sram_delay[target_pipeline] <= 1;
-					state <= `CONTROLLER_STATE_READY;
-				end
-
-				`CONTROLLER_STATE_SWAP_WAIT: begin
-					if (wait_one) begin
-						if (pipelines_swapping) wait_one <= 0;
-					end
-					else begin
-						if (!pipelines_swapping) begin
-							state <= `CONTROLLER_STATE_READY;
-						end
+					if (!pipeline_resetting[target_pipeline]) begin
+						alloc_sram_delay[target_pipeline] <= 1;
+						state <= `CONTROLLER_STATE_READY;
 					end
 				end
 			endcase
@@ -277,10 +282,14 @@ module control_unit_seq
 		output reg [1:0] block_reg_write,
 		output reg [1:0] block_reg_update,
 		output reg [1:0] alloc_sram_delay,
+		output reg [1:0] pipeline_full_reset,
+		output reg [1:0] pipeline_resetting,
+		output reg [1:0] pipeline_enables,
+		output reg [1:0] pipeline_reset,
 		
 		output reg swap_pipelines,
 		input wire pipelines_swapping,
-		output reg [1:0] reset_pipeline,
+		output reg current_pipeline,
 		
 		output reg set_input_gain,
 		output reg set_output_gain,
@@ -321,10 +330,11 @@ module control_unit_seq
 		next 	<= 0;
 		invalid <= 0;
 		swap_pipelines <= 0;
-		reset_pipeline <= 0;
+		pipeline_reset <= 0;
+		pipeline_full_reset <= 0;
 		
-		block_instr_write 	<= 0;
-		block_reg_write 	<= 0;
+		block_instr_write <= 0;
+		block_reg_write   <= 0;
 		
 		alloc_sram_delay <= 0;
 		
@@ -333,7 +343,9 @@ module control_unit_seq
 		
 		if (reset) begin
 			state <= `CONTROLLER_STATE_READY;
-			block_reg_write <= 0;
+			
+			pipeline_enables <= 2'b01;
+			current_pipeline <= 0;
 		end
 		else begin
 			case (state)
@@ -389,13 +401,14 @@ module control_unit_seq
 						end
 
 						`COMMAND_SWAP_PIPELINES: begin
-							swap_pipelines  <= 1;
-							wait_one 		<= 1;
+							swap_pipelines  	<= 1;
+							pipeline_enables[1] <= 1;
+							wait_one 			<= 1;
 							state <= `CONTROLLER_STATE_SWAP_WAIT;
 						end
 
 						`COMMAND_RESET_PIPELINE: begin
-							reset_pipeline[target_pipeline] <= 1;
+							pipeline_reset[target_pipeline] <= 1;
 							state <= `CONTROLLER_STATE_READY;
 						end
 
@@ -427,10 +440,7 @@ module control_unit_seq
 				end
 				
 				`CONTROLLER_STATE_GET_BLOCK_NUMBER: begin
-					if (wait_one) begin
-						wait_one <= 0;
-					end
-					else if (in_ready) begin
+					if (!wait_one && in_ready) begin
 						block_target <= in_byte[$clog2(n_blocks) - 1 : 0];
 						next <= 1;
 						
@@ -447,10 +457,7 @@ module control_unit_seq
 				
 				
 				`CONTROLLER_STATE_GET_REG_NUMBER: begin
-					if (wait_one) begin
-						wait_one <= 0;
-					end
-					else if (in_ready) begin
+					if (!wait_one && in_ready) begin
 						reg_target <= in_byte[`BLOCK_REG_ADDR_WIDTH - 1 : 0];
 						next <= 1;
 						
@@ -465,10 +472,7 @@ module control_unit_seq
 				end
 				
 				`CONTROLLER_STATE_GET_DATA: begin
-					if (wait_one) begin
-						wait_one <= 0;
-					end
-					else if (in_ready) begin
+					if (!wait_one && in_ready) begin
 						data_out <= data_out_in_byte[data_width - 1 : 0];
 						next <= 1;
 						
@@ -534,13 +538,19 @@ module control_unit_seq
 				end
 
 				`CONTROLLER_STATE_SWAP_WAIT: begin
-					if (wait_one) begin
-						if (pipelines_swapping) wait_one <= 0;
+					if (!wait_one && !pipelines_swapping) begin
+						current_pipeline 		<= ~current_pipeline;
+						pipeline_full_reset[1] 	<= 1;
+						pipeline_enables[1] 	<= 0;
+						
+						wait_one <= 1;
+						state <= `CONTROLLER_STATE_RESET_WAIT;
 					end
-					else begin
-						if (!pipelines_swapping) begin
-							state <= `CONTROLLER_STATE_READY;
-						end
+				end
+				
+				`CONTROLLER_STATE_RESET_WAIT: begin
+					if (!wait_one && pipeline_resetting == 2'b00) begin
+						state <= `CONTROLLER_STATE_READY;
 					end
 				end
 			endcase

@@ -309,6 +309,17 @@ int main(int argc, char** argv)
 	
 	append_send_queue(batch, 128);
 	
+	batch = m_new_fpga_transfer_batch();
+	m_fpga_batch_append(&batch, COMMAND_SWAP_PIPELINES);
+	
+	append_send_queue(batch, 1024);
+	batch = m_new_fpga_transfer_batch();
+	m_fpga_batch_append(&batch, COMMAND_SWAP_PIPELINES);
+	append_send_queue(batch, 1300);
+	batch = m_new_fpga_transfer_batch();
+	m_fpga_batch_append(&batch, COMMAND_SWAP_PIPELINES);
+	append_send_queue(batch, 1500);
+	
 	int samples_to_process = (n_samples < MAX_SAMPLES) ? n_samples : MAX_SAMPLES;
 	
     while (samples_processed < samples_to_process)
