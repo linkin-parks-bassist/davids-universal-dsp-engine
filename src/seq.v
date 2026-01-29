@@ -1543,6 +1543,18 @@ module dsp_core_2 #(
 	wire signed [    data_width - 1 : 0] alu_result;
 	wire signed [2 * data_width - 1 : 0] alu_result_wide;
 	
+	reg signed [data_width - 1 : 0] alu_result_latched;
+	reg write_alu_result;
+	
+	reg signed [data_width - 1 : 0] lut_result_latched;
+	reg write_lut_result;
+	
+	reg signed [data_width - 1 : 0] delay_result_latched;
+	reg write_delay_result;
+	
+	reg signed [data_width - 1 : 0] mem_result_latched;
+	reg write_mem_result;
+	
 	wire alu_result_valid;
 	wire alu_ready;
 
@@ -1782,9 +1794,30 @@ module dsp_core_2 #(
 						
 						state 			 <= 1;
 						
+						channel_write_addr <= dest;
+						
 						if (write_result) begin
-							channel_write_addr 	 <= dest;
 							channel_write_val 	 <= result_sat;
+							channel_write_enable <= 1;
+						end
+						
+						if (write_alu_result) begin
+							channel_write_val 	 <= alu_result_latched;
+							channel_write_enable <= 1;
+						end
+						
+						if (write_lut_result) begin
+							channel_write_val 	 <= lut_result_latched;
+							channel_write_enable <= 1;
+						end
+						
+						if (write_delay_result) begin
+							channel_write_val 	 <= delay_result_latched;
+							channel_write_enable <= 1;
+						end
+						
+						if (write_mem_result) begin
+							channel_write_val 	 <= mem_result_latched;
 							channel_write_enable <= 1;
 						end
 						
@@ -1841,6 +1874,11 @@ module dsp_core_2 #(
 		write_result <= 0;
 		alu_trigger  <= 0;
 		
+		write_alu_result 	<= 0;
+		write_lut_result 	<= 0;
+		write_delay_result 	<= 0;
+		write_mem_result 	<= 0;
+		
 		if (reset | full_reset | exec_done | block_boundary | tick) begin
 			exec_done  <= 0;
 			exec_state <= 0;
@@ -1863,10 +1901,10 @@ module dsp_core_2 #(
 						end
 						1: exec_state <= 2;
 						2: begin
-							result <= alu_result;
+							alu_result_latched <= alu_result;
 							
 							exec_done 	 <= 1;
-							write_result <= 1;
+							write_alu_result <= 1;
 							exec_state   <= 3;
 						end
 					endcase
@@ -1884,10 +1922,10 @@ module dsp_core_2 #(
 						end
 						1: exec_state <= 2;
 						2: begin
-							result <= alu_result;
+							alu_result_latched <= alu_result;
+							write_alu_result <= 1;
 							
 							exec_done 	 <= 1;
-							write_result <= 1;
 							exec_state   <= 3;
 						end
 					endcase
@@ -1905,10 +1943,10 @@ module dsp_core_2 #(
 						end
 						1: exec_state <= 2;
 						2: begin
-							result <= alu_result;
+							alu_result_latched <= alu_result;
+							write_alu_result <= 1;
 							
 							exec_done 	 <= 1;
-							write_result <= 1;
 							exec_state   <= 3;
 						end
 					endcase
@@ -1926,10 +1964,10 @@ module dsp_core_2 #(
 						end
 						1: exec_state <= 2;
 						2: begin
-							result <= alu_result;
+							alu_result_latched <= alu_result;
+							write_alu_result <= 1;
 							
 							exec_done 	 <= 1;
-							write_result <= 1;
 							exec_state   <= 3;
 						end
 					endcase
@@ -1948,9 +1986,9 @@ module dsp_core_2 #(
 						end
 						1: begin
 							if (alu_result_valid) begin
-								result 		 <= alu_result;
+								alu_result_latched <= alu_result;
+								write_alu_result <= 1;
 								exec_done 	 <= 1;
-								write_result <= 1;
 								exec_state	 <= 2;
 							end
 						end
@@ -1970,9 +2008,9 @@ module dsp_core_2 #(
 						end
 						1: begin
 							if (alu_result_valid) begin
-								result 		 <= alu_result;
+								alu_result_latched <= alu_result;
+								write_alu_result <= 1;
 								exec_done 	 <= 1;
-								write_result <= 1;
 								exec_state	 <= 2;
 							end
 						end
@@ -1992,9 +2030,9 @@ module dsp_core_2 #(
 						end
 						1: begin
 							if (alu_result_valid) begin
-								result 		 <= alu_result;
+								alu_result_latched <= alu_result;
+								write_alu_result <= 1;
 								exec_done 	 <= 1;
-								write_result <= 1;
 								exec_state	 <= 2;
 							end
 						end
@@ -2017,9 +2055,9 @@ module dsp_core_2 #(
 						
 						1: begin
 							if (alu_result_valid) begin
-								result 		 <= alu_result;
+								alu_result_latched <= alu_result;
+								write_alu_result <= 1;
 								exec_done 	 <= 1;
-								write_result <= 1;
 								exec_state	 <= 2;
 							end
 						end
@@ -2043,9 +2081,9 @@ module dsp_core_2 #(
 						
 						1: begin
 							if (alu_result_valid) begin
-								result 		 <= alu_result;
+								alu_result_latched <= alu_result;
+								write_alu_result <= 1;
 								exec_done 	 <= 1;
-								write_result <= 1;
 								exec_state	 <= 2;
 							end
 						end
@@ -2141,8 +2179,8 @@ module dsp_core_2 #(
 						
 						1: begin
 							result <= (saturate) ? accumulator[data_width - 1 : 0] : accumulator_sat[data_width - 1 : 0];
-							exec_done <= 1;
 							write_result <= 1;
+							exec_done <= 1;
 						end
 					endcase
 				end
@@ -2219,9 +2257,9 @@ module dsp_core_2 #(
 						end
 						1: exec_state <= 2;
 						2: begin
-							result <= mem_read_val;
+							mem_result_latched <= mem_read_val;
+							write_mem_result <= 1;
 							exec_done <= 1;
-							write_result <= 1;
 						end
 					endcase
 				end
@@ -2239,9 +2277,9 @@ module dsp_core_2 #(
 						1: exec_state <= 2;
 						2: begin
 							if (lut_ready) begin
-								result <= lut_data;
+								lut_result_latched <= lut_data;
+								write_lut_result <= 1;
 								exec_done <= 1;
-								write_result <= 1;
 								lut_req <= 0;
 							end
 						end
@@ -2261,9 +2299,9 @@ module dsp_core_2 #(
 						1: exec_state <= 2;
 						2: begin
 							if (delay_read_ready) begin
-								result 			<= delay_req_data_in;
+								delay_result_latched <= delay_req_data_in;
+								write_delay_result 	<= 1;
 								exec_done 		<= 1;
-								write_result 	<= 1;
 								delay_read_req 	<= 0;
 							end
 						end
@@ -2321,9 +2359,9 @@ module dsp_core_2 #(
 						
 						4: begin
 							if (alu_result_valid) begin
-								result <= alu_result;
+								alu_result_latched <= alu_result;
 								
-								write_result <= 1;
+								write_alu_result <= 1;
 								exec_done 	 <= 1;
 								exec_state 	 <= 5;
 							end
