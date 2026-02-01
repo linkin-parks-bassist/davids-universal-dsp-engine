@@ -1825,20 +1825,20 @@ module dsp_core_2 #(
 						end
 						
 						if (current_block == last_block) begin
-							state <= 0;
-							sample_out <= write_result ? result_sat : channels[0];
-							ready <= 1;
-							executing <= 0;
+							state <= 3;
 						end
 					end
 				end
 				
 				3: begin
-					
+					state <= 4;
 				end
 				
 				4: begin
-					
+					ready <= 1;
+					executing <= 0;
+					sample_out <= channels[0];
+					state <= 0;
 				end
 			endcase
 		end
