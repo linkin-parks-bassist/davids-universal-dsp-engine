@@ -15,11 +15,11 @@
 #include "math.h"
 
 
-#define MAX_SAMPLES		(1*44.1*1000)
+#define MAX_SAMPLES		1024
 //#define PRINT_STATE
 //#define RUN_EMULATOR
 
-//#define DUMP_WAVEFORM
+#define DUMP_WAVEFORM
 
 int tick();
 

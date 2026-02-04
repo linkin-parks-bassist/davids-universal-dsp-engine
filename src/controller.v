@@ -23,7 +23,7 @@ module control_unit
 		output reg [1:0] block_instr_write,
 		output reg [1:0] block_reg_write,
 		output reg [1:0] block_reg_update,
-		output reg [1:0] alloc_sram_delay,
+		output reg [1:0] alloc_delay,
 		output reg [1:0] pipeline_full_reset,
 		output reg [1:0] pipeline_resetting,
 		output reg [1:0] pipeline_enables,
@@ -71,7 +71,7 @@ module control_unit
 		block_instr_write 	<= 0;
 		block_reg_write 	<= 0;
 		
-		alloc_sram_delay <= 0;
+		alloc_delay <= 0;
 		
 		wait_one <= 0;
 		
@@ -248,7 +248,7 @@ module control_unit
 
 				`CONTROLLER_STATE_ALLOC_SRAM_DELAY: begin
 					if (!pipeline_resetting[target_pipeline]) begin
-						alloc_sram_delay[target_pipeline] <= 1;
+						alloc_delay[target_pipeline] <= 1;
 						state <= `CONTROLLER_STATE_READY;
 					end
 				end
@@ -277,11 +277,12 @@ module control_unit_seq
 		output reg [$clog2(n_blocks) + `BLOCK_REG_ADDR_WIDTH - 1 : 0] reg_target,
 		output reg [`BLOCK_INSTR_WIDTH    - 1 : 0] instr_out,
 		output reg [data_width 			  - 1 : 0] data_out,
+		output reg [2 * data_width 		  - 1 : 0] buf_init_delay,
 		
 		output reg [1:0] block_instr_write,
 		output reg [1:0] block_reg_write,
 		output reg [1:0] block_reg_update,
-		output reg [1:0] alloc_sram_delay,
+		output reg [1:0] alloc_delay,
 		output reg [1:0] pipeline_full_reset,
 		output reg [1:0] pipeline_resetting,
 		output reg [1:0] pipeline_enables,
@@ -317,6 +318,7 @@ module control_unit_seq
 	reg load_reg_number;
 	reg load_block_instr;
 	reg load_data;
+	reg load_buf_delay;
 	
 	reg wait_one = 0;
 	
@@ -336,7 +338,7 @@ module control_unit_seq
 		block_instr_write <= 0;
 		block_reg_write   <= 0;
 		
-		alloc_sram_delay <= 0;
+		alloc_delay <= 0;
 		
 		set_input_gain  <= 0;
 		set_output_gain <= 0;
@@ -365,6 +367,7 @@ module control_unit_seq
 							load_reg_number	  <= 0;
 							load_data 		  <= 0;
 							load_block_instr  <= 1;
+							load_buf_delay    <= 0;
 							
 							state <= `CONTROLLER_STATE_GET_BLOCK_NUMBER;
 							ret_state <= `CONTROLLER_STATE_WRITE_BLOCK_INSTR;
@@ -375,6 +378,7 @@ module control_unit_seq
 							load_reg_number	  <= 1;
 							load_data 		  <= 1;
 							load_block_instr  <= 0;
+							load_buf_delay    <= 0;
 							
 							state <= `CONTROLLER_STATE_GET_BLOCK_NUMBER;
 							ret_state <= `CONTROLLER_STATE_WRITE_BLOCK_REG;
@@ -385,6 +389,7 @@ module control_unit_seq
 							load_reg_number	  <= 1;
 							load_data 		  <= 1;
 							load_block_instr  <= 0;
+							load_buf_delay    <= 0;
 							
 							state <= `CONTROLLER_STATE_GET_BLOCK_NUMBER;
 							ret_state <= `CONTROLLER_STATE_WRITE_BLOCK_REG;
@@ -395,6 +400,7 @@ module control_unit_seq
 							load_reg_number	  <= 0;
 							load_data 		  <= 1;
 							load_block_instr  <= 0;
+							load_buf_delay    <= 1;
 							
 							state <= `CONTROLLER_STATE_GET_DATA;
 							ret_state <= `CONTROLLER_STATE_ALLOC_SRAM_DELAY;
@@ -417,6 +423,7 @@ module control_unit_seq
 							load_reg_number	  <= 0;
 							load_data 		  <= 1;
 							load_block_instr  <= 0;
+							load_buf_delay    <= 0;
 							
 							state <= `CONTROLLER_STATE_GET_DATA;
 							ret_state <= `CONTROLLER_STATE_SET_INPUT_GAIN;
@@ -427,6 +434,7 @@ module control_unit_seq
 							load_reg_number	  <= 0;
 							load_data 		  <= 1;
 							load_block_instr  <= 0;
+							load_buf_delay    <= 0;
 							
 							state <= `CONTROLLER_STATE_GET_DATA;
 							ret_state <= `CONTROLLER_STATE_SET_OUTPUT_GAIN;
@@ -481,6 +489,8 @@ module control_unit_seq
 							
 							if (load_block_instr)
 								state <= `CONTROLLER_STATE_GET_INSTR;
+							else if (load_buf_delay)
+								state <= `CONTROLLER_STATE_GET_DELAY;
 							else
 								state <= ret_state;
 						end
@@ -511,6 +521,26 @@ module control_unit_seq
 					end
 				end
 				
+				`CONTROLLER_STATE_GET_DELAY: begin
+					if (wait_one) begin
+						wait_one <= 0;
+					end
+					else if (in_ready) begin
+						buf_init_delay  <= {buf_init_delay[2 * data_width - 8 - 1 : 0], in_byte};
+						next <= 1;
+						
+						if (byte_ctr > 2) begin
+							byte_ctr <= 0;
+							
+							state <= ret_state;
+						end
+						else begin
+							byte_ctr <= byte_ctr + 1;
+						end
+						wait_one <= 1;
+					end
+				end
+				
 				`CONTROLLER_STATE_WRITE_BLOCK_INSTR: begin
 					block_instr_write[target_pipeline] <= 1;
 					state <= `CONTROLLER_STATE_READY;
@@ -523,7 +553,7 @@ module control_unit_seq
 				end
 
 				`CONTROLLER_STATE_ALLOC_SRAM_DELAY: begin
-					alloc_sram_delay[target_pipeline] <= 1;
+					alloc_delay[target_pipeline] <= 1;
 					state <= `CONTROLLER_STATE_READY;
 				end
 

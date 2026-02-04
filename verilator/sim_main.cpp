@@ -820,52 +820,40 @@ int main(int argc, char** argv)
 	m_effect_desc *eff = new_m_effect_desc("_");
 	m_parameter_pll *params = NULL;
 	
-	m_parameter *param1 = new_m_parameter_wni("Center", "center", 5, 0.1, 10.0);
-	m_parameter *param2 = new_m_parameter_wni("Depth", "depth", 100.0, 0.0, 100.0);
+	m_parameter *param1 = new_m_parameter_wni("Center", "center", 6, 0.1, 10.0);
+	m_parameter *param2 = new_m_parameter_wni("Depth", "depth", 5.0, 0.0, 5.0);
 	m_parameter *param3 = new_m_parameter_wni("Rate", "rate", 1.0, 0.0, 2.0);
-	m_parameter *param4 = new_m_parameter_wni("Strength", "strength", 0.8, 0.0, 1.0);
+	m_parameter *param4 = new_m_parameter_wni("Strength", "strength", 1.0, 0.0, 1.0);
 	
 	m_effect_desc_add_param(eff, param1);
 	m_effect_desc_add_param(eff, param2);
 	m_effect_desc_add_param(eff, param3);
 	m_effect_desc_add_param(eff, param4);
 	
-	// Load phase accumulator from mem[0]
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_load_acc(1)));
-	// Add phase accumulator (wrapping)
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_accu(0, 1)));
-	m_effect_desc_add_register_val(eff, 1, 0, DSP_REG_FORMAT_LITERAL, "* rate 6087.0");
-	// Save new phase accumulator
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_save_acc(1)));
-	// Put accumulator on ch0
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mov_uacc(1)));
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_lsh4(1, 0, 1)));
+	int delay_buf_size = 2048;
+	int delay_initial  = 512 << 8;
 	
-	// take sin of phase accumulator
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_lut(1, 0, 0, 2)));
+	m_fpga_batch_append(&batch, COMMAND_ALLOC_SRAM_DELAY);
+	m_fpga_batch_append(&batch, delay_buf_size >> 8);
+	m_fpga_batch_append(&batch, delay_buf_size >> 0);
+	m_fpga_batch_append(&batch, delay_initial >> 24);
+	m_fpga_batch_append(&batch, delay_initial >> 16);
+	m_fpga_batch_append(&batch, delay_initial >> 8);
+	m_fpga_batch_append(&batch, delay_initial >> 0);
 	
-	// multiply sin(phase_acc) by depth (stored as #samples, left shifted 1) into accumulator with no shift
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_macz_noshift(2, 0, 0, 1)));
-	m_effect_desc_add_register_val(eff, 6, 0, DSP_REG_FORMAT_LITERAL, "* * * * 0.001 2 44.1 depth center");
-	// add 
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mac_noshift(0, 1, 1, 1)));
-	m_effect_desc_add_register_val(eff, 7, 0, DSP_REG_FORMAT_LITERAL, "* * 4 44.1 center");
-	m_effect_desc_add_register_val(eff, 7, 1, DSP_REG_FORMAT_LITERAL, "16384");
+	m_fpga_batch_append(&batch, COMMAND_ALLOC_SRAM_DELAY);
+	m_fpga_batch_append(&batch, 64 >> 8);
+	m_fpga_batch_append(&batch, 64 >> 0);
+	m_fpga_batch_append(&batch, 32 >> 24);
+	m_fpga_batch_append(&batch, 32 >> 16);
+	m_fpga_batch_append(&batch, 32 >> 8);
+	m_fpga_batch_append(&batch, 32 >> 0);
 	
-	// get fractional delay
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_frac_delay(0, 7)));
-	// write the raw input sample back to the delay buffer
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_delay_write(0, 0, 0)));
-	// mix in fractional delay
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_madd(0, 1, 7, 0, 0, 0, 0, 0)));
-	m_effect_desc_add_register_val(eff, 10, 0, 0, "strength");
 	
-	m_effect_desc_add_resource_request(eff, new_fpga_resource_req(M_FPGA_RESOURCE_DDELAY, 1024));
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_delay_read(0, 1)));
 	
-	params = m_parameter_pll_append(params, param1);
-	params = m_parameter_pll_append(params, param2);
-	params = m_parameter_pll_append(params, param3);
-	params = m_parameter_pll_append(params, param4);
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_delay_write(0, 0, 0, 1, 0)));
+	m_effect_desc_add_register_val_literal(eff, 1, 0, 1);
 	
 	m_fpga_resource_report res = m_empty_fpga_resource_report();
 	m_fpga_resource_report local;
@@ -874,10 +862,16 @@ int main(int argc, char** argv)
 	
 	m_fpga_batch_append(&batch, COMMAND_SWAP_PIPELINES);
 	
-	append_send_queue(batch, 32);
+	append_send_queue(batch, 128);
 	
 	batch = m_new_fpga_transfer_batch();
-	m_fpga_batch_append(&batch, COMMAND_SWAP_PIPELINES);
+	m_fpga_batch_append(&batch, COMMAND_UPDATE_BLOCK_REG);
+	m_fpga_batch_append(&batch, 63);
+	m_fpga_batch_append(&batch, 0);
+	m_fpga_batch_append(&batch, 0x10);
+	m_fpga_batch_append(&batch, 0x00);
+	
+	//append_send_queue(batch, 1024);
 	
 	int samples_to_process = (n_samples < MAX_SAMPLES) ? n_samples : MAX_SAMPLES;
 	
@@ -887,6 +881,10 @@ int main(int argc, char** argv)
 	
 	int16_t y;
 	int16_t emulated_y = 0;
+	
+	float t = 0;
+	
+	const float sample_duration = 1.0f / (44.1f * 1000.0f);
 	
     while (samples_processed < samples_to_process)
 	{
@@ -927,8 +925,12 @@ int main(int argc, char** argv)
 			}
 			
 			samples_processed++;
-			io.sample_in = 0.5 * ((rand() % 65536) - 32768);
-			static_cast<int16_t>(in_samples[samples_processed]);
+			t += sample_duration;
+			
+			io.sample_in = (uint16_t)(roundf(sinf(6.28 * (500.0f/3.0f) * t) * 32767.0));
+			
+			
+			//static_cast<int16_t>(in_samples[samples_processed]);
 			y = static_cast<int16_t>(io.sample_out);
 			out_samples.push_back(y);
 			io.i2s_ready = 0;

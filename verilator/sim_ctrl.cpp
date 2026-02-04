@@ -85,49 +85,19 @@ m_dsp_block_instr m_dsp_block_instr_sub_unsat(int src_a, int src_a_reg, int src_
 	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_SUB, src_a, src_a_reg, src_b, src_b_reg, 0, 0, dest, 0, 1);
 }
 
-m_dsp_block_instr m_dsp_block_instr_lsh(int src_a, int src_a_reg, int dest)
+m_dsp_block_instr m_dsp_block_instr_lsh(int src_a, int src_a_reg, int shift, int dest)
 {
-	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_LSH, src_a, src_a_reg, 0, 0, 0, 0, dest, 0, 0);
+	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_LSH, src_a, src_a_reg, shift, 0, 0, 0, dest, 0, 0);
 }
 
-m_dsp_block_instr m_dsp_block_instr_rsh(int src_a, int src_a_reg, int dest)
+m_dsp_block_instr m_dsp_block_instr_rsh(int src_a, int src_a_reg, int shift, int dest)
 {
-	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_RSH, src_a, src_a_reg, 0, 0, 0, 0, dest, 0, 0);
+	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_RSH, src_a, src_a_reg, shift, 0, 0, 0, dest, 0, 0);
 }
 
-m_dsp_block_instr m_dsp_block_instr_arsh(int src_a, int src_a_reg, int dest)
+m_dsp_block_instr m_dsp_block_instr_arsh(int src_a, int src_a_reg, int shift, int dest)
 {
-	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_ARSH, src_a, src_a_reg, 0, 0, 0, 0, dest, 0, 0);
-}
-
-m_dsp_block_instr m_dsp_block_instr_lsh4(int src_a, int src_a_reg, int dest)
-{
-	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_LSH, src_a, src_a_reg, 4, 0, 0, 0, dest, 0, 0);
-}
-
-m_dsp_block_instr m_dsp_block_instr_rsh4(int src_a, int src_a_reg, int dest)
-{
-	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_RSH, src_a, src_a_reg, 4, 0, 0, 0, dest, 0, 0);
-}
-
-m_dsp_block_instr m_dsp_block_instr_arsh4(int src_a, int src_a_reg, int dest)
-{
-	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_ARSH, src_a, src_a_reg, 4, 0, 0, 0, dest, 0, 0);
-}
-
-m_dsp_block_instr m_dsp_block_instr_lsh8(int src_a, int src_a_reg, int dest)
-{
-	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_LSH, src_a, src_a_reg, 8, 0, 0, 0, dest, 0, 0);
-}
-
-m_dsp_block_instr m_dsp_block_instr_rsh8(int src_a, int src_a_reg, int dest)
-{
-	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_RSH, src_a, src_a_reg, 8, 0, 0, 0, dest, 0, 0);
-}
-
-m_dsp_block_instr m_dsp_block_instr_arsh8(int src_a, int src_a_reg, int dest)
-{
-	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_ARSH, src_a, src_a_reg, 8, 0, 0, 0, dest, 0, 0);
+	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_ARSH, src_a, src_a_reg, shift, 0, 0, 0, dest, 0, 0);
 }
 
 m_dsp_block_instr m_dsp_block_instr_mul(int src_a, int src_a_reg, int src_b, int src_b_reg, int dest, int shift)
@@ -180,17 +150,17 @@ m_dsp_block_instr m_dsp_block_instr_lut(int src_a, int src_a_reg, int lut, int d
 	return m_dsp_block_instr_type_b_str(BLOCK_INSTR_LUT, src_a, src_a_reg, 0, 0, dest, lut);
 }
 
-m_dsp_block_instr m_dsp_block_instr_delay_read(int delay, int delay_reg, int buffer, int dest)
+m_dsp_block_instr m_dsp_block_instr_delay_read(int buffer, int dest)
 {
-	return m_dsp_block_instr_type_b_str(BLOCK_INSTR_DELAY_READ, delay, delay_reg, 0, 0, dest, buffer);
+	return m_dsp_block_instr_type_b_str(BLOCK_INSTR_DELAY_READ, 0, 0, 0, 0, dest, buffer);
 }
 
-m_dsp_block_instr m_dsp_block_instr_delay_write(int src, int src_reg, int buffer)
+m_dsp_block_instr m_dsp_block_instr_delay_write(int src, int src_reg, int inc, int inc_reg, int buffer)
 {
-	return m_dsp_block_instr_type_b_str(BLOCK_INSTR_DELAY_WRITE, src, src_reg, 0, 0, 0, buffer);
+	return m_dsp_block_instr_type_b_str(BLOCK_INSTR_DELAY_WRITE, src, src_reg, inc, inc_reg, 0, buffer);
 }
 
-m_dsp_block_instr m_dsp_block_instr_save(int addr, int src, int src_reg)
+m_dsp_block_instr m_dsp_block_instr_save(int src, int src_reg, int addr)
 {
 	return m_dsp_block_instr_type_b_str(BLOCK_INSTR_SAVE, src, src_reg, 0, 0, 0, addr);
 }
@@ -210,9 +180,14 @@ m_dsp_block_instr m_dsp_block_instr_clamp(int src_a, int src_a_reg, int src_b, i
 	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_CLAMP, src_a, src_a_reg, src_b, src_b_reg, src_c, src_c_reg, dest, 0, 0);
 }
 
-m_dsp_block_instr m_dsp_block_instr_macz(int src_a, int src_a_reg, int src_b, int src_b_reg)
+m_dsp_block_instr m_dsp_block_instr_macz(int src_a, int src_a_reg, int src_b, int src_b_reg, int shift)
 {
-	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_MACZ, src_a, src_a_reg, src_b, src_b_reg, 0, 0, 0, 0, 0);
+	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_MACZ, src_a, src_a_reg, src_b, src_b_reg, 0, 0, 0, shift, 0);
+}
+
+m_dsp_block_instr m_dsp_block_instr_macz_unsat(int src_a, int src_a_reg, int src_b, int src_b_reg, int shift)
+{
+	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_MACZ, src_a, src_a_reg, src_b, src_b_reg, 0, 0, 0, shift, 1);
 }
 
 m_dsp_block_instr m_dsp_block_instr_macz_noshift(int src_a, int src_a_reg, int src_b, int src_b_reg)
@@ -220,9 +195,19 @@ m_dsp_block_instr m_dsp_block_instr_macz_noshift(int src_a, int src_a_reg, int s
 	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_MACZ, src_a, src_a_reg, src_b, src_b_reg, 0, 0, 0, NO_SHIFT, 0);
 }
 
-m_dsp_block_instr m_dsp_block_instr_mac(int src_a, int src_a_reg, int src_b, int src_b_reg)
+m_dsp_block_instr m_dsp_block_instr_macz_unsat_noshift(int src_a, int src_a_reg, int src_b, int src_b_reg)
 {
-	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_MAC, src_a, src_a_reg, src_b, src_b_reg, 0, 0, 0, 0, 0);
+	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_MACZ, src_a, src_a_reg, src_b, src_b_reg, 0, 0, 0, NO_SHIFT, 1);
+}
+
+m_dsp_block_instr m_dsp_block_instr_mac(int src_a, int src_a_reg, int src_b, int src_b_reg, int shift)
+{
+	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_MAC, src_a, src_a_reg, src_b, src_b_reg, 0, 0, 0, shift, 0);
+}
+
+m_dsp_block_instr m_dsp_block_instr_mac_unsat(int src_a, int src_a_reg, int src_b, int src_b_reg, int shift)
+{
+	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_MAC, src_a, src_a_reg, src_b, src_b_reg, 0, 0, 0, shift, 1);
 }
 
 m_dsp_block_instr m_dsp_block_instr_mac_noshift(int src_a, int src_a_reg, int src_b, int src_b_reg)
@@ -230,9 +215,19 @@ m_dsp_block_instr m_dsp_block_instr_mac_noshift(int src_a, int src_a_reg, int sr
 	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_MAC, src_a, src_a_reg, src_b, src_b_reg, 0, 0, 0, NO_SHIFT, 0);
 }
 
+m_dsp_block_instr m_dsp_block_instr_mac_unsat_noshift(int src_a, int src_a_reg, int src_b, int src_b_reg)
+{
+	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_MAC, src_a, src_a_reg, src_b, src_b_reg, 0, 0, 0, NO_SHIFT, 1);
+}
+
 m_dsp_block_instr m_dsp_block_instr_mov_acc(int dest)
 {
 	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_MOV_ACC, 0, 0, 0, 0, 0, 0, dest, 0, 0);
+}
+
+m_dsp_block_instr m_dsp_block_instr_mov_acc_unsat(int dest)
+{
+	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_MOV_ACC, 0, 0, 0, 0, 0, 0, dest, 0, 1);
 }
 
 m_dsp_block_instr m_dsp_block_instr_linterp(int src_a, int src_a_reg, int src_b, int src_b_reg, int src_c, int src_c_reg, int dest)
@@ -1598,7 +1593,7 @@ void print_instruction(m_dsp_block_instr instr)
 	switch (m_dsp_block_instr_format(instr))
 	{
 		case INSTR_FORMAT_A:
-			printf("Instruction = %s(%d, %d, %d, %d, %d, %d, %d %d, %d, %d)",
+			printf("Instruction = %s(%d, %d, %d, %d, %d, %d, %d, %d, %d, %d)",
 						m_dsp_block_opcode_to_string(instr.opcode),
 						instr.src_a,
 						instr.src_a_reg,

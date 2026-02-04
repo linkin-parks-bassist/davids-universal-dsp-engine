@@ -37,13 +37,14 @@ module pipeline_seq
 		input wire instr_write,
 	
 		input wire [data_width - 1 : 0] ctrl_data,
+		input wire [2 * data_width - 1 : 0] buf_init_delay,
 		input wire reg_update,
 		input wire reg_write,
 		
 		output wire reg_write_ack,
         output wire instr_write_ack,
 	
-		input wire alloc_sram_delay,
+		input wire alloc_delay,
 		output wire resetting,
 
         output wire[7:0] out
@@ -94,7 +95,8 @@ module pipeline_seq
     wire delay_read_req;
 	wire delay_write_req;
 	wire [data_width - 1 : 0] delay_req_handle;
-	wire [data_width - 1 : 0] delay_req_arg;
+	wire [data_width - 1 : 0] delay_write_data;
+	wire [data_width - 1 : 0] delay_write_inc;
 	wire [data_width - 1 : 0] delay_read_data;
 	wire delay_read_ready;
 	wire delay_write_ready;
@@ -161,7 +163,7 @@ module pipeline_seq
 		end
 	endgenerate
 	
-	dsp_core_2 #(.data_width(data_width), .n_blocks(n_blocks), .n_channels(n_channels), .n_block_regs(n_block_registers)) core (
+	dsp_core_3 #(.data_width(data_width), .n_blocks(n_blocks), .n_channels(n_channels), .n_block_regs(n_block_registers)) core (
 		.clk(clk),
 		.reset(reset),
 		
@@ -189,13 +191,14 @@ module pipeline_seq
 		.lut_data(lut_data),
 		.lut_ready(lut_ready),
 		
-		.delay_read_req(delay_read_req),
-		.delay_write_req(delay_write_req),
+		.delay_read_req  (delay_read_req),
+		.delay_write_req (delay_write_req),
 		.delay_req_handle(delay_req_handle),
-		.delay_req_arg(delay_req_arg),
-		.delay_req_data_in(delay_read_data),
+		.delay_write_data(delay_write_data),
+		.delay_write_inc (delay_write_inc),
+		.delay_read_data (delay_read_data),
 		.delay_read_ready(delay_read_ready),
-		.delay_write_ack(delay_write_ready),
+		.delay_write_ack (delay_write_ready),
 		
 		.full_reset(full_reset),
 		.resetting(resetting)
@@ -237,44 +240,33 @@ module pipeline_seq
 			.invalid_write(sram_write_invalid)
 		);
 	
-	delay_master #(
+	delay_master_2 #(
 			.data_width(data_width), 
-			.n_sram_buffers(8),
-			.sram_addr_width(sram_addr_width),
-			.sram_capacity(n_sram_banks * sram_bank_size)
+			.n_buffers(8),
+			.memory_size(sram_capacity)
 		)
 		delays (
 			.clk(clk),
 			.reset(reset | full_reset),
 			
+			.enable(1),
+			
+			.alloc_req  (alloc_delay),
+			.alloc_size (ctrl_data_addr_width),
+			.alloc_delay(buf_init_delay),
+			
 			.read_req(delay_read_req),
 			.write_req(delay_write_req),
 			
-			.alloc_sram_req(alloc_sram_delay),
-			.alloc_size(ctrl_data_addr_width),
-			
-			.req_handle(delay_req_handle),
-			.req_arg(delay_req_arg),
-			
-			.req_sram_read(sram_read),
-			.req_sram_write(sram_write),
-			.req_sram_read_addr(sram_read_addr),
-			.req_sram_write_addr(sram_write_addr),
-			.sram_read_ready(sram_read_ready),
-			.sram_write_ready(sram_write_ready),
-			.data_to_sram(sram_data_in),
-			.data_from_sram(sram_data_out),
-			.sram_read_invalid(sram_read_invalid),
-			.sram_write_invalid(sram_write_invalid),
+			.write_handle(delay_req_handle),
+			.read_handle (delay_req_handle),
+			.write_data  (delay_write_data),
+			.write_inc   (delay_write_inc),
 				
 			.data_out(delay_read_data),
 			
-			.read_ready(delay_read_ready),
-			.write_ready(delay_write_ready),
-			
-			.invalid_read(invalid_delay_read),
-			.invalid_write(invalid_delay_write),
-			.invalid_alloc(invalid_delay_alloc)
+			.read_valid(delay_read_ready),
+			.write_ack(delay_write_ready)
 		);
 endmodule
 

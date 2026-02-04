@@ -33,9 +33,10 @@ module instr_decoder #(parameter data_width = 16)
 		output logic src_b_needed,
 		output logic src_c_needed,
 		
-		output logic [$clog2(n_branches) - 1 : 0] branch,
+		output logic [$clog2(`N_INSTR_BRANCHES) - 1 : 0] branch,
 		
-		output logic commits
+		output logic commits,
+		output logic ext_write
 	);
 	
 	localparam operand_type_start_index = 4 * `BLOCK_REG_ADDR_WIDTH + `BLOCK_INSTR_OP_WIDTH;
@@ -51,10 +52,10 @@ module instr_decoder #(parameter data_width = 16)
 		(operation != `BLOCK_INSTR_NOP 			&&
 		 operation != `BLOCK_INSTR_LOAD 		&&
 		 operation != `BLOCK_INSTR_MOV_ACC 		&&
-		 operation != `BLOCK_INSTR_FRAC_DELAY 	&&
 		 operation != `BLOCK_INSTR_LOAD_ACC 	&&
 		 operation != `BLOCK_INSTR_SAVE_ACC 	&&
 		 operation != `BLOCK_INSTR_CLEAR_ACC 	&&
+		 operation != `BLOCK_INSTR_DELAY_WRITE 	&&
 		 operation != `BLOCK_INSTR_MOV_UACC);
 	
 	assign src_b_needed = (
@@ -65,6 +66,7 @@ module instr_decoder #(parameter data_width = 16)
 		operation == `BLOCK_INSTR_CLAMP ||
 		operation == `BLOCK_INSTR_MACZ 	||
 		operation == `BLOCK_INSTR_MAC 	||
+		operation == `BLOCK_INSTR_DELAY_WRITE ||
 		operation == `BLOCK_INSTR_LINTERP);
 	
 	assign src_c_needed = (
@@ -81,26 +83,31 @@ module instr_decoder #(parameter data_width = 16)
 	assign res_addr		      = (instr_format) ? instr[27:20] :  8'b0;
 	
 	assign use_accumulator = (
-		operation == `BLOCK_INSTR_MACZ 	  ||
-		operation == `BLOCK_INSTR_MAC 	  ||
-		operation == `BLOCK_INSTR_MOV_ACC ||);
+		operation == `BLOCK_INSTR_MACZ ||
+		operation == `BLOCK_INSTR_MAC  ||
+		operation == `BLOCK_INSTR_MOV_ACC);
+	
 	assign subtract			= (operation == `BLOCK_INSTR_SUB);
 	assign signedness 		= 1;
 	assign dest_acc 		= (operation == `BLOCK_INSTR_MACZ || operation == `BLOCK_INSTR_MAC);
 	
 	always_comb begin
 		if (operation == `BLOCK_INSTR_DELAY_READ || operation == `BLOCK_INSTR_DELAY_WRITE)
-			branch = delay_branch;
+			branch = `INSTR_BRANCH_DELAY;
 		else if (operation == `BLOCK_INSTR_LUT)
-			branch = lut_branch;
+			branch = `INSTR_BRANCH_LUT;
 		else if (operation == `BLOCK_INSTR_SAVE 	|| operation == `BLOCK_INSTR_LOAD
 			  || operation == `BLOCK_INSTR_SAVE_ACC || operation == `BLOCK_INSTR_LOAD_ACC)
-			branch = mem_branch;
+			branch = `INSTR_BRANCH_MEM;
 		else
-			branch = main_branch;
+			branch = `INSTR_BRANCH_MAIN;
 	end
 	
 	assign commits = (operation != `BLOCK_INSTR_SAVE
 				   && operation != `BLOCK_INSTR_SAVE_ACC
 				   && operation != `BLOCK_INSTR_DELAY_WRITE);
+	
+	assign ext_write = (operation == `BLOCK_INSTR_SAVE
+				     || operation == `BLOCK_INSTR_SAVE_ACC
+				     || operation == `BLOCK_INSTR_DELAY_WRITE);
 endmodule

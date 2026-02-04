@@ -50,7 +50,7 @@ module dsp_engine_seq
     wire [1:0] block_instr_write;
     wire [1:0] block_reg_write;
     wire [1:0] block_reg_update;
-    wire [1:0] alloc_sram_delay;
+    wire [1:0] alloc_delay;
     wire [1:0] pipeline_reset;
     wire [1:0] pipeline_full_reset;
     wire [1:0] pipeline_enables;
@@ -98,7 +98,7 @@ module dsp_engine_seq
     wire pipeline_a_block_instr_write 	= block_instr_write		[current_pipeline];
     wire pipeline_a_block_reg_write 	= block_reg_write  		[current_pipeline];
     wire pipeline_a_block_reg_update 	= block_reg_update 		[current_pipeline];
-    wire pipeline_a_alloc_sram_delay 	= alloc_sram_delay 		[current_pipeline];
+    wire pipeline_a_alloc_delay 	= alloc_delay 		[current_pipeline];
     wire pipeline_a_enable 				= pipeline_enables 		[current_pipeline];
     wire pipeline_a_full_reset 			= pipeline_full_reset	[current_pipeline];
     wire pipeline_a_resetting;
@@ -107,7 +107,7 @@ module dsp_engine_seq
     wire pipeline_b_block_instr_write 	= block_instr_write		[~current_pipeline];
     wire pipeline_b_block_reg_write 	= block_reg_write  		[~current_pipeline];
     wire pipeline_b_block_reg_update 	= block_reg_update 		[~current_pipeline];
-    wire pipeline_b_alloc_sram_delay 	= alloc_sram_delay 		[~current_pipeline];
+    wire pipeline_b_alloc_delay 	= alloc_delay 		[~current_pipeline];
     wire pipeline_b_enable 				= pipeline_enables 		[~current_pipeline];
     wire pipeline_b_full_reset 			= pipeline_full_reset	[~current_pipeline];
     wire pipeline_b_resetting;
@@ -143,11 +143,12 @@ module dsp_engine_seq
 			.instr_write(pipeline_a_block_instr_write),
 		
 			.ctrl_data(ctrl_data_out),
+			.buf_init_delay(buf_init_delay),
 			.reg_write(pipeline_a_block_reg_write),
 			.reg_write_ack(reg_write_acks[0]),
 			.reg_update(pipeline_a_block_reg_update),
 		
-			.alloc_sram_delay(pipeline_a_alloc_sram_delay),
+			.alloc_delay(pipeline_a_alloc_delay),
 			
 			.full_reset(pipeline_a_full_reset),
 			.enable(pipeline_a_enable),
@@ -183,10 +184,11 @@ module dsp_engine_seq
 			.instr_write(pipeline_b_block_instr_write),
 		
 			.ctrl_data(ctrl_data_out),
+			.buf_init_delay(buf_init_delay),
 			.reg_write(pipeline_b_block_reg_write),
 			.reg_update(pipeline_b_block_reg_update),
 		
-			.alloc_sram_delay(pipeline_b_alloc_sram_delay),
+			.alloc_delay(pipeline_b_alloc_delay),
 
             .full_reset(pipeline_b_full_reset),
 			.enable(pipeline_b_enable),
@@ -212,6 +214,8 @@ module dsp_engine_seq
 			
 			.count(fifo_count)
 		);
+		
+	wire [2 * data_width - 1 : 0] buf_init_delay;
 
     control_unit_seq #(.n_blocks(n_blocks), .data_width(data_width), .n_block_registers(n_block_registers)) controller
 		(
@@ -233,14 +237,15 @@ module dsp_engine_seq
 			.block_reg_write(block_reg_write),
 			.block_reg_update(block_reg_update),
 			
-			.alloc_sram_delay(alloc_sram_delay),
+			.alloc_delay(alloc_delay),
+			.buf_init_delay(buf_init_delay),
 			
 			.swap_pipelines(swap_pipelines),
 			.pipelines_swapping(pipelines_swapping),
 			.pipeline_reset(pipeline_reset),
 			.pipeline_full_reset(pipeline_full_reset),
-			.pipeline_enables(pipeline_enables),
 			.pipeline_resetting(pipeline_resetting),
+			.pipeline_enables(pipeline_enables),
 			
 			.set_input_gain(set_input_gain),
 			.set_output_gain(set_output_gain),
