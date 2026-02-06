@@ -820,32 +820,32 @@ int main(int argc, char** argv)
 	m_fpga_transfer_batch batch = m_new_fpga_transfer_batch();
 	m_effect_desc *eff = new_m_effect_desc("_");
 		
-	float a0 =  0.0200834;
-	float a1 =  0.0;
-	float a2 =  0.0;
-	float b0 =  0.9799166;
-	float b1 =  0.0;
+	float a0 =  0.9915240;
+	float a1 = -1.9829756;
+	float a2 =  0.9915240;
+	float b0 =  1.9829756;
+	float b1 = -0.9830480;
 	
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_read(1, 1)));
+		m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_read(1, 1)));
 	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_read(2, 2)));
 	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_read(3, 3)));
 	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_read(4, 4)));
 	
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_macz(0, 0, 0, 1, 3)));
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_macz_noshift(0, 0, 0, 1)));
 	m_effect_desc_add_register_val_literal(eff, 4, 0, float_to_q_nminus1(a0, 3));
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mac(1, 0, 0, 1, 3)));
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mac_noshift(1, 0, 0, 1)));
 	m_effect_desc_add_register_val_literal(eff, 5, 0, float_to_q_nminus1(a1, 3));
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mac(2, 0, 0, 1, 3)));
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mac_noshift(2, 0, 0, 1)));
 	m_effect_desc_add_register_val_literal(eff, 6, 0, float_to_q_nminus1(a2, 3));
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mac(3, 0, 0, 1, 3)));
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mac_noshift(3, 0, 0, 1)));
 	m_effect_desc_add_register_val_literal(eff, 7, 0, float_to_q_nminus1(b0, 3));
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mac(4, 0, 0, 1, 3)));
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mac_noshift(4, 0, 0, 1)));
 	m_effect_desc_add_register_val_literal(eff, 8, 0, float_to_q_nminus1(b1, 3));
 	
 	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_write(0, 0, 1)));
 	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_write(1, 0, 2)));
 	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_write(3, 0, 4)));
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mov_acc(0)));
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mov_acc_sh(12, 0)));
 	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_write(0, 0, 3)));
 	
 	m_fpga_resource_report local = m_empty_fpga_resource_report();
@@ -921,7 +921,8 @@ int main(int argc, char** argv)
 			samples_processed++;
 			t += sample_duration;
 			
-			io.sample_in = (uint16_t)(roundf(sinf(6.28 * (1000.0f * t * ((float) samples_processed / samples_to_process))) * 32767.0 * 0.5f));
+			//io.sample_in = (uint16_t)(roundf(sinf(6.28 * 200.0f * t * ((float)samples_processed / (float)samples_to_process)) * 32767.0 * 0.5f));
+			io.sample_in = (uint16_t)(roundf(sinf(6.28 * 10.0f * t) * 32767.0 * 0.5f));
 			
 			//static_cast<int16_t>(in_samples[samples_processed]);
 			y = static_cast<int16_t>(io.sample_out);
