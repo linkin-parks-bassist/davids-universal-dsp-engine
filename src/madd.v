@@ -121,7 +121,7 @@ module shift_stage #(parameter data_width = 16, parameter n_blocks = 256)
 	wire take_out = out_valid & out_ready;
 	
 	wire [4 : 0] shift = data_width - shift_in - 1;
-	wire [2 * data_width - 1 : 0] rounding_bias = (shift == 0) ? 0 : (1 << (shift - 1));
+	wire signed [2 * data_width - 1 : 0] rounding_bias = (shift == 0) ? 0 : (1 << (shift - 1));
 	
 	wire [2 * data_width - 1 : 0] result = (shift_disable_in) ? product_in : (product_in + rounding_bias) >>> shift;
 
@@ -322,11 +322,12 @@ module mac_pipeline #(parameter data_width = 16, parameter n_blocks = 256)
 	);
 	
 	wire out_valid_muls;
+	wire [$clog2(n_blocks) - 1 : 0] block_out_muls;
 	wire [4:0] shift_out_muls;
 	wire shift_disable_out_muls;
 	wire saturate_disable_out_muls;
 	wire signedness_out_muls;
-	wire acc_needed_out_muls;
+	wire accumulator_needed_out_muls;
 	wire subtract_out_muls;
 	wire signed [data_width - 1 : 0] arg_a_out_muls;
 	wire signed [data_width - 1 : 0] arg_b_out_muls;
@@ -334,7 +335,7 @@ module mac_pipeline #(parameter data_width = 16, parameter n_blocks = 256)
 	wire signed [2 * data_width - 1 : 0] product_out_muls;
 	wire signed [2 * data_width - 1 : 0] accumulator_out_muls;
 	wire [3:0] dest_out_muls;
-	wire writes_acc_out_muls;
+	wire writes_accumulator_out_muls;
 	wire [8:0] commit_id_out_muls;
 	wire commit_flag_out_muls;
 	
@@ -350,6 +351,9 @@ module mac_pipeline #(parameter data_width = 16, parameter n_blocks = 256)
 			
 			.out_valid(out_valid_muls),
 			.out_ready(in_ready_shs),
+			
+			.block_in(block_in),
+			.block_out(block_out_muls),
 			
 			.shift_in(shift),
 			.shift_out(shift_out_muls),
@@ -394,6 +398,9 @@ module mac_pipeline #(parameter data_width = 16, parameter n_blocks = 256)
 			
 			.out_valid(out_valid),
 			.out_ready(out_ready),
+			
+			.block_in(block_out_muls),
+			.block_out(block_out),
 			
 			.shift_in(shift_out_muls),
 			.shift_disable_in(shift_disable_out_muls),
@@ -511,6 +518,8 @@ module madd_pipeline #(parameter data_width = 16, parameter n_blocks = 256)
 		.commit_flag_out(commit_flag_out_mac)
 	);
 	
+	
+	wire [$clog2(n_blocks) - 1 : 0] block_out_add;
 	wire saturate_disable_out_add;
 	wire in_ready_add;
 	wire out_valid_add;
@@ -531,6 +540,9 @@ module madd_pipeline #(parameter data_width = 16, parameter n_blocks = 256)
 			
 			.out_valid(out_valid_add),
 			.out_ready(in_ready_sats),
+			
+			.block_in(block_out_mac),
+			.block_out(block_out_add),
 			
 			.signedness_in(signedness_out_mac),
 			.saturate_disable_in(saturate_disable_out_mac),
@@ -565,6 +577,9 @@ module madd_pipeline #(parameter data_width = 16, parameter n_blocks = 256)
 			
 			.out_valid(out_valid),
 			.out_ready(out_ready),
+			
+			.block_in(block_out_add),
+			.block_out(block_out),
 			
 			.saturate_disable_in(saturate_disable_out_add),
 			

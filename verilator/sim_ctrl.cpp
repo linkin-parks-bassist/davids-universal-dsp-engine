@@ -109,6 +109,11 @@ m_dsp_block_instr m_dsp_block_instr_mov_acc(int dest)
 	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_MOV_ACC, 0, 0, 0, 0, 0, 0, dest, 0, 0);
 }
 
+m_dsp_block_instr m_dsp_block_instr_mov_acc_sh(int sh, int dest)
+{
+	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_MOV_ACC, 0, 0, 0, 0, 0, 0, dest, sh, 0);	
+}
+
 m_dsp_block_instr m_dsp_block_instr_mov_uacc(int dest)
 {
 	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_MOV_UACC, 0, 0, 0, 0, 0, 0, dest, 0, 0);
@@ -1208,7 +1213,12 @@ int m_effect_desc_add_register_val(m_effect_desc *eff, int block_no, int reg, in
 
 int m_fpga_block_opcode_format(int opcode)
 {
-	return (!!(opcode & (1 << 5))) ? INSTR_FORMAT_B : INSTR_FORMAT_A;
+	return (opcode == BLOCK_INSTR_LUT_READ
+		 || opcode == BLOCK_INSTR_DELAY_READ
+		 || opcode == BLOCK_INSTR_DELAY_WRITE
+		 || opcode == BLOCK_INSTR_MEM_READ
+		 || opcode == BLOCK_INSTR_MEM_WRITE)
+		 ? INSTR_FORMAT_B : INSTR_FORMAT_A;
 }
 
 int m_dsp_block_instr_format(m_dsp_block_instr instr)

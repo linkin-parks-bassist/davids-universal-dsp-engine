@@ -113,6 +113,7 @@ m_dsp_block_instr m_dsp_block_instr_mac_unsat(int src_a, int src_a_reg, int src_
 m_dsp_block_instr m_dsp_block_instr_mac_noshift(int src_a, int src_a_reg, int src_b, int src_b_reg);
 m_dsp_block_instr m_dsp_block_instr_mac_noshift(int src_a, int src_a_reg, int src_b, int src_b_reg);
 m_dsp_block_instr m_dsp_block_instr_mov_acc(int dest);
+m_dsp_block_instr m_dsp_block_instr_mov_acc_sh(int sh, int dest);
 m_dsp_block_instr m_dsp_block_instr_mov_uacc(int dest);
 m_dsp_block_instr m_dsp_block_instr_mov_lacc(int dest);
 

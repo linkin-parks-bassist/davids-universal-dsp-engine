@@ -29,14 +29,14 @@ module instr_decoder #(parameter data_width = 16)
 		output logic arg_b_needed,
 		output logic arg_c_needed,
 		
-		output logic acc_needed,
+		output logic accumulator_needed,
 		
 		output logic writes_channel,
 		output logic writes_acc,
 		output logic commit_flag,
 		output logic writes_external,
 		
-		output logic [$clog2(`N_INSTR_BRANCHES) - 1 : 0] branch,
+		output logic [$clog2(`N_INSTR_BRANCHES) - 1 : 0] branch
 	);
 	
 	wire   instr_format 	  = instr[5];
@@ -76,7 +76,7 @@ module instr_decoder #(parameter data_width = 16)
 	
 	assign arg_c_needed = (operation == `BLOCK_INSTR_MADD || operation == `BLOCK_INSTR_CLAMP);
 	
-	assign acc_needed = (operation == `BLOCK_INSTR_MOV_ACC
+	assign accumulator_needed = (operation == `BLOCK_INSTR_MOV_ACC
 					  || operation == `BLOCK_INSTR_MOV_LACC
 					  || operation == `BLOCK_INSTR_MOV_UACC);
 	

@@ -156,22 +156,23 @@ module dsp_core #(
 		if (mem_write_enable)
             mem[mem_write_addr] <= mem_write_val;
     end
-    
-    wire [2 * data_width - 1 : 0] acc_write_val;
-	wire acc_write_enable;
-	wire acc_add_enable;
 	
 	reg signed [2 * data_width - 1 : 0] accumulator;
+	
+	wire signed [2 * data_width - 1 : 0] accumulator_write_val;
+	wire accumulator_write_enable;
+	wire accumulator_add_enable;
 	
 	always @(posedge clk) begin
 		if (reset) begin
 			accumulator <= 0;
 		end else if (full_reset) begin
 			accumulator <= 0;
-		end else if (acc_write_enable) begin
-			accumulator <= acc_write_val;
-		end else if (acc_add_enable) begin
-			accumulator <= accumulator + acc_write_val;
+		end else if (accumulator_write_enable) begin
+			if (accumulator_add_enable)
+				accumulator <= accumulator + accumulator_write_val;
+			else
+				accumulator <= accumulator_write_val;
 		end
 	end
 	
@@ -204,10 +205,10 @@ module dsp_core #(
 	wire arg_b_needed_out_ifds;
 	wire arg_c_needed_out_ifds;
 	
-	wire acc_needed_out_ifds;
+	wire accumulator_needed_out_ifds;
 	
 	wire writes_channel_out_ifds;
-	wire writes_acc_out_ifds;
+	wire writes_accumulator_out_ifds;
 	wire commit_flag_out_ifds;
 	wire writes_external_out_ifds;
 	
@@ -254,10 +255,10 @@ module dsp_core #(
 			.arg_b_needed_out(arg_b_needed_out_ifds),
 			.arg_c_needed_out(arg_c_needed_out_ifds),
 			
-			.acc_needed_out(acc_needed_out_ifds),
+			.accumulator_needed_out(accumulator_needed_out_ifds),
 			
 			.writes_channel_out(writes_channel_out_ifds),
-			.writes_acc_out(writes_acc_out_ifds),
+			.writes_accumulator_out(writes_accumulator_out_ifds),
 			.commit_flag_out(commit_flag_out_ifds),
 			.writes_external_out(writes_external_out_ifds),
 			
@@ -269,7 +270,7 @@ module dsp_core #(
 	
 	assign out_ready_ofs[0] = in_ready_madd;
 	assign out_ready_ofs[1] = in_ready_mac;
-	assign out_ready_ofs[2] = 0; // to be implemented
+	assign out_ready_ofs[2] = in_ready_misc;
 	assign out_ready_ofs[3] = in_ready_delay;
 	assign out_ready_ofs[4] = in_ready_lut;
 	assign out_ready_ofs[5] = in_ready_mem;
@@ -338,7 +339,7 @@ module dsp_core #(
 			.signedness_in(signedness_out_ifds),
 			.signedness_out(signedness_out_ofs),
 			
-			.acc_needed_in(acc_needed_out_ifds),
+			.accumulator_needed_in(accumulator_needed_out_ifds),
 
 			.shift_in(shift_out_ifds),
 			.shift_out(shift_out_ofs),
@@ -353,7 +354,7 @@ module dsp_core #(
 			.writes_external_in(writes_external_out_ifds),
 			.writes_external_out(writes_external_out_ofs),
 			
-			.writes_acc_in(writes_acc_out_ifds),
+			.writes_accumulator_in(writes_accumulator_out_ifds),
 			
 			.commit_id_out(commit_id_out_ofs),
 			
@@ -375,8 +376,8 @@ module dsp_core #(
 			.reg_read_addr(reg_read_addr),
 			.reg_read_val(reg_read_val),
 			
-			.acc_write_val(acc_write_val),
-			.acc_write_enable(acc_write_enable)
+			.accumulator_write_val(accumulator_write_val),
+			.accumulator_write_enable(accumulator_write_enable)
 		);
 	
 	wire in_ready_madd;
@@ -393,6 +394,9 @@ module dsp_core #(
 			
 			.out_valid(out_valid_final_stages[`INSTR_BRANCH_MADD]),
 			.out_ready(in_ready_commit_master[`INSTR_BRANCH_MADD]),
+			
+			.block_in(block_out_ofs),
+			.block_out(block_out_final_stages[`INSTR_BRANCH_MADD]),
 			
 			.shift			 (shift_out_ofs),
 			.shift_disable	 (shift_disable_out_ofs),
@@ -430,6 +434,9 @@ module dsp_core #(
 			.out_valid(out_valid_final_stages[`INSTR_BRANCH_MAC]),
 			.out_ready(in_ready_commit_master[`INSTR_BRANCH_MAC]),
 			
+			.block_in(block_out_ofs),
+			.block_out(block_out_final_stages[`INSTR_BRANCH_MAC]),
+			
 			.shift				(shift_out_ofs),
 			.shift_disable		(shift_disable_out_ofs),
 			.signedness_in		(signedness_out_ofs),
@@ -449,6 +456,47 @@ module dsp_core #(
 			
 			.commit_flag_in(commit_flag_out_ofs),
 			.commit_flag_out(commit_flag_final_stages[`INSTR_BRANCH_MAC])
+		);
+	
+	wire in_ready_misc;
+	
+	misc_branch #(.data_width(data_width), .n_blocks(n_blocks)) misc
+		(
+			.clk(clk),
+			.reset(reset | resetting),
+			
+			.enable(enable),
+					
+			.in_valid(out_valid_ofs[`INSTR_BRANCH_MISC]),
+			.in_ready(in_ready_misc),
+			
+			.out_valid(out_valid_final_stages[`INSTR_BRANCH_MISC]),
+			.out_ready(in_ready_commit_master[`INSTR_BRANCH_MISC]),
+			
+			.block_in(block_out_ofs),
+			.block_out(block_out_final_stages[`INSTR_BRANCH_MISC]),
+			
+			.arg_a_in(arg_a_out_ofs),
+			.arg_b_in(arg_b_out_ofs),
+			.arg_c_in(arg_c_out_ofs),
+			
+			.accumulator_in(accumulator_out_ofs),
+			
+			.operation_in(operation_out_ofs),
+			
+			.saturate_disable_in(saturate_disable_out_ofs),
+			.shift_in(shift_out_ofs),
+			
+			.result_out(result_final_stages[`INSTR_BRANCH_MISC]),
+			
+			.dest_in(dest_out_ofs),
+			.dest_out(dest_final_stages[`INSTR_BRANCH_MISC]),
+			
+			.commit_id_in(commit_id_out_ofs),
+			.commit_id_out(commit_id_final_stages[`INSTR_BRANCH_MISC]),
+			
+			.commit_flag_in(commit_flag_out_ofs),
+			.commit_flag_out(commit_flag_final_stages[`INSTR_BRANCH_MISC])
 		);
 
 	wire in_ready_delay;
@@ -472,7 +520,7 @@ module dsp_core #(
 			.out_ready(in_ready_commit_master[`INSTR_BRANCH_DELAY]),
 			
 			.block_in(block_out_ofs),
-			.block_out(),
+			.block_out(block_out_final_stages[`INSTR_BRANCH_DELAY]),
 			
 			.write(writes_external_out_ofs),
 			
@@ -520,7 +568,7 @@ module dsp_core #(
 			.out_ready(in_ready_commit_master[`INSTR_BRANCH_LUT]),
 			
 			.block_in(block_out_ofs),
-			.block_out(),
+			.block_out(block_out_final_stages[`INSTR_BRANCH_LUT]),
 			
 			.write(0),
 			.handle_in(res_addr_out_ofs),
@@ -591,7 +639,7 @@ module dsp_core #(
 			.out_ready(in_ready_commit_master[`INSTR_BRANCH_MEM]),
 			
 			.block_in(block_out_ofs),
-			.block_out(),
+			.block_out(block_out_final_stages[`INSTR_BRANCH_MEM]),
 			
 			.write(writes_external_out_ofs),
 			
@@ -625,6 +673,7 @@ module dsp_core #(
 	wire [`N_INSTR_BRANCHES - 1 : 0] out_valid_final_stages;
 	wire [`N_INSTR_BRANCHES - 1 : 0] in_ready_commit_master;
 	
+	wire [$clog2(n_blocks)  - 1 : 0] block_out_final_stages [`N_INSTR_BRANCHES - 1 : 0];
 	wire [2 * data_width - 1 	: 0] result_final_stages	[`N_INSTR_BRANCHES - 1 : 0];
 	wire [3					 	: 0] dest_final_stages		[`N_INSTR_BRANCHES - 1 : 0];
 	wire [8 				 	: 0] commit_id_final_stages	[`N_INSTR_BRANCHES - 1 : 0];
@@ -634,12 +683,8 @@ module dsp_core #(
 	wire 		[ch_addr_w  - 1 : 0] channel_write_addr_pl;
 	wire signed [data_width - 1 : 0] channel_write_val_pl;
 	wire channel_write_enable_pl;
-	
-	wire signed [2 * data_width - 1 : 0] accumulator_write_val;
-	wire accumulator_write_enable;
-	wire accumulator_add_enable;
 
-	commit_master #(.data_width(data_width)) commit_master
+	commit_master #(.data_width(data_width), .n_blocks(n_blocks)) commit_master
 		(
 			.clk(clk),
 			.reset(reset),
@@ -652,6 +697,8 @@ module dsp_core #(
 			.in_valid(out_valid_final_stages),
 			.in_ready(in_ready_commit_master),
 			
+			.block_in(block_out_final_stages),
+			
 			.result(result_final_stages),
 			.dest(dest_final_stages),
 			
@@ -663,9 +710,9 @@ module dsp_core #(
 			.channel_write_val(channel_write_val),
 			.channel_write_enable(channel_write_enable),
 			
-			.acc_write_val(acc_write_val),
-			.acc_add_enable(acc_add_enable),
-			.acc_write_enable(acc_write_enable)
+			.accumulator_write_val(accumulator_write_val),
+			.accumulator_add_enable(accumulator_add_enable),
+			.accumulator_write_enable(accumulator_write_enable)
 		);
 	
 	// Sequential reset counters

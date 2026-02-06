@@ -52,7 +52,7 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 		input wire signedness_in,
 		output reg signedness_out,
 		
-		input wire acc_needed_in,
+		input wire accumulator_needed_in,
 
 		input wire [4 : 0] shift_in,
 		output reg [4 : 0] shift_out,
@@ -66,7 +66,8 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 		output reg writes_external_out,
 		
 		input wire writes_channel_in,
-		input wire writes_acc_in,
+		output reg writes_channel_out,
+		input wire writes_accumulator_in,
 		
 		output reg [8:0] commit_id_out,
 		
@@ -88,18 +89,23 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 		output reg [$clog2(n_blocks) + 4 - 1 : 0] reg_read_addr,
 		input wire signed 	 [data_width - 1 : 0] reg_read_val,
 		
-		input wire [2 * data_width - 1 : 0] acc_write_val,
-		input wire acc_write_enable
+		input wire [2 * data_width - 1 : 0] accumulator_write_val,
+		input wire accumulator_write_enable
 	);
 	
 	reg   [3 : 0] channels_scoreboard [15 : 0];
-	reg   [3 : 0] acc_pending_writes;
+	reg   [3 : 0] accumulator_pending_writes;
 	
-	wire accumulator_stall = (acc_needed_latched && acc_pending_writes != 0);
+	wire accumulator_stall = (accumulator_needed_latched && accumulator_pending_writes != 0);
 	
 	reg add_pending_write;
 	
+	reg inject_pending_ch0_write_next;
 	reg inject_pending_ch0_write;
+
+	always @(posedge clk) begin
+		inject_pending_ch0_write <= inject_pending_ch0_write_next;
+	end
 
 	integer i;
 	always @(posedge clk) begin
@@ -107,10 +113,10 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 			for (i = 0; i < 16; i = i + 1)
 				channels_scoreboard[i] <= 0;
 			
-			acc_pending_writes <= 0;
+			accumulator_pending_writes <= 0;
 		end else if (enable) begin
 			for (i = 0; i < 16; i = i + 1) begin
-				case ({(add_pending_write && dest_latched == i && !writes_acc_latched) ||
+				case ({(add_pending_write && dest_latched == i && !writes_accumulator_latched) ||
 						(inject_pending_ch0_write && i == 0),
 						channel_write_enable && channel_write_addr == i})
 					2'b10: begin
@@ -128,18 +134,18 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 				endcase
 			end
 			
-			case ({add_pending_write & writes_acc_latched, acc_write_enable})
+			case ({add_pending_write & writes_accumulator_latched, accumulator_write_enable})
 				2'b10: begin
-					acc_pending_writes <= acc_pending_writes + 1;
+					accumulator_pending_writes <= accumulator_pending_writes + 1;
 				end
 				
 				2'b01: begin
-					if (acc_pending_writes != 0)
-						acc_pending_writes <= acc_pending_writes - 1;
+					if (accumulator_pending_writes != 0)
+						accumulator_pending_writes <= accumulator_pending_writes - 1;
 				end
 				
 				default: begin
-					acc_pending_writes <= acc_pending_writes;
+					accumulator_pending_writes <= accumulator_pending_writes;
 				end
 			endcase
 		end
@@ -151,7 +157,7 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 	
 	reg [3 : 0] dest_latched;
 	reg writes_channel_latched;
-	reg writes_acc_latched;
+	reg writes_accumulator_latched;
 
 	reg signed [data_width - 1 : 0] src_a_latched;
 	reg signed [data_width - 1 : 0] src_b_latched;
@@ -168,7 +174,7 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 	reg signed [data_width - 1 : 0] accumulator_latched;
 	
 	reg saturate_disable_latched;
-	reg acc_needed_latched;
+	reg accumulator_needed_latched;
 	reg signedness_latched;
 
 	reg [4 : 0] shift_latched;
@@ -341,11 +347,11 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 			state   <= 0;
 			out_valid <= '{default:0};
 			commit_id   <= 0;
-			inject_pending_ch0_write <= 0;
+			inject_pending_ch0_write_next <= 0;
 		end else if (enable) begin
 			
 			add_pending_write <= 0;
-			inject_pending_ch0_write <= 0;
+			inject_pending_ch0_write_next <= 0;
 		
 			case (state)
 				IDLE: begin
@@ -370,7 +376,7 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 						dest_latched <= dest_in;
 						
 						saturate_disable_latched 	<= saturate_disable_in;
-						acc_needed_latched			<= acc_needed_in;
+						accumulator_needed_latched	<= accumulator_needed_in;
 						signedness_latched 			<= signedness_in;
 						shift_latched 				<= shift_in;
 						shift_disable_latched 		<= shift_disable_in;
@@ -379,12 +385,9 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 						
 						writes_external_latched <= writes_external_in;
 						writes_channel_latched 	<= writes_channel_in;
-						writes_acc_latched 		<= writes_acc_in;
+						writes_accumulator_latched 		<= writes_accumulator_in;
 						commit_flag_latched 	<= commit_flag_in;
 						branch_latched 			<= branch;
-						
-						if (block_in == 0)
-							inject_pending_ch0_write <= 1;
 						
 						state <= BUSY;
 					end
@@ -412,12 +415,15 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 						
 						accumulator_out <= accumulator_in;
 						
-						if (writes_channel_latched | writes_acc_latched) begin
+						if (writes_channel_latched | writes_accumulator_latched) begin
 							commit_id_out <= commit_id;
 							commit_id <= commit_id + 1;
 							
 							add_pending_write <= 1;
 						end
+						
+						if (block_latched == n_blocks_running - 1)
+							inject_pending_ch0_write_next <= 1;
 						
 						state <= DONE;
 					end

@@ -47,10 +47,10 @@ module instr_fetch_decode_stage #(parameter data_width = 16, parameter n_blocks 
 		output reg arg_b_needed_out,
 		output reg arg_c_needed_out,
 		
-		output reg acc_needed_out,
+		output reg accumulator_needed_out,
 		
 		output reg writes_channel_out,
-		output reg writes_acc_out,
+		output reg writes_accumulator_out,
 		output reg commit_flag_out,
 		output reg writes_external_out,
 		
@@ -85,7 +85,7 @@ module instr_fetch_decode_stage #(parameter data_width = 16, parameter n_blocks 
 	wire arg_b_needed;
 	wire arg_c_needed;
 	
-	wire acc_needed;
+	wire accumulator_needed;
 	
 	wire writes_channel;
 	wire writes_acc;
@@ -120,7 +120,7 @@ module instr_fetch_decode_stage #(parameter data_width = 16, parameter n_blocks 
 		.arg_b_needed(arg_b_needed),
 		.arg_c_needed(arg_c_needed),
 		
-		.acc_needed(acc_needed),
+		.accumulator_needed(accumulator_needed),
 		
 		.writes_channel(writes_channel),
 		.writes_acc(writes_acc),
@@ -194,10 +194,10 @@ module instr_fetch_decode_stage #(parameter data_width = 16, parameter n_blocks 
 					arg_b_needed_out <= arg_b_needed;
 					arg_c_needed_out <= arg_c_needed;
 					
-					acc_needed_out <= acc_needed;
+					accumulator_needed_out <= accumulator_needed;
 					
 					writes_channel_out <= writes_channel;
-					writes_acc_out <= writes_acc;
+					writes_accumulator_out <= writes_acc;
 					commit_flag_out <= commit_flag;
 					writes_external_out <= writes_external;
 					

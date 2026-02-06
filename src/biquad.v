@@ -35,11 +35,11 @@ module biquad_unit #(parameter data_width = 16)
 	
 	assign ready = (state == `BIQUAD_STATE_READY);
 	
-	wire signed [2 * (data_width + 1) : 0] macc_1;
-	wire signed [2 * (data_width + 1) : 0] macc_2;
-	wire signed [2 * (data_width + 1) : 0] macc_3;
-	wire signed [2 * (data_width + 1) : 0] macc_4;
-	wire signed [2 * (data_width + 1) : 0] macc_5;
+	wire signed [2 * (data_width + 1) : 0] maccumulator_1;
+	wire signed [2 * (data_width + 1) : 0] maccumulator_2;
+	wire signed [2 * (data_width + 1) : 0] maccumulator_3;
+	wire signed [2 * (data_width + 1) : 0] maccumulator_4;
+	wire signed [2 * (data_width + 1) : 0] maccumulator_5;
 	
 	wire signed [2 * (data_width + 1) : 0] mul_1;
 	wire signed [2 * (data_width + 1) : 0] mul_2;
@@ -60,7 +60,7 @@ module biquad_unit #(parameter data_width = 16)
 	wire signed [data_width : 0] sum = summand_a + summand_b;
 	wire signed [2 * (data_width + 1) : 0] sum_ext = {{{data_width}sum[data_width]}, sum};
 	
-	wire signed [2 * (data_width + 1) : 0] acc_sum = acc + sum_ext;
+	wire signed [2 * (data_width + 1) : 0] accumulator_sum = acc + sum_ext;
 	
 	reg [data_width + 1 : 0] sample_in_latched;
 	
@@ -127,13 +127,13 @@ module biquad_unit #(parameter data_width = 16)
 					summand_a <=  mul_1[2 * (data_width + 1) : data_width];
 					summand_b <= -mul_2[2 * (data_width + 1) : data_width];
 					
-					acc <= acc_sum;
+					acc <= accumulator_sum;
 					
 					state <= `BIQUAD_STATE_CALC3;
 				end
 				
 				`BIQUAD_STATE_CALC3: begin
-					acc <= acc_sum;
+					acc <= accumulator_sum;
 					
 					summand_a <= -mul_1[2 * (data_width + 1) : data_width];
 					summand_b <= 0;
