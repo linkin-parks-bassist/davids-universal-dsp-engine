@@ -26,6 +26,7 @@ module biquad_unit #(parameter data_width = 16)
 	reg signed [data_width + 1 : 0] b1;
 	reg signed [data_width + 1 : 0] b2;
 	reg signed [data_width + 1 : 0] a1;
+	reg signed [data_width + 1 : 0] a2;
 	reg signed [data_width + 1 : 0] x1;
 	reg signed [data_width + 1 : 0] x2;
 	reg signed [data_width + 1 : 0] y1;
@@ -58,7 +59,8 @@ module biquad_unit #(parameter data_width = 16)
 	reg signed [data_width + 1 : 0] summand_b;
 	
 	wire signed [data_width : 0] sum = summand_a + summand_b;
-	wire signed [2 * (data_width + 1) : 0] sum_ext = {{{data_width}sum[data_width]}, sum};
+	wire signed [2 * (data_width + 1) : 0] sum_ext = {{(data_width){sum[data_width]}}, sum};
+	reg  signed [2 * (data_width + 1) : 0] sum_ext_latched;
 	
 	wire signed [2 * (data_width + 1) : 0] accumulator_sum = acc + sum_ext;
 	

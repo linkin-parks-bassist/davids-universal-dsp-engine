@@ -560,7 +560,7 @@ module madd_pipeline #(parameter data_width = 16, parameter n_blocks = 256)
 			.commit_id_out(commit_id_out_add),
 			
 			.commit_flag_in(commit_flag_out_mac),
-			.commit_flag_out(commit_flag_out)
+			.commit_flag_out(commit_flag_out_add)
 		);
 
 	wire in_ready_sats;

@@ -57,7 +57,8 @@ module instr_decoder #(parameter data_width = 16)
 						|| operation == `BLOCK_INSTR_LSH
 						|| operation == `BLOCK_INSTR_RSH
 						|| operation == `BLOCK_INSTR_ABS
-						|| operation == `BLOCK_INSTR_CLAMP
+						|| operation == `BLOCK_INSTR_MIN
+						|| operation == `BLOCK_INSTR_MAX
 						|| operation == `BLOCK_INSTR_MACZ
 						|| operation == `BLOCK_INSTR_MAC
 						|| operation == `BLOCK_INSTR_UMACZ
@@ -67,14 +68,15 @@ module instr_decoder #(parameter data_width = 16)
 						|| operation == `BLOCK_INSTR_MEM_WRITE);
 	
 	assign arg_b_needed = (operation == `BLOCK_INSTR_MADD
-						|| operation == `BLOCK_INSTR_CLAMP
+						|| operation == `BLOCK_INSTR_MIN
+						|| operation == `BLOCK_INSTR_MAX
 						|| operation == `BLOCK_INSTR_MACZ
 						|| operation == `BLOCK_INSTR_MAC
 						|| operation == `BLOCK_INSTR_UMACZ
 						|| operation == `BLOCK_INSTR_UMAC
 						|| operation == `BLOCK_INSTR_DELAY_WRITE);
 	
-	assign arg_c_needed = (operation == `BLOCK_INSTR_MADD || operation == `BLOCK_INSTR_CLAMP);
+	assign arg_c_needed = (operation == `BLOCK_INSTR_MADD);
 	
 	assign accumulator_needed = (operation == `BLOCK_INSTR_MOV_ACC
 					  || operation == `BLOCK_INSTR_MOV_LACC
@@ -88,10 +90,10 @@ module instr_decoder #(parameter data_width = 16)
 		else if (operation == `BLOCK_INSTR_MEM_WRITE  || operation == `BLOCK_INSTR_MEM_READ) 	branch = `INSTR_BRANCH_MEM;
 		else if (operation == `BLOCK_INSTR_MACZ 	  || operation == `BLOCK_INSTR_UMACZ
 			  || operation == `BLOCK_INSTR_MAC  	  || operation == `BLOCK_INSTR_UMAC)		branch = `INSTR_BRANCH_MAC;
-		else if (operation == `BLOCK_INSTR_CLAMP	  || operation == `BLOCK_INSTR_RSH
-			  || operation == `BLOCK_INSTR_ABS 		  || operation == `BLOCK_INSTR_MOV_ACC
-			  || operation == `BLOCK_INSTR_MOV_LACC   || operation == `BLOCK_INSTR_MOV_UACC
-			  || operation == `BLOCK_INSTR_LSH) 												branch = `INSTR_BRANCH_MISC;
+		else if (operation == `BLOCK_INSTR_MIN	      || operation == `BLOCK_INSTR_MAX
+              || operation == `BLOCK_INSTR_RSH        || operation == `BLOCK_INSTR_ABS
+              || operation == `BLOCK_INSTR_MOV_ACC    || operation == `BLOCK_INSTR_MOV_LACC
+              || operation == `BLOCK_INSTR_MOV_UACC   || operation == `BLOCK_INSTR_LSH)         branch = `INSTR_BRANCH_MISC;
 		else
 			branch = `INSTR_BRANCH_MADD;
 	end

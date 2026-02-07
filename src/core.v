@@ -62,8 +62,8 @@ module dsp_core #(
 	
 	reg [31 : 0] instrs [n_blocks - 1 : 0];
 	
-	reg [$clog2(n_blocks) - 1 : 0] last_block;
-	reg [$clog2(n_blocks) - 1 : 0] n_blocks_running;
+	reg [block_addr_w - 1 : 0] last_block;
+	reg [block_addr_w - 1 : 0] n_blocks_running;
 	
 	wire [block_addr_w - 1 : 0] instr_read_addr  = instr_read_addr_ifds;
 	wire [block_addr_w - 1 : 0] instr_write_addr = (resetting) ? blk_reset_ctr : command_block_target;
@@ -74,7 +74,7 @@ module dsp_core #(
 	
 	reg [data_width   - 1 : 0] block_regs [2 * n_blocks - 1 : 0];
 	
-	wire [reg_addr_w - 1 : 0] reg_read_addr;
+	wire [reg_addr_w + 3 : 0] reg_read_addr;
 	wire [reg_addr_w - 1 : 0] reg_write_addr = {command_block_target, command_reg_target[0]};
 	reg  signed [data_width - 1 : 0] reg_read_val;
 	wire signed [data_width - 1 : 0] reg_write_val = command_reg_write_val;
@@ -133,7 +133,7 @@ module dsp_core #(
 		end
     end
 
-	wire [reg_addr_w - 1 : 0] reg_read_addr_actual = {reg_read_addr[$clog2(n_blocks)+3:4], reg_read_addr[0]};
+	wire [reg_addr_w - 1 : 0] reg_read_addr_actual = {reg_read_addr[reg_addr_w + 3 : 4], reg_read_addr[0]};
 
     always @(posedge clk) begin
 		if (|reg_read_addr[3:1]) begin

@@ -49,26 +49,25 @@ module misc_branch #(parameter data_width = 16, parameter n_blocks = 256)
 	
 	logic signed [2 * data_width - 1 : 0] result;
 	
-	wire signed [data_width - 1 : 0] upper_acc = {{(data_width){1'b0}}, accumulator_in[2 * data_width - 1 : data_width]};
-	wire signed [data_width - 1 : 0] lower_acc = {{(data_width){1'b0}}, accumulator_in[    data_width - 1 :          0]};
+	wire signed [2 * data_width - 1 : 0] upper_acc = {{(data_width){1'b0}}, accumulator_in[2 * data_width - 1 : data_width]};
+	wire signed [2 * data_width - 1 : 0] lower_acc = {{(data_width){1'b0}}, accumulator_in[    data_width - 1 :          0]};
 	
-	wire signed [data_width - 1 : 0] abs 	= (arg_a_in < 0) 		? -arg_a_in : arg_a_in;
+	wire signed [2 * data_width - 1 : 0] abs 	= (arg_a_in < 0) 		? -arg_a_in : arg_a_in;
 	
 	wire clamp_flipped = (arg_b_in < arg_c_in);
 	
-	wire signed [data_width - 1 : 0] clamp_min = (clamp_flipped) ? arg_b_in : arg_c_in;
-	wire signed [data_width - 1 : 0] clamp_max = (clamp_flipped) ? arg_c_in : arg_b_in;
-	
-	wire signed [data_width - 1 : 0] clamp  = (arg_a_in < clamp_min) ?  clamp_min : ((arg_a_in > clamp_max) ? clamp_max : arg_a_in);
+	wire signed [2 * data_width - 1 : 0] min = (arg_a_in < arg_b_in) ? arg_a_in : arg_b_in;
+	wire signed [2 * data_width - 1 : 0] max = (arg_a_in > arg_b_in) ? arg_a_in : arg_b_in;
 	
 	wire signed [2 * data_width - 1 : 0] lsh = arg_a_in << shift_in;
-	wire signed [data_width - 1 : 0] rsh = arg_a_in >> shift_in;
+	wire signed [2 * data_width - 1 : 0] rsh = arg_a_in >> shift_in;
 	
 	always_comb begin
 		case (operation_in)
 			`BLOCK_INSTR_MOV_ACC: 	result = accumulator_in >>> shift_in;
 			`BLOCK_INSTR_ABS: 		result = abs;
-			`BLOCK_INSTR_CLAMP: 	result = clamp;
+			`BLOCK_INSTR_MIN: 	    result = min;
+			`BLOCK_INSTR_MAX: 	    result = max;
 			`BLOCK_INSTR_LSH: 		result = lsh;
 			`BLOCK_INSTR_RSH: 		result = rsh;
 			`BLOCK_INSTR_MOV_UACC: 	result = upper_acc;
@@ -76,7 +75,7 @@ module misc_branch #(parameter data_width = 16, parameter n_blocks = 256)
 		endcase
 	end
 
-	wire signed [2 * data_width - 1 : 0] result_sat = (result < sat_min) ? sat_min : ((result > sat_max) ? sat_max : result);
+	//wire signed [2 * data_width - 1 : 0] result_sat = (result < sat_min) ? sat_min : ((result > sat_max) ? sat_max : result);
 
 	always @(posedge clk) begin
 		if (reset) begin
@@ -87,7 +86,7 @@ module misc_branch #(parameter data_width = 16, parameter n_blocks = 256)
 				
 				block_out <= block_in;
 				
-				result_out <= (saturate_disable_in) ? result : result_sat;
+				result_out <= result;
 				
 				dest_out 			 <= dest_in;
 				

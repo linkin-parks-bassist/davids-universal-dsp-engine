@@ -28,7 +28,7 @@ module delay_buffer_controller #(parameter data_width = 16, parameter addr_width
 		input wire signed [data_width - 1 : 0] mem_data_in,
 		
 		output reg [addr_width - 1 : 0] mem_write_addr,
-		output wire signed [data_width - 1 : 0] mem_data_out,
+		output reg signed [data_width - 1 : 0] mem_data_out,
 		
 		output wire ready,
 		output reg write_done,
