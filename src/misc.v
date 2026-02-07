@@ -27,8 +27,11 @@ module misc_branch_stage_1 #(parameter data_width = 16, parameter n_blocks = 256
 		
 		input wire signed [2 * data_width - 1 : 0] accumulator_in,
 		
-		input wire [4 : 0] operation_in,
+		input wire [8 : 0] operation_in,
 		input wire [4 : 0] operation_out,
+
+        input wire [7 : 0] misc_op_in,
+        output reg [7 : 0] misc_op_out,
 		
 		input wire saturate_disable_in,
 		input wire [4 : 0] shift_in,
@@ -52,6 +55,7 @@ module misc_branch_stage_1 #(parameter data_width = 16, parameter n_blocks = 256
 	
 	logic signed [2 * data_width - 1 : 0] result;
 	
+	wire signed [2 * data_width - 1 : 0] acc_shift = accumulator_in >>> shift_in;
 	wire signed [2 * data_width - 1 : 0] upper_acc = {{(data_width){1'b0}}, accumulator_in[2 * data_width - 1 : data_width]};
 	wire signed [2 * data_width - 1 : 0] lower_acc = {{(data_width){1'b0}}, accumulator_in[    data_width - 1 :          0]};
 	
@@ -63,20 +67,14 @@ module misc_branch_stage_1 #(parameter data_width = 16, parameter n_blocks = 256
 	wire signed [2 * data_width - 1 : 0] lsh = arg_a_in << shift_in;
 	wire signed [2 * data_width - 1 : 0] rsh = arg_a_in >> shift_in;
 	
-	always_comb begin
-		case (operation_in)
-			`BLOCK_INSTR_MOV_ACC: 	result = accumulator_in >>> shift_in;
-			`BLOCK_INSTR_ABS: 		result = abs;
-			`BLOCK_INSTR_MIN: 	    result = min;
-			`BLOCK_INSTR_MAX: 	    result = max;
-			`BLOCK_INSTR_LSH: 		result = lsh;
-			`BLOCK_INSTR_RSH: 		result = rsh;
-			`BLOCK_INSTR_MOV_UACC: 	result = upper_acc;
-			`BLOCK_INSTR_MOV_LACC: 	result = lower_acc;
-		endcase
-	end
-
-	//wire signed [2 * data_width - 1 : 0] result_sat = (result < sat_min) ? sat_min : ((result > sat_max) ? sat_max : result);
+	assign result = (misc_op_in[0] & acc_shift) 
+                  | (misc_op_in[1] & abs)
+                  | (misc_op_in[2] & min)
+                  | (misc_op_in[3] & max)
+                  | (misc_op_in[4] & lsh)
+                  | (misc_op_in[5] & rsh)
+                  | (misc_op_in[6] & upper_acc)
+                  | (misc_op_in[7] & lower_acc);
 
 	always @(posedge clk) begin
 		if (reset) begin
@@ -85,6 +83,8 @@ module misc_branch_stage_1 #(parameter data_width = 16, parameter n_blocks = 256
 			if (take_in) begin
 				out_valid <= 1;
 				
+                misc_op_out <= misc_op_in;
+
 				block_out <= block_in;
 				
 				result_out <= result;
@@ -123,6 +123,8 @@ module misc_branch_stage_2 #(parameter data_width = 16, parameter n_blocks = 256
 		input wire signed [data_width - 1 : 0] arg_c_in,
 		
 		input wire [4 : 0] operation_in,
+
+        input wire [7 : 0] misc_op_in,
 		
 		input wire saturate_disable_in,
 		input wire [4 : 0] shift_in,
@@ -189,6 +191,8 @@ module misc_branch #(parameter data_width = 16, parameter n_blocks = 256)
 		input  wire [$clog2(n_blocks) - 1 : 0] block_in,
 		output wire [$clog2(n_blocks) - 1 : 0] block_out,
 		
+        input wire [8 : 0] misc_op_in,
+
 		input wire signed [data_width - 1 : 0] arg_a_in,
 		input wire signed [data_width - 1 : 0] arg_b_in,
 		input wire signed [data_width - 1 : 0] arg_c_in,

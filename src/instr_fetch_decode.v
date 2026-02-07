@@ -54,7 +54,9 @@ module instr_fetch_decode_stage #(parameter data_width = 16, parameter n_blocks 
 		output reg commit_flag_out,
 		output reg writes_external_out,
 		
-		output reg [$clog2(`N_INSTR_BRANCHES) - 1 : 0] branch_out
+		output reg [$clog2(`N_INSTR_BRANCHES) - 1 : 0] branch_out,
+
+        output reg [8 : 0] misc_op_out
 	);
 	
 	reg [31 : 0] current_instr;

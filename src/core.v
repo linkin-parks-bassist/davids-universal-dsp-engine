@@ -184,6 +184,7 @@ module dsp_core #(
 	wire [31 : 0] 					instr_read_val_ifds = instr_read_val;
 	
 	wire [4 : 0] operation_out_ifds;
+	wire [7 : 0] misc_op_out_ifds;
 	
 	wire [3 : 0] src_a_out_ifds;
 	wire [3 : 0] src_b_out_ifds;
@@ -234,6 +235,7 @@ module dsp_core #(
 			.block_out(block_out_ifds),
 			
 			.operation_out(operation_out_ifds),
+            .misc_op_out(misc_op_out_ifds),
 			
 			.src_a_out(src_a_out_ifds),
 			.src_b_out(src_b_out_ifds),
@@ -277,6 +279,7 @@ module dsp_core #(
 	
 	wire [$clog2(n_blocks) - 1 : 0] block_out_ofs;
 	wire [4 : 0] operation_out_ofs;
+	wire [7 : 0] misc_op_out_ofs;
 	wire [3 : 0] dest_out_ofs;
 	wire signed [data_width - 1 : 0] arg_a_out_ofs;
 	wire signed [data_width - 1 : 0] arg_b_out_ofs;
@@ -313,6 +316,9 @@ module dsp_core #(
 			
 			.operation_in(operation_out_ifds),
 			.operation_out(operation_out_ofs),
+
+            .misc_op_in(misc_op_out_ifds),
+            .misc_op_out(misc_op_out_ofs),
 			
 			.dest_in(dest_out_ifds),
 			.dest_out(dest_out_ofs),
@@ -483,6 +489,7 @@ module dsp_core #(
 			.accumulator_in(accumulator_out_ofs),
 			
 			.operation_in(operation_out_ofs),
+			.misc_op_in(misc_op_out_ofs),
 			
 			.saturate_disable_in(saturate_disable_out_ofs),
 			.shift_in(shift_out_ofs),

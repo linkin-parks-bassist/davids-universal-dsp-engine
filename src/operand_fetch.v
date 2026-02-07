@@ -26,6 +26,9 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 		
 		input wire [4 : 0] operation_in,
 		output reg [4 : 0] operation_out,
+
+        input wire [7 : 0] misc_op_in,
+        output reg [7 : 0] misc_op_out,
 		
 		input wire [3 : 0] dest_in,
 		output reg [3 : 0] dest_out,
@@ -184,9 +187,11 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 	
 	reg [`N_INSTR_BRANCHES - 1 : 0] branch_latched;
 	reg writes_external_latched;
-	
+
 	reg commit_flag_latched;
 	
+    reg [7 : 0] misc_op_latched;
+
 	wire arg_a_resolved = ~arg_a_needed_latched | arg_a_valid;
 	wire arg_b_resolved = ~arg_b_needed_latched | arg_b_valid;
 	wire arg_c_resolved = ~arg_c_needed_latched | arg_c_valid;
@@ -360,6 +365,7 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 						block_latched <= block_in;
 						
 						operation_latched <= operation_in;
+                        misc_op_latched <= misc_op_in;
 						
 						src_a_latched <= src_a_in;
 						src_b_latched <= src_b_in;
@@ -396,6 +402,7 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 				BUSY: begin
 					if (arg_a_resolved && arg_b_resolved && arg_c_resolved && !accumulator_stall) begin
 						operation_out <= operation_latched;
+                        misc_op_out <= misc_op_latched;
 		
 						dest_out <= dest_latched;
 

@@ -36,7 +36,9 @@ module instr_decoder #(parameter data_width = 16)
 		output logic commit_flag,
 		output logic writes_external,
 		
-		output logic [$clog2(`N_INSTR_BRANCHES) - 1 : 0] branch
+		output logic [$clog2(`N_INSTR_BRANCHES) - 1 : 0] branch,
+
+        output logic [7 : 0] misc_op
 	);
 	
 	wire   instr_format 	  = instr[5];
@@ -106,4 +108,13 @@ module instr_decoder #(parameter data_width = 16)
 	
 	assign writes_external = (operation == `BLOCK_INSTR_DELAY_WRITE || operation == `BLOCK_INSTR_MEM_WRITE);
 	
+    assign misc_op[0] = (operation == `BLOCK_INSTR_MOV_ACC);
+    assign misc_op[1] = (operation == `BLOCK_INSTR_ABS);
+    assign misc_op[2] = (operation == `BLOCK_INSTR_MIN);
+    assign misc_op[3] = (operation == `BLOCK_INSTR_MAX);
+    assign misc_op[4] = (operation == `BLOCK_INSTR_LSH);
+    assign misc_op[5] = (operation == `BLOCK_INSTR_RSH);
+    assign misc_op[6] = (operation == `BLOCK_INSTR_MOV_UACC);
+    assign misc_op[7] = (operation == `BLOCK_INSTR_MOV_LACC);
+
 endmodule
