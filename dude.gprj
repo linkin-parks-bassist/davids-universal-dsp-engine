@@ -11,6 +11,7 @@
         <File path="include/instr_dec.vh" type="file.verilog" enable="1"/>
         <File path="include/lut.vh" type="file.verilog" enable="1"/>
         <File path="src/biquad.v" type="file.verilog" enable="1"/>
+        <File path="src/branch_router.v" type="file.verilog" enable="1"/>
         <File path="src/commit_master.v" type="file.verilog" enable="1"/>
         <File path="src/controller.v" type="file.verilog" enable="1"/>
         <File path="src/core.v" type="file.verilog" enable="1"/>

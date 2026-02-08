@@ -262,7 +262,9 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 					arg_valid <= 1;
 				end
 			end
-		end
+		end else begin
+            arg_valid <= 0;
+        end
 	end
 	
 	localparam IDLE = 2'd0;
@@ -282,33 +284,32 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 	assign operand_src[0] = src_a_in;
 	assign operand_src[1] = src_b_in;
 	assign operand_src[2] = src_c_in;
-	assign operand_src[3] = 0;
 	
 	assign operand_needed[0] = arg_a_needed_in;
 	assign operand_needed[1] = arg_b_needed_in;
 	assign operand_needed[2] = arg_c_needed_in;
-	assign operand_needed[3] = 0;
 	
 	assign operand_reg[0] = src_a_reg_in;
 	assign operand_reg[1] = src_b_reg_in;
 	assign operand_reg[2] = src_c_reg_in;
-	assign operand_reg[3] = 0;
 	
 	always @(posedge clk) begin
 		if (reset) begin
 			state   <= 0;
 			out_valid <= 0;
 			commit_id   <= 0;
+            branch_out   <= 0;
 			inject_pending_ch0_write_next <= 0;
 		end else if (enable) begin
 			
 			add_pending_write <= 0;
 			inject_pending_ch0_write_next <= 0;
-		
+            
+            branch_out <= branch_out;
+
 			case (state)
 				IDLE: begin
 					if (in_valid) begin
-					
 						block_latched <= block_in;
 						
 						register_0_latched <= register_0_in;
@@ -354,8 +355,6 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 						arg_needed_latched 	<= operand_needed[operand];
 						
 						operand_latched <= operand;
-						
-						arg_valid <= 0;
 						
 						state <= BUSY;
 					end
