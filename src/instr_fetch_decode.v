@@ -33,7 +33,7 @@ module instr_fetch_decode_stage #(parameter data_width = 16, parameter n_blocks 
 		output reg [$clog2(n_blocks) - 1 : 0] block_out,
 		
 		output reg [4 : 0] operation_out,
-	
+		
 		output reg [3 : 0] src_a_out,
 		output reg [3 : 0] src_b_out,
 		output reg [3 : 0] src_c_out,

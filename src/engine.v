@@ -50,11 +50,13 @@ module dsp_engine_seq
     wire [1:0] block_instr_write;
     wire [1:0] block_reg_write;
     wire [1:0] block_reg_update;
+    wire [1:0] reg_writes_commit;
     wire [1:0] alloc_delay;
     wire [1:0] pipeline_reset;
     wire [1:0] pipeline_full_reset;
     wire [1:0] pipeline_enables;
     wire [1:0] pipeline_resetting;
+    wire [1:0] pipeline_regfiles_syncing;
 
     reg pipeline_tick = 0;
 
@@ -98,6 +100,8 @@ module dsp_engine_seq
     wire pipeline_a_block_instr_write 	= block_instr_write		[current_pipeline];
     wire pipeline_a_block_reg_write 	= block_reg_write  		[current_pipeline];
     wire pipeline_a_block_reg_update 	= block_reg_update 		[current_pipeline];
+    wire pipeline_a_reg_writes_commit 	= reg_writes_commit 	[current_pipeline];
+    wire pipeline_a_regfile_syncing;
     wire pipeline_a_alloc_delay 		= alloc_delay 			[current_pipeline];
     wire pipeline_a_enable 				= pipeline_enables 		[current_pipeline];
     wire pipeline_a_full_reset 			= pipeline_full_reset	[current_pipeline];
@@ -107,6 +111,8 @@ module dsp_engine_seq
     wire pipeline_b_block_instr_write 	= block_instr_write		[~current_pipeline];
     wire pipeline_b_block_reg_write 	= block_reg_write  		[~current_pipeline];
     wire pipeline_b_block_reg_update 	= block_reg_update 		[~current_pipeline];
+    wire pipeline_b_reg_writes_commit 	= reg_writes_commit 	[~current_pipeline];
+    wire pipeline_b_regfile_syncing;
     wire pipeline_b_alloc_delay 		= alloc_delay 			[~current_pipeline];
     wire pipeline_b_enable 				= pipeline_enables 		[~current_pipeline];
     wire pipeline_b_full_reset 			= pipeline_full_reset	[~current_pipeline];
@@ -114,8 +120,10 @@ module dsp_engine_seq
     wire pipeline_b_reset	 			= pipeline_reset		[~current_pipeline];
     
     assign pipeline_resetting = {pipeline_b_resetting, pipeline_a_resetting};
+    assign pipeline_regfiles_syncing = {(current_pipeline) ? pipeline_a_regfile_syncing : pipeline_a_regfile_syncing,
+										(current_pipeline) ? pipeline_b_regfile_syncing : pipeline_a_regfile_syncing};
     
-    pipeline_seq
+    dsp_pipeline
 		#(
 			.data_width(data_width),
 			.n_blocks(n_blocks),
@@ -145,6 +153,8 @@ module dsp_engine_seq
 			.reg_write(pipeline_a_block_reg_write),
 			.reg_write_ack(reg_write_acks[0]),
 			.reg_update(pipeline_a_block_reg_update),
+			
+			.reg_writes_commit(pipeline_a_reg_writes_commit),
 		
 			.alloc_delay(pipeline_a_alloc_delay),
 			
@@ -154,7 +164,7 @@ module dsp_engine_seq
 			.resetting(pipeline_a_resetting)
 		);
     
-    pipeline_seq
+    dsp_pipeline
 		#(
 			.data_width(data_width),
 			.n_blocks(n_blocks),
@@ -183,6 +193,8 @@ module dsp_engine_seq
 			.buf_init_delay(buf_init_delay),
 			.reg_write(pipeline_b_block_reg_write),
 			.reg_update(pipeline_b_block_reg_update),
+			
+			.reg_writes_commit(pipeline_b_reg_writes_commit),
 		
 			.alloc_delay(pipeline_b_alloc_delay),
 
@@ -213,7 +225,7 @@ module dsp_engine_seq
 		
 	wire [2 * data_width - 1 : 0] buf_init_delay;
 
-    control_unit_seq #(.n_blocks(n_blocks), .data_width(data_width), .n_block_registers(n_block_registers)) controller
+    control_unit #(.n_blocks(n_blocks), .data_width(data_width), .n_block_registers(n_block_registers)) controller
 		(
 			.clk(clk),
 			.reset(reset),
@@ -233,11 +245,14 @@ module dsp_engine_seq
 			.block_reg_write(block_reg_write),
 			.block_reg_update(block_reg_update),
 			
+			.reg_writes_commit(reg_writes_commit),
+			
 			.alloc_delay(alloc_delay),
 			.buf_init_delay(buf_init_delay),
 			
 			.swap_pipelines(swap_pipelines),
 			.pipelines_swapping(pipelines_swapping),
+			.pipeline_regfiles_syncing(pipeline_regfiles_syncing),
 			.pipeline_reset(pipeline_reset),
 			.pipeline_full_reset(pipeline_full_reset),
 			.pipeline_resetting(pipeline_resetting),

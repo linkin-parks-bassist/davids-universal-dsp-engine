@@ -38,34 +38,13 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 		
 		input wire [3 : 0] dest_in,
 		output reg [3 : 0] dest_out,
-
-		input wire signed [3 : 0] src_a_in,
-		output reg signed [3 : 0] src_a_out,
-		input wire signed [3 : 0] src_b_in,
-		output reg signed [3 : 0] src_b_out,
-		input wire signed [3 : 0] src_c_in,
-		output reg signed [3 : 0] src_c_out,
-
-		input wire src_a_reg_in,
-		output reg src_a_reg_out,
-		input wire src_b_reg_in,
-		output reg src_b_reg_out,
-		input wire src_c_reg_in,
-		output reg src_c_reg_out,
 		
-		input wire arg_a_needed_in,
-		output reg arg_a_needed_out,
-		input wire arg_b_needed_in,
-		output reg arg_b_needed_out,
-		input wire arg_c_needed_in,
-		output reg arg_c_needed_out,
+		input wire arg_needed,
+		
+		input wire [3 : 0] src,
+		input wire src_reg,
 
-		input wire signed [data_width - 1 : 0] arg_a_in,
-		output reg signed [data_width - 1 : 0] arg_a_out,
-		input wire signed [data_width - 1 : 0] arg_b_in,
-		output reg signed [data_width - 1 : 0] arg_b_out,
-		input wire signed [data_width - 1 : 0] arg_c_in,
-		output reg signed [data_width - 1 : 0] arg_c_out,
+		output reg signed [data_width - 1 : 0] fetched_out,
 		
 		input wire saturate_disable_in,
 		output reg saturate_disable_out,
@@ -104,14 +83,12 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 		input wire signed [data_width - 1 : 0] channel_write_val,
 		input wire channel_write_enable,
 		
-		input wire accumulator_write_enable,
-		
-		input wire [1:0] operand
+		input wire accumulator_write_enable
 	);
 	
 	reg [data_width - 1 : 0] channels [15 : 0];
 	
-	wire [data_width - 1 : 0] channel_read_val = channels[src_latched];
+	wire [data_width - 1 : 0] channel_read_val = channels[take_in ? src : src_latched];
 	
 	integer j;
     always @(posedge clk) begin
@@ -130,14 +107,8 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 	
 	wire accumulator_stall = ((last == 1) && accumulator_needed_latched && accumulator_pending_writes != 0);
 	
-	reg add_pending_write;
-	
-	reg inject_pending_ch0_write_next;
-	reg inject_pending_ch0_write;
-
-	always @(posedge clk) begin
-		inject_pending_ch0_write <= inject_pending_ch0_write_next;
-	end
+	wire add_pending_write;
+	wire inject_pending_ch0_write;
 
 	integer i;
 	always @(posedge clk) begin
@@ -147,9 +118,36 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 			
 			accumulator_pending_writes <= 0;
 		end else if (enable) begin
-			for (i = 0; i < 16; i = i + 1) begin
-				case ({(add_pending_write && dest_latched == i && !writes_accumulator_latched) ||
-						(inject_pending_ch0_write && i == 0),
+			case ({inject_pending_ch0_write, (add_pending_write && dest_latched == 0 && !writes_accumulator_latched),
+					channel_write_enable && channel_write_addr == 0})
+				3'b010: begin
+					channels_scoreboard[0] <= channels_scoreboard[0] + 1;
+				end
+				
+				3'b001: begin
+					if (channels_scoreboard[0] != 0)
+						channels_scoreboard[0] <= channels_scoreboard[0] - 1;
+				end
+				
+				3'b100: begin
+					channels_scoreboard[0] <= channels_scoreboard[0] + 1;
+				end
+				
+				3'b110: begin
+					channels_scoreboard[0] <= channels_scoreboard[0] + 2;
+				end
+				
+				3'b111: begin
+					channels_scoreboard[0] <= channels_scoreboard[0] + 1;
+				end
+				
+				default: begin
+					channels_scoreboard[0] <= channels_scoreboard[0];
+				end
+			endcase
+		
+			for (i = 1; i < 16; i = i + 1) begin
+				case ({(add_pending_write && dest_latched == i && !writes_accumulator_latched),
 						channel_write_enable && channel_write_addr == i})
 					2'b10: begin
 						channels_scoreboard[i] <= channels_scoreboard[i] + 1;
@@ -194,23 +192,6 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 	reg writes_channel_latched;
 	reg writes_accumulator_latched;
 
-	reg [3 : 0] src_a_latched;
-	reg [3 : 0] src_b_latched;
-	reg [3 : 0] src_c_latched;
-	
-	reg signed [data_width - 1 : 0] arg_a_latched;
-	reg signed [data_width - 1 : 0] arg_b_latched;
-	reg signed [data_width - 1 : 0] arg_c_latched;
-	
-	reg src_a_reg_latched;
-	reg src_b_reg_latched;
-	reg src_c_reg_latched;
-	
-	reg arg_a_needed_latched;
-	reg arg_b_needed_latched;
-	reg arg_c_needed_latched;
-	
-	reg [1:0] operand_latched;
 	reg [3 : 0] src_latched;
 	reg arg_needed_latched;
 	reg src_reg_latched;
@@ -232,7 +213,7 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 	
     reg [$clog2(`N_MISC_OPS) - 1 : 0] misc_op_latched;
 
-	wire  [3 : 0] arg_pending_writes = channels_scoreboard[operand_latched];
+	wire  [3 : 0] arg_pending_writes = channels_scoreboard[take_in ? src : src_latched];
 	
 	reg signed [data_width - 1 : 0] arg_latched;
 	wire arg_resolved = ~arg_needed_latched | arg_valid;
@@ -240,7 +221,7 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 	always @(posedge clk) begin
 		if (reset) begin
 			arg_valid <= 0;
-		end else if (enable && state == BUSY) begin
+		end else if (enable && busy) begin
 			if (!arg_needed_latched) begin
 				arg_latched <= 0;
 				arg_valid <= 1;
@@ -271,159 +252,157 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 	localparam BUSY = 2'd1;
 	localparam DONE = 2'd2;
 	
-	assign in_ready = (state == IDLE);
+	assign in_ready = ~busy & (~out_valid | out_ready);
 	
 	reg [1:0] state;
+	reg busy;
 	
 	reg [8:0] commit_id;
 	
-	wire [3:0] operand_src [2:0];
-	wire [2:0] operand_needed;
-	wire [2:0] operand_reg;
+	logic signed [data_width - 1 : 0] reg_value;
 	
-	assign operand_src[0] = src_a_in;
-	assign operand_src[1] = src_b_in;
-	assign operand_src[2] = src_c_in;
+	always_comb begin
+		case (src)
+			4'd0: reg_value = register_0_in;
+			4'd1: reg_value = register_1_in;
+			
+			4'd3: reg_value = (1 << (data_width - 2));
+			4'd4: reg_value = (1 << (data_width - 1));
+			default: reg_value = 0;
+		endcase
+	end
 	
-	assign operand_needed[0] = arg_a_needed_in;
-	assign operand_needed[1] = arg_b_needed_in;
-	assign operand_needed[2] = arg_c_needed_in;
+	wire channel_free = (arg_pending_writes == 0);
+	wire channel_incoming = (arg_pending_writes == 1) & (channel_write_enable) & (channel_write_addr == src);
+	wire channel_single_cycle = channel_free | channel_incoming;
 	
-	assign operand_reg[0] = src_a_reg_in;
-	assign operand_reg[1] = src_b_reg_in;
-	assign operand_reg[2] = src_c_reg_in;
+	wire single_cycle = (src_reg | ~arg_needed) | channel_single_cycle;
+	wire take_in = in_ready & in_valid;
+	
+	wire signed [data_width - 1 : 0] single_cycle_result = (src_reg) ? reg_value : (channel_incoming ? channel_write_val : channel_read_val);
+	
+	wire send_it = (take_in & single_cycle) | (busy & arg_resolved & ~(last & accumulator_stall));
+	assign add_pending_write = send_it & (writes_channel_latched | writes_accumulator_latched);
+	assign inject_pending_ch0_write = send_it & (block_in == n_blocks_running - 1);
 	
 	always @(posedge clk) begin
 		if (reset) begin
-			state   <= 0;
+			busy   <= 0;
 			out_valid <= 0;
 			commit_id   <= 0;
             branch_out   <= 0;
-			inject_pending_ch0_write_next <= 0;
 		end else if (enable) begin
-			
-			add_pending_write <= 0;
-			inject_pending_ch0_write_next <= 0;
             
             branch_out <= branch_out;
 
-			case (state)
-				IDLE: begin
-					if (in_valid) begin
-						block_latched <= block_in;
+			if (take_in) begin
+				if (single_cycle) begin
+					operation_out <= operation_in;
+					misc_op_out <= misc_op_in;
+	
+					dest_out <= dest_in;
+
+					block_out <= block_in;
+					
+					register_0_out <= register_0_in;
+					register_1_out <= register_1_in;
+					
+					fetched_out <= single_cycle_result;
+					
+					saturate_disable_out <= saturate_disable_in;
+					signedness_out 		 <= signedness_in;
+					shift_out 			 <= shift_in;
+					shift_disable_out 	 <= shift_disable_in;
+					res_addr_out 		 <= res_addr_in;
+					commit_flag_out		 <= commit_flag_in;
+					
+					writes_channel_out   	<= writes_channel_in;
+					writes_external_out  	<= writes_external_in;
+					writes_accumulator_out 	<= writes_accumulator_in;
+					
+					branch_out <= branch_in;
+					
+					out_valid <= 1;
+					
+					if (writes_channel_in | writes_accumulator_in) begin
+						commit_id_out <= commit_id;
+						commit_id <= commit_id + 1;
 						
-						register_0_latched <= register_0_in;
-						register_1_latched <= register_1_in;
-						
-						operation_latched <= operation_in;
-                        misc_op_latched <= misc_op_in;
-						
-						src_a_latched <= src_a_in;
-						src_b_latched <= src_b_in;
-						src_c_latched <= src_c_in;
-
-						arg_a_latched <= arg_a_in;
-						arg_b_latched <= arg_b_in;
-						arg_c_latched <= arg_c_in;
-
-						src_a_reg_latched <= src_a_reg_in;
-						src_b_reg_latched <= src_b_reg_in;
-						src_c_reg_latched <= src_c_reg_in;
-
-						arg_a_needed_latched <= arg_a_needed_in;
-						arg_b_needed_latched <= arg_b_needed_in;
-						arg_c_needed_latched <= arg_c_needed_in;
-
 						dest_latched <= dest_in;
-						
-						saturate_disable_latched 	<= saturate_disable_in;
-						accumulator_needed_latched	<= accumulator_needed_in;
-						signedness_latched 			<= signedness_in;
-						shift_latched 				<= shift_in;
-						shift_disable_latched 		<= shift_disable_in;
-						
-						res_addr_latched <= res_addr_in;
-						
-						writes_external_latched 	<= writes_external_in;
-						writes_channel_latched 		<= writes_channel_in;
-						writes_accumulator_latched 	<= writes_accumulator_in;
-						commit_flag_latched 		<= commit_flag_in;
-						branch_latched 				<= branch_in;
-						
-						src_latched 		<= operand_src[operand];
-						src_reg_latched 	<= operand_reg[operand];
-						arg_needed_latched 	<= operand_needed[operand];
-						
-						operand_latched <= operand;
-						
-						state <= BUSY;
+						writes_accumulator_latched <= writes_accumulator_in;
+						writes_channel_latched <= writes_channel_in;
 					end
-				end
-				
-				BUSY: begin
-					if (arg_resolved && !accumulator_stall) begin
-						operation_out <= operation_latched;
-                        misc_op_out <= misc_op_latched;
-		
-						dest_out <= dest_latched;
+				end else begin
+					block_latched <= block_in;
+					
+					register_0_latched <= register_0_in;
+					register_1_latched <= register_1_in;
+					
+					operation_latched <= operation_in;
+					misc_op_latched <= misc_op_in;
 
-						block_out <= block_latched;
-						
-						register_0_out <= register_0_latched;
-						register_1_out <= register_1_latched;
-						
-						src_a_out <= src_a_latched;
-						src_b_out <= src_b_latched;
-						src_c_out <= src_c_latched;
-						
-						src_a_reg_out <= src_a_reg_latched;
-						src_b_reg_out <= src_b_reg_latched;
-						src_c_reg_out <= src_c_reg_latched;
-						
-						arg_a_needed_out <= arg_a_needed_latched;
-						arg_b_needed_out <= arg_b_needed_latched;
-						arg_c_needed_out <= arg_c_needed_latched;
-						
-						arg_a_out <= (operand == 0) ? arg_latched : arg_a_latched;
-						arg_b_out <= (operand == 1) ? arg_latched : arg_b_latched;
-						arg_c_out <= (operand == 2) ? arg_latched : arg_c_latched;
-						
-						saturate_disable_out <= saturate_disable_latched;
-						signedness_out 		 <= signedness_latched;
-						shift_out 			 <= shift_latched;
-						shift_disable_out 	 <= shift_disable_latched;
-						res_addr_out 		 <= res_addr_latched;
-						commit_flag_out		 <= commit_flag_latched;
-						
-						writes_channel_out   	<= writes_channel_latched;
-						writes_external_out  	<= writes_external_latched;
-						writes_accumulator_out 	<= writes_accumulator_latched;
-						
-						branch_out <= branch_latched;
-						
-						out_valid <= 1;
-						
-						if (writes_channel_latched | writes_accumulator_latched) begin
-							commit_id_out <= commit_id;
-							commit_id <= commit_id + 1;
-							
-							add_pending_write <= 1;
-						end
-						
-						if (block_latched == n_blocks_running - 1)
-							inject_pending_ch0_write_next <= 1;
-						
-						state <= DONE;
-					end
+					dest_latched <= dest_in;
+					
+					saturate_disable_latched 	<= saturate_disable_in;
+					accumulator_needed_latched	<= accumulator_needed_in;
+					signedness_latched 			<= signedness_in;
+					shift_latched 				<= shift_in;
+					shift_disable_latched 		<= shift_disable_in;
+					
+					res_addr_latched <= res_addr_in;
+					
+					writes_external_latched 	<= writes_external_in;
+					writes_channel_latched 		<= writes_channel_in;
+					writes_accumulator_latched 	<= writes_accumulator_in;
+					commit_flag_latched 		<= commit_flag_in;
+					branch_latched 				<= branch_in;
+					
+					src_latched 		<= src;
+					src_reg_latched 	<= src_reg;
+					arg_needed_latched 	<= arg_needed;
+					
+					out_valid <= ~out_ready;
+					busy <= 1;
 				end
+			end else begin
+				if (out_ready)
+					out_valid <= 0;
 				
-				DONE: begin
-					if (out_ready) begin
-						out_valid <= 0;
-						state <= IDLE;
+				if (busy & arg_resolved & ~(last & accumulator_stall)) begin
+					operation_out <= operation_latched;
+					misc_op_out <= misc_op_latched;
+	
+					dest_out <= dest_latched;
+
+					block_out <= block_latched;
+					
+					register_0_out <= register_0_latched;
+					register_1_out <= register_1_latched;
+
+					fetched_out <= arg_latched;
+					
+					saturate_disable_out <= saturate_disable_latched;
+					signedness_out 		 <= signedness_latched;
+					shift_out 			 <= shift_latched;
+					shift_disable_out 	 <= shift_disable_latched;
+					res_addr_out 		 <= res_addr_latched;
+					commit_flag_out		 <= commit_flag_latched;
+					
+					writes_channel_out   	<= writes_channel_latched;
+					writes_external_out  	<= writes_external_latched;
+					writes_accumulator_out 	<= writes_accumulator_latched;
+					
+					branch_out <= branch_latched;
+					
+					if (writes_channel_latched | writes_accumulator_latched) begin
+						commit_id_out <= commit_id;
+						commit_id <= commit_id + 1;
 					end
+					
+					out_valid <= 1;
+					busy <= 0;
 				end
-			endcase
+			end
 		end
 	end
 endmodule
@@ -524,6 +503,81 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 		input  wire accumulator_write_enable
 	);
 	
+	reg signed [data_width - 1 : 0] arg_a_1 = 0;
+	reg signed [data_width - 1 : 0] arg_b_1 = 0;
+	reg signed [data_width - 1 : 0] arg_c_1 = 0;
+	
+	reg signed [data_width - 1 : 0] arg_a_2;
+	reg signed [data_width - 1 : 0] arg_b_2;
+	reg signed [data_width - 1 : 0] arg_c_2;
+	
+	reg signed [data_width - 1 : 0] arg_a_3;
+	reg signed [data_width - 1 : 0] arg_b_3;
+	reg signed [data_width - 1 : 0] arg_c_3;
+
+	reg signed [3 : 0] src_a_1;
+	reg signed [3 : 0] src_a_reg_1;
+	reg signed [3 : 0] arg_a_needed_1;
+	reg signed [3 : 0] src_b_1;
+	reg signed [3 : 0] src_b_reg_1;
+	reg signed [3 : 0] arg_b_needed_1;
+	reg signed [3 : 0] src_c_1;
+	reg signed [3 : 0] src_c_reg_1;
+	reg signed [3 : 0] arg_c_needed_1;
+
+	reg signed [3 : 0] src_a_2;
+	reg signed [3 : 0] src_a_reg_2;
+	reg signed [3 : 0] arg_a_needed_2;
+	reg signed [3 : 0] src_b_2;
+	reg signed [3 : 0] src_b_reg_2;
+	reg signed [3 : 0] arg_b_needed_2;
+	reg signed [3 : 0] src_c_2;
+	reg signed [3 : 0] src_c_reg_2;
+	reg signed [3 : 0] arg_c_needed_2;
+	
+	assign arg_a_out = arg_a_3;
+	assign arg_b_out = arg_b_3;
+	assign arg_c_out = arg_c_fetched_out;
+	
+	always @(posedge clk) begin
+		if (out_valid_1 & in_ready_2) begin
+			arg_a_2 <= arg_a_fetched_out;
+			arg_b_2 <= arg_b_1;
+			arg_c_2 <= arg_c_1;
+		end
+		
+		if (out_valid_2 & in_ready_3) begin
+			arg_a_3 <= arg_a_2;
+			arg_b_3 <= arg_b_fetched_out;
+			arg_c_3 <= arg_c_2;
+		end
+	end
+	always @(posedge clk) begin
+		if (in_valid & in_ready) begin
+			src_a_1 <= src_a_in;
+			src_b_1 <= src_b_in;
+			src_c_1 <= src_c_in;
+			src_a_reg_1 <= src_a_reg_in;
+			src_b_reg_1 <= src_b_reg_in;
+			src_c_reg_1 <= src_c_reg_in;
+			arg_a_needed_1 <= arg_a_needed_in;
+			arg_b_needed_1 <= arg_b_needed_in;
+			arg_c_needed_1 <= arg_c_needed_in;
+		end
+		
+		if (out_valid_1 & in_ready_2) begin
+			src_a_2 <= src_a_1;
+			src_b_2 <= src_b_1;
+			src_c_2 <= src_c_1;
+			src_a_reg_2 <= src_a_reg_1;
+			src_b_reg_2 <= src_b_reg_1;
+			src_c_reg_2 <= src_c_reg_1;
+			arg_a_needed_2 <= arg_a_needed_1;
+			arg_b_needed_2 <= arg_b_needed_1;
+			arg_c_needed_2 <= arg_c_needed_1;
+		end
+	end
+	
 	wire out_valid_1;
 	wire  [$clog2(n_blocks) - 1 : 0] block_1_out;
 	wire signed [data_width - 1 : 0] register_0_1_out;
@@ -540,6 +594,7 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 	wire arg_a_needed_1_out;
 	wire arg_b_needed_1_out;
 	wire arg_c_needed_1_out;
+	wire signed [data_width - 1 : 0] arg_a_fetched_out;
 	wire signed [data_width - 1 : 0] arg_a_1_out;
 	wire signed [data_width - 1 : 0] arg_b_1_out;
 	wire signed [data_width - 1 : 0] arg_c_1_out;
@@ -590,37 +645,12 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 		.dest_in(dest_in),
 		.dest_out(dest_1_out),
 
-		.src_a_in(src_a_in),
-		.src_b_in(src_b_in),
-		.src_c_in(src_c_in),
+		.arg_needed(arg_a_needed_in),
 
-		.src_a_reg_in(src_a_reg_in),
-		.src_b_reg_in(src_b_reg_in),
-		.src_c_reg_in(src_c_reg_in),
-		
-		.arg_a_needed_in(arg_a_needed_in),
-		.arg_b_needed_in(arg_b_needed_in),
-		.arg_c_needed_in(arg_c_needed_in),
+		.src(src_a_in),
+		.src_reg(src_a_reg_in),
 
-		.src_a_out(src_a_1_out),
-		.src_b_out(src_b_1_out),
-		.src_c_out(src_c_1_out),
-
-		.src_a_reg_out(src_a_reg_1_out),
-		.src_b_reg_out(src_b_reg_1_out),
-		.src_c_reg_out(src_c_reg_1_out),
-		
-		.arg_a_needed_out(arg_a_needed_1_out),
-		.arg_b_needed_out(arg_b_needed_1_out),
-		.arg_c_needed_out(arg_c_needed_1_out),
-
-		.arg_a_in(0),
-		.arg_b_in(0),
-		.arg_c_in(0),
-
-		.arg_a_out(arg_a_1_out),
-		.arg_b_out(arg_b_1_out),
-		.arg_c_out(arg_c_1_out),
+		.fetched_out(arg_a_fetched_out),
 		
 		.saturate_disable_in(saturate_disable_in),
 		.saturate_disable_out(saturate_disable_1_out),
@@ -659,9 +689,7 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 		.channel_write_val(channel_write_val),
 		.channel_write_enable(channel_write_enable),
 		
-		.accumulator_write_enable(accumulator_write_enable),
-		
-		.operand(0)
+		.accumulator_write_enable(accumulator_write_enable)
 	);
 	
 	wire in_ready_2;
@@ -681,6 +709,7 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 	wire arg_a_needed_2_out;
 	wire arg_b_needed_2_out;
 	wire arg_c_needed_2_out;
+	wire signed [data_width - 1 : 0] arg_b_fetched_out;
 	wire signed [data_width - 1 : 0] arg_a_2_out;
 	wire signed [data_width - 1 : 0] arg_b_2_out;
 	wire signed [data_width - 1 : 0] arg_c_2_out;
@@ -730,38 +759,13 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 		
 		.dest_in(dest_1_out),
 		.dest_out(dest_2_out),
-
-		.src_a_in(src_a_1_out),
-		.src_b_in(src_b_1_out),
-		.src_c_in(src_c_1_out),
-
-		.src_a_reg_in(src_a_reg_1_out),
-		.src_b_reg_in(src_b_reg_1_out),
-		.src_c_reg_in(src_c_reg_1_out),
 		
-		.arg_a_needed_in(arg_a_needed_1_out),
-		.arg_b_needed_in(arg_b_needed_1_out),
-		.arg_c_needed_in(arg_c_needed_1_out),
+		.arg_needed(arg_b_needed_1),
 		
-		.src_a_out(src_a_2_out),
-		.src_b_out(src_b_2_out),
-		.src_c_out(src_c_2_out),
+		.src(src_b_1),
+		.src_reg(src_b_reg_1),
 
-		.src_a_reg_out(src_a_reg_2_out),
-		.src_b_reg_out(src_b_reg_2_out),
-		.src_c_reg_out(src_c_reg_2_out),
-		
-		.arg_a_needed_out(arg_a_needed_2_out),
-		.arg_b_needed_out(arg_b_needed_2_out),
-		.arg_c_needed_out(arg_c_needed_2_out),
-
-		.arg_a_in(arg_a_1_out),
-		.arg_b_in(arg_b_1_out),
-		.arg_c_in(arg_c_1_out),
-		
-		.arg_a_out(arg_a_2_out),
-		.arg_b_out(arg_b_2_out),
-		.arg_c_out(arg_c_2_out),
+		.fetched_out(arg_b_fetched_out),
 		
 		.saturate_disable_in(saturate_disable_1_out),
 		.saturate_disable_out(saturate_disable_2_out),
@@ -800,12 +804,11 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 		.channel_write_val(channel_write_val),
 		.channel_write_enable(channel_write_enable),
 		
-		.accumulator_write_enable(accumulator_write_enable),
-		
-		.operand(1)
+		.accumulator_write_enable(accumulator_write_enable)
 	);
 
 	wire in_ready_3;
+	wire signed [data_width - 1 : 0] arg_c_fetched_out;
 
 	operand_fetch_substage #(.data_width(data_width), .n_blocks(n_blocks), .last(1)) fetch_3
 	(
@@ -841,26 +844,13 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 		.dest_in(dest_2_out),
 		.dest_out(dest_out),
 
-		.src_a_in(src_a_2_out),
-		.src_b_in(src_b_2_out),
-		.src_c_in(src_c_2_out),
+		.arg_needed(arg_c_needed_2),
+		
+		.src(src_c_2),
+		.src_reg(src_c_reg_2),
+		
+		.fetched_out(arg_c_fetched_out),
 
-		.src_a_reg_in(src_a_reg_2_out),
-		.src_b_reg_in(src_b_reg_2_out),
-		.src_c_reg_in(src_c_reg_2_out),
-		
-		.arg_a_needed_in(arg_a_needed_2_out),
-		.arg_b_needed_in(arg_b_needed_2_out),
-		.arg_c_needed_in(arg_c_needed_2_out),
-
-		.arg_a_in(arg_a_2_out),
-		.arg_b_in(arg_b_2_out),
-		.arg_c_in(arg_c_2_out),
-		
-		.arg_a_out(arg_a_out),
-		.arg_b_out(arg_b_out),
-		.arg_c_out(arg_c_out),
-		
 		.saturate_disable_in(saturate_disable_2_out),
 		.saturate_disable_out(saturate_disable_out),
 		
@@ -897,9 +887,7 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 		.channel_write_val(channel_write_val),
 		.channel_write_enable(channel_write_enable),
 		
-		.accumulator_write_enable(accumulator_write_enable),
-		
-		.operand(2)
+		.accumulator_write_enable(accumulator_write_enable)
 	);
 	
 endmodule

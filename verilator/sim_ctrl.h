@@ -16,11 +16,15 @@
 #define BLOCK_INSTR_LSH 			3
 #define BLOCK_INSTR_RSH 			4
 #define BLOCK_INSTR_ABS				5
-#define BLOCK_INSTR_MIN				6
-#define BLOCK_INSTR_MAX				7
-#define BLOCK_INSTR_MOV_ACC			8
-#define BLOCK_INSTR_MOV_LACC		9
-#define BLOCK_INSTR_MOV_UACC		10
+#define BLOCK_INSTR_MIN			    6
+#define BLOCK_INSTR_MAX			    7
+#define BLOCK_INSTR_CLAMP		    8
+#define BLOCK_INSTR_MOV_ACC			9
+#define BLOCK_INSTR_MOV_LACC		10
+#define BLOCK_INSTR_MOV_UACC		11
+
+#define MISC_OPCODE_MIN 3
+#define N_MISC_OPS 		9
 
 // Accumulator MAC instructions. Uses MAC branch
 // _MAC_: acc = a * b + acc
@@ -31,17 +35,17 @@
 // wait on the accumulator as a dependency
 // the addition is done in the commit stage
 // therefore is it much faster!
-#define BLOCK_INSTR_MACZ			11
-#define BLOCK_INSTR_UMACZ			12
-#define BLOCK_INSTR_MAC				13
-#define BLOCK_INSTR_UMAC			14
+#define BLOCK_INSTR_MACZ			12
+#define BLOCK_INSTR_UMACZ			13
+#define BLOCK_INSTR_MAC				14
+#define BLOCK_INSTR_UMAC			15
 
 // Interfacing with #resources'. Each has its own branch
-#define BLOCK_INSTR_LUT_READ		15
-#define BLOCK_INSTR_DELAY_READ 		16
-#define BLOCK_INSTR_DELAY_WRITE 	17
-#define BLOCK_INSTR_MEM_READ 		18
-#define BLOCK_INSTR_MEM_WRITE		19
+#define BLOCK_INSTR_LUT_READ		16
+#define BLOCK_INSTR_DELAY_READ 		17
+#define BLOCK_INSTR_DELAY_WRITE 	18
+#define BLOCK_INSTR_MEM_READ 		19
+#define BLOCK_INSTR_MEM_WRITE		20
 
 #define NO_SHIFT 255
 
@@ -65,6 +69,7 @@
 #define COMMAND_RESET_PIPELINE 		0b00001001
 #define COMMAND_SET_INPUT_GAIN 		0b00000010
 #define COMMAND_SET_OUTPUT_GAIN 	0b00000011
+#define COMMAND_COMMIT_REG_UPDATES 	0b00001010
 
 #define INSTR_FORMAT_A 0
 #define INSTR_FORMAT_B 1
@@ -124,6 +129,7 @@ m_dsp_block_instr m_dsp_block_instr_arsh(int src_a, int src_a_reg, int shift, in
 m_dsp_block_instr m_dsp_block_instr_abs(int src_a, int src_a_reg, int dest);
 m_dsp_block_instr m_dsp_block_instr_min(int src_a, int src_a_reg, int src_b, int src_b_reg, int dest);
 m_dsp_block_instr m_dsp_block_instr_max(int src_a, int src_a_reg, int src_b, int src_b_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_clamp(int src_a, int src_a_reg, int src_b, int src_b_reg, int src_c, int src_c_reg, int dest);
 m_dsp_block_instr m_dsp_block_instr_lut_read(int src_a, int src_a_reg, int lut, int dest);
 m_dsp_block_instr m_dsp_block_instr_delay_read(int buffer, int dest);
 m_dsp_block_instr m_dsp_block_instr_delay_write(int src, int src_reg, int inc, int inc_reg, int buffer);
@@ -294,6 +300,13 @@ int m_fpga_transfer_batch_append_effect(
 		const m_fpga_resource_report *cxt,
 		m_fpga_resource_report *report,
 		m_parameter_pll *params,
+		m_fpga_transfer_batch *batch
+	);
+
+int m_fpga_transfer_batch_append_effect_desc(
+		m_effect_desc *eff,
+		const m_fpga_resource_report *cxt,
+		m_fpga_resource_report *report,
 		m_fpga_transfer_batch *batch
 	);
 

@@ -56,7 +56,7 @@ module multiply_stage #(parameter data_width = 16, parameter n_blocks = 256)
 				
 				block_out <= block_in;
 				
-				shift_out 			 <= shift_in;
+				shift_out 			 <= data_width - shift_in - 1;
 				shift_disable_out 	 <= shift_disable_in;
 				saturate_disable_out <= saturate_disable_in;
 				signedness_out 		 <= signedness_in;
@@ -75,7 +75,91 @@ module multiply_stage #(parameter data_width = 16, parameter n_blocks = 256)
 	end
 endmodule
 
-module shift_stage #(parameter data_width = 16, parameter n_blocks = 256)
+module shift_stage_1 #(parameter data_width = 16, parameter n_blocks = 256)
+	(
+		input wire clk,
+		input wire reset,
+		
+		input wire enable,
+		
+		input  wire in_valid,
+		output wire in_ready,
+		
+		output reg out_valid,
+		input wire out_ready,
+		
+		input wire [$clog2(n_blocks) - 1 : 0] block_in,
+		output reg [$clog2(n_blocks) - 1 : 0] block_out,
+		
+		input wire [4:0] shift_in,
+		output reg [4:0] shift_out,
+		input wire shift_disable_in,
+		output reg shift_disable_out,
+		
+		input wire signedness_in,
+		output reg signedness_out,
+		input wire saturate_disable_in,
+		output reg saturate_disable_out,
+		
+		input wire signed [2 * data_width - 1 : 0] product_in,
+		output reg signed [2 * data_width - 1 : 0] product_out,
+		
+		output reg rounding_bit,
+		
+		input wire signed [data_width - 1 : 0] arg_c_in,
+		output reg signed [data_width - 1 : 0] arg_c_out,
+		
+		input wire [3:0] dest_in,
+		output reg [3:0] dest_out,
+		
+		input wire [8:0] commit_id_in,
+		output reg [8:0] commit_id_out,
+
+		input wire commit_flag_in,
+		output reg commit_flag_out
+	);
+	
+	assign in_ready = ~out_valid | out_ready;
+	
+	wire take_in  = in_ready & in_valid;
+	wire take_out = out_valid & out_ready;
+	
+	wire signed [2 * data_width - 1 : 0] sh1 = shift_in[3] ? (product_in >>> 8) : product_in;
+	wire signed [2 * data_width - 1 : 0] sh2 = shift_in[2] ? (sh1 >>> 4) : sh1;
+
+	always @(posedge clk) begin
+		if (reset) begin
+			out_valid 	<= 0;
+		end else if (enable) begin
+			if (take_in) begin
+				out_valid <= 1;
+				
+				block_out <= block_in;
+				
+				saturate_disable_out 	<= saturate_disable_in;
+				signedness_out 			<= signedness_in;
+				
+				rounding_bit <= product_in[shift_in - 1] & ~shift_disable_in;
+				
+				if (shift_in > 15) 		   product_out <= product_in[2 * data_width - 1];
+				else if (shift_disable_in) product_out <= product_in;
+				else 					   product_out <= sh2;
+				
+				shift_disable_out <= shift_disable_in;
+				shift_out <= shift_in;
+				
+				dest_out 		<= dest_in;
+				
+				commit_id_out	<= commit_id_in;
+				commit_flag_out <= commit_flag_in;
+			end else if (take_out) begin
+				out_valid <= 0;
+			end
+		end
+	end
+endmodule
+
+module shift_stage_2 #(parameter data_width = 16, parameter n_blocks = 256)
 	(
 		input wire clk,
 		input wire reset,
@@ -102,6 +186,8 @@ module shift_stage #(parameter data_width = 16, parameter n_blocks = 256)
 		input wire signed [2 * data_width - 1 : 0] product_in,
 		output reg signed [2 * data_width - 1 : 0] product_out,
 		
+		input wire rounding_bit,
+		
 		input wire signed [data_width - 1 : 0] arg_c_in,
 		output reg signed [data_width - 1 : 0] arg_c_out,
 		
@@ -120,10 +206,8 @@ module shift_stage #(parameter data_width = 16, parameter n_blocks = 256)
 	wire take_in  = in_ready & in_valid;
 	wire take_out = out_valid & out_ready;
 	
-	wire [4 : 0] shift = data_width - shift_in - 1;
-	wire signed [2 * data_width - 1 : 0] rounding_bias = (shift == 0) ? 0 : (1 << (shift - 1));
-	
-	wire [2 * data_width - 1 : 0] result = (shift_disable_in) ? product_in : (product_in + rounding_bias) >>> shift;
+	wire signed [2 * data_width - 1 : 0] sh1 = shift_in[1] ? (product_in >>> 2) : product_in;
+	wire signed [2 * data_width - 1 : 0] sh2 = shift_in[0] ? (sh1 >>> 1) : sh1;
 
 	always @(posedge clk) begin
 		if (reset) begin
@@ -137,8 +221,10 @@ module shift_stage #(parameter data_width = 16, parameter n_blocks = 256)
 				saturate_disable_out 	<= saturate_disable_in;
 				signedness_out 			<= signedness_in;
 				
-				product_out 	<= result;
-				arg_c_out 		<= arg_c_in;
+				if (shift_disable_in)
+					product_out <= product_in;
+				else
+					product_out <= sh2 + rounding_bit;
 				
 				dest_out 		<= dest_in;
 				
@@ -350,7 +436,7 @@ module mac_pipeline #(parameter data_width = 16, parameter n_blocks = 256)
 			.in_ready(in_ready),
 			
 			.out_valid(out_valid_muls),
-			.out_ready(in_ready_shs),
+			.out_ready(in_ready_sh1),
 			
 			.block_in(block_in),
 			.block_out(block_out_muls),
@@ -384,9 +470,27 @@ module mac_pipeline #(parameter data_width = 16, parameter n_blocks = 256)
 			.commit_flag_out(commit_flag_out_muls)
 		);
 	
-	wire in_ready_shs;
+	wire in_ready_sh1;
+	wire out_valid_sh1;
+	wire [$clog2(n_blocks) - 1 : 0] block_out_sh1;
+	wire [4:0] shift_out_sh1;
+	wire shift_disable_out_sh1;
+	wire saturate_disable_out_sh1;
+	wire signedness_out_sh1;
+	wire accumulator_needed_out_sh1;
+	wire subtract_out_sh1;
+	wire signed [data_width - 1 : 0] arg_a_out_sh1;
+	wire signed [data_width - 1 : 0] arg_b_out_sh1;
+	wire signed [data_width - 1 : 0] arg_c_out_sh1;
+	wire signed [2 * data_width - 1 : 0] result_out_sh1;
+	wire signed [2 * data_width - 1 : 0] accumulator_out_sh1;
+	wire [3:0] dest_out_sh1;
+	wire writes_accumulator_out_sh1;
+	wire [8:0] commit_id_out_sh1;
+	wire commit_flag_out_sh1;
+	wire rounding_bit;
 
-	shift_stage #(.data_width(data_width)) shift_stage
+	shift_stage_1 #(.data_width(data_width)) shift_1
 		(
 			.clk(clk),
 			.reset(reset),
@@ -394,36 +498,85 @@ module mac_pipeline #(parameter data_width = 16, parameter n_blocks = 256)
 			.enable(enable),
 			
 			.in_valid(out_valid_muls),
-			.in_ready(in_ready_shs),
+			.in_ready(in_ready_sh1),
+			
+			.out_valid(out_valid_sh1),
+			.out_ready(in_ready_sh2),
+			
+			.block_in(block_out_muls),
+			.block_out(block_out_sh1),
+			
+			.shift_in(shift_out_muls),
+			.shift_out(shift_out_sh1),
+			.shift_disable_in(shift_disable_out_muls),
+			.shift_disable_out(shift_disable_out_sh1),
+			
+			.saturate_disable_in(saturate_disable_out_muls),
+			.saturate_disable_out(saturate_disable_out_sh1),
+			
+			.signedness_in(signedness_out_muls),
+			.signedness_out(signedness_out_sh1),
+			
+			.product_in(product_out_muls),
+			.product_out(result_out_sh1),
+			
+			.rounding_bit(rounding_bit),
+			
+			.arg_c_in(arg_c_out_muls),
+			.arg_c_out(arg_c_out_sh1),
+			
+			.dest_in(dest_out_muls),
+			.dest_out(dest_out_sh1),
+			
+			.commit_id_in(commit_id_out_muls),
+			.commit_id_out(commit_id_out_sh1),
+			
+			.commit_flag_in(commit_flag_out_muls),
+			.commit_flag_out(commit_flag_out_sh1)
+		);
+	
+	wire in_ready_sh2;
+
+	shift_stage_2 #(.data_width(data_width)) shift_2
+		(
+			.clk(clk),
+			.reset(reset),
+			
+			.enable(enable),
+			
+			.in_valid(out_valid_sh1),
+			.in_ready(in_ready_sh2),
 			
 			.out_valid(out_valid),
 			.out_ready(out_ready),
 			
-			.block_in(block_out_muls),
+			.block_in(block_out_sh1),
 			.block_out(block_out),
 			
-			.shift_in(shift_out_muls),
-			.shift_disable_in(shift_disable_out_muls),
+			.shift_in(shift_out_sh1),
+			.shift_disable_in(shift_disable_out_sh1),
 			
-			.saturate_disable_in(saturate_disable_out_muls),
+			.saturate_disable_in(saturate_disable_out_sh1),
 			.saturate_disable_out(saturate_disable_out),
 			
-			.signedness_in(signedness_out_muls),
+			.signedness_in(signedness_out_sh1),
 			.signedness_out(signedness_out),
 			
-			.product_in(product_out_muls),
+			.product_in(result_out_sh1),
 			.product_out(result_out),
 			
-			.arg_c_in(arg_c_out_muls),
+			.rounding_bit(rounding_bit),
+			
+			.arg_c_in(arg_c_out_sh1),
 			.arg_c_out(arg_c_out),
 			
-			.dest_in(dest_out_muls),
+			.dest_in(dest_out_sh1),
 			.dest_out(dest_out),
 			
-			.commit_id_in(commit_id_out_muls),
+			.commit_id_in(commit_id_out_sh1),
 			.commit_id_out(commit_id_out),
 			
-			.commit_flag_in(commit_flag_out_muls),
+			.commit_flag_in(commit_flag_out_sh1),
 			.commit_flag_out(commit_flag_out)
 		);
 	

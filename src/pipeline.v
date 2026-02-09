@@ -6,7 +6,7 @@
 `define PIPELINE_PROCESSING 	1
 `define PIPELINE_INVALID	 	2
 
-module pipeline_seq
+module dsp_pipeline
 	#(
 		parameter data_width 		= 16,
 		parameter n_blocks 			= 256,
@@ -38,6 +38,8 @@ module pipeline_seq
 		input wire [2 * data_width - 1 : 0] buf_init_delay,
 		input wire reg_update,
 		input wire reg_write,
+		
+		input wire reg_writes_commit,
 		
 		output wire reg_write_ack,
         output wire instr_write_ack,
@@ -166,6 +168,8 @@ module pipeline_seq
 		.delay_read_data (delay_read_data),
 		.delay_read_ready(delay_read_ready),
 		.delay_write_ack (delay_write_ready),
+		
+		.reg_writes_commit(reg_writes_commit),
 		
 		.full_reset(full_reset),
 		.resetting(resetting)

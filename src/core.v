@@ -46,6 +46,9 @@ module dsp_core #(
 		input  wire delay_read_ready,
 		input  wire delay_write_ack,
 		
+		input wire reg_writes_commit,
+		output wire regfile_syncing,
+		
 		input wire full_reset,
 		output reg resetting
 	);
@@ -71,15 +74,6 @@ module dsp_core #(
 	wire [31 			   : 0] instr_write_val  = (resetting) ? 0 : command_instr_write_val;
 	
 	wire instr_write_enable = (resetting) ? 1 : command_instr_write;
-	
-	reg [data_width   - 1 : 0] block_regs [2 * n_blocks - 1 : 0];
-	
-	reg [block_addr_w - 1 : 0] reg_write_addr;
-	reg signed [2 * data_width - 1 : 0] reg_read_val;
-	reg signed [2 * data_width - 1 : 0] reg_write_val;
-	reg reg_write_enable;
-	reg reg_write_command_reg;
-	reg write_reg_command_issued;
 	
 	reg signed [data_width - 1 : 0] channels [n_channels - 1 : 0];
 	
@@ -111,7 +105,7 @@ module dsp_core #(
 	
 		instr_read_val <= instrs[instr_read_addr];
 		
-		if (instr_write_enable) begin
+		if (instr_write_enable & ~resetting) begin
             instrs[instr_write_addr] <= instr_write_val;
             
             if (instr_write_addr >= last_block) begin
@@ -134,11 +128,104 @@ module dsp_core #(
 		end
     end
 
+	reg active_regfile;
+	
+	always @(posedge clk) begin
+		regfile_sync_a <= 0;
+		regfile_sync_b <= 0;
+		
+		if (reset) begin
+			active_regfile <= 0;
+		end else if (reg_writes_commit) begin
+			if (active_regfile == 0) begin
+				regfile_sync_a <= 1;
+			end else if (active_regfile == 1) begin
+				regfile_sync_b <= 1;
+			end
+			
+			active_regfile <= ~active_regfile;
+		end
+	end
+	
+	wire register_read_valid_a;
+	wire signed [2 * data_width - 1 : 0] register_read_packed_a;
+	wire signed [data_width - 1 : 0] register_0_read_a;
+	wire signed [data_width - 1 : 0] register_1_read_a;
+	reg regfile_sync_a;
+	wire regfile_syncing_a;
+
+	block_regfile #(.data_width(data_width), .n_blocks(n_blocks)) regfile_a
+		(
+			.clk(clk),
+			.reset(reset),
+			
+			.n_active_blocks(n_blocks_running),
+			
+			.read_addr(instr_read_addr),
+			.read_valid(register_read_valid_a),
+			.write_addr(command_block_target),
+			.write_value(command_reg_write_val),
+			.write_select(command_reg_target),
+			.write_enable(command_reg_write & active_regfile == 1),
+			
+			.registers_packed_out(register_read_packed_a),
+			.register_0_out(register_0_read_a),
+			.register_1_out(register_1_read_a),
+			
+			.sync(regfile_sync_a),
+			.sync_addr(instr_read_addr),
+			.sync_value(register_read_packed_b),
+			.syncing(regfile_syncing_a)
+		);
+	
+	wire register_read_valid_b;
+	wire signed [2 * data_width - 1 : 0] register_read_packed_b;
+	wire signed [data_width - 1 : 0] register_0_read_b;
+	wire signed [data_width - 1 : 0] register_1_read_b;
+	reg regfile_sync_b;
+	wire regfile_syncing_b;
+
+	block_regfile #(.data_width(data_width), .n_blocks(n_blocks)) regfile_b
+		(
+			.clk(clk),
+			.reset(reset),
+			
+			.n_active_blocks(n_blocks_running),
+			
+			.read_addr(instr_read_addr),
+			.read_valid(register_read_valid_b),
+			.write_addr(command_block_target),
+			.write_value(command_reg_write_val),
+			.write_select(command_reg_target),
+			.write_enable(command_reg_write & active_regfile == 0),
+			
+			.registers_packed_out(register_read_packed_b),
+			.register_0_out(register_0_read_b),
+			.register_1_out(register_1_read_b),
+			
+			.sync(regfile_sync_b),
+			.sync_addr(instr_read_addr),
+			.sync_value(register_read_packed_a),
+			.syncing(regfile_syncing_b)
+		);
+	
+	reg [2 * data_width - 1 : 0] block_regs [n_blocks - 1 : 0];
+	
+	reg [block_addr_w - 1 : 0] reg_write_addr;
+	reg signed [2 * data_width - 1 : 0] reg_read_val;
+	reg signed [2 * data_width - 1 : 0] reg_write_val;
+	reg reg_write_enable;
+	reg reg_write_command_reg;
+	reg write_reg_command_issued;
+	
+	assign regfile_syncing = (active_regfile) ? regfile_syncing_b : regfile_syncing_a;
+
 	wire [block_addr_w - 1 : 0] reg_read_addr = (command_reg_write) ? command_block_target : instr_read_addr;
 	reg  [data_width - 1 : 0] command_reg_write_val_latched;
 	reg invalidate_reg_read;
-	wire signed [data_width - 1 : 0] register_0_read_value = reg_read_val[    data_width - 1 : 0];
-	wire signed [data_width - 1 : 0] register_1_read_value = reg_read_val[2 * data_width - 1 : data_width];
+	
+	wire signed [data_width - 1 : 0] register_0_read_value = (active_regfile) ? register_0_read_b : register_0_read_a;
+	wire signed [data_width - 1 : 0] register_1_read_value = (active_regfile) ? register_1_read_b : register_1_read_a;
 
     always @(posedge clk) begin
 		invalidate_reg_read <= 0;

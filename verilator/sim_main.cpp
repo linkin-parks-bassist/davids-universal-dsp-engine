@@ -769,6 +769,35 @@ int16_t sim_process_sample(sim_engine *sim, int16_t sample)
 }
 */
 
+m_effect_desc *m_biquad_eff_desc(float a0, float a1, float a2, float b0, float b1)
+{
+	m_effect_desc *eff = new_m_effect_desc("Biquad");
+	
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_read(1, 1)));
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_read(2, 2)));
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_read(3, 3)));
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_read(4, 4)));
+	
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_macz(0, 0, 0, 1, 3)));
+	m_effect_desc_add_register_val_literal(eff, 4, 0, float_to_q_nminus1(a0, 3));
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mac(1, 0, 0, 1, 3)));
+	m_effect_desc_add_register_val_literal(eff, 5, 0, float_to_q_nminus1(a1, 3));
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mac(2, 0, 0, 1, 3)));
+	m_effect_desc_add_register_val_literal(eff, 6, 0, float_to_q_nminus1(a2, 3));
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mac(3, 0, 0, 1, 3)));
+	m_effect_desc_add_register_val_literal(eff, 7, 0, float_to_q_nminus1(b0, 3));
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mac(4, 0, 0, 1, 3)));
+	m_effect_desc_add_register_val_literal(eff, 8, 0, float_to_q_nminus1(b1, 3));
+	
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_write(0, 0, 1)));
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_write(1, 0, 2)));
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_write(3, 0, 4)));
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mov_acc(0)));
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_write(0, 0, 3)));
+	
+	return eff;
+}
+
 int main(int argc, char** argv)
 {
 	srand(time(0));
@@ -818,98 +847,118 @@ int main(int argc, char** argv)
 	printf("Starting...\n");
 	
 	m_fpga_transfer_batch batch = m_new_fpga_transfer_batch();
-	m_effect_desc *eff = new_m_effect_desc("_");
-		
-	float a0 =  0.9915240;
-	float a1 = -1.9829756;
-	float a2 =  0.9915240;
-	float b0 =  1.9829756;
-	float b1 = -0.9830480;
+	m_effect_desc *eff = m_biquad_eff_desc(0.9915240, -1.9829756, 0.9915240, 1.9829756, -0.9830480);
 	
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_read(1, 1)));
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_read(2, 2)));
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_macz_noshift(0, 0, 0, 1)));
-	m_effect_desc_add_register_val_literal(eff, 2, 0, float_to_q_nminus1(a0, 3));
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_read(3, 3)));
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_read(4, 4)));
-	
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mac_noshift(1, 0, 0, 1)));
-	m_effect_desc_add_register_val_literal(eff, 5, 0, float_to_q_nminus1(a1, 3));
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mac_noshift(2, 0, 0, 1)));
-	m_effect_desc_add_register_val_literal(eff, 6, 0, float_to_q_nminus1(a2, 3));
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mac_noshift(3, 0, 0, 1)));
-	m_effect_desc_add_register_val_literal(eff, 7, 0, float_to_q_nminus1(b0, 3));
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mac_noshift(4, 0, 0, 1)));
-	m_effect_desc_add_register_val_literal(eff, 8, 0, float_to_q_nminus1(b1, 3));
-	
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_write(0, 0, 1)));
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_write(1, 0, 2)));
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_write(3, 0, 4)));
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mov_acc_sh(12, 0)));
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_write(0, 0, 3)));
-	
-	/*m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_madd(0, 0, 0, 1, 1, 1, 0, 0)));
-	m_effect_desc_add_register_val(eff, 0, 0, 0, "0.5");
-	m_effect_desc_add_register_val_literal(eff, 0, 1, 0);
-	
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_madd(0, 0, 0, 1, 1, 1, 0, 3)));
-	m_effect_desc_add_register_val(eff, 1, 0, 3, "2.0");
-	m_effect_desc_add_register_val_literal(eff, 1, 1, 0);*/
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_clamp(0, 0, 0, 1, 1, 1, 0)));
+	m_effect_desc_add_register_val_literal(eff, 14, 0, -256);
+	m_effect_desc_add_register_val_literal(eff, 14, 1, -32768);
 	
 	m_fpga_resource_report local = m_empty_fpga_resource_report();
 	m_fpga_resource_report res = m_empty_fpga_resource_report();
 	
-	m_fpga_transfer_batch_append_effect(eff, &res, &local, NULL, &batch);
+	m_fpga_transfer_batch_append_effect_desc(eff, &res, &local, &batch);
 	
 	m_fpga_batch_append(&batch, COMMAND_SWAP_PIPELINES);
 	
 	append_send_queue(batch, 128);
 	
+	int16_t new_val = 1024;
+	
+	batch = m_new_fpga_transfer_batch();
+	m_fpga_batch_append(&batch, COMMAND_UPDATE_BLOCK_REG);
+	m_fpga_batch_append(&batch, 4);
+	m_fpga_batch_append(&batch, 0);
+	m_fpga_batch_append(&batch, (new_val & 0xFF00) >> 8);
+	m_fpga_batch_append(&batch, (new_val & 0x00FF) >> 0);
+	m_fpga_batch_append(&batch, COMMAND_COMMIT_REG_UPDATES);
+	
+	append_send_queue(batch, 512);
+	
+	batch = m_new_fpga_transfer_batch();
+	eff = new_m_effect_desc("");
+	
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_madd(0, 0, 0, 1, 1, 1, 0, 2)));
+	m_effect_desc_add_register_val(eff, 0, 0, 2, "1.0");
+	m_effect_desc_add_register_val(eff, 0, 1, 0, "0.0");
+	
+	local = m_empty_fpga_resource_report();
+	res = m_empty_fpga_resource_report();
+	
+	m_fpga_transfer_batch_append_effect_desc(eff, &res, &local, &batch);
+	
+	m_fpga_batch_append(&batch, COMMAND_SWAP_PIPELINES);
+	
+	append_send_queue(batch, 800);
+	
 	batch = m_new_fpga_transfer_batch();
 	
-	m_fpga_batch_append(&batch, COMMAND_UPDATE_BLOCK_REG);
-	m_fpga_batch_append(&batch, 1);
-	m_fpga_batch_append(&batch, 0);
-	m_fpga_batch_append(&batch, 0x0B);
-	m_fpga_batch_append(&batch, 0x00);
+	new_val = float_to_q_nminus1(1.1, 2);
 	
+	batch = m_new_fpga_transfer_batch();
 	m_fpga_batch_append(&batch, COMMAND_UPDATE_BLOCK_REG);
-	m_fpga_batch_append(&batch, 1);
 	m_fpga_batch_append(&batch, 0);
-	m_fpga_batch_append(&batch, 0x0B);
-	m_fpga_batch_append(&batch, 0x00);
+	m_fpga_batch_append(&batch, 0);
+	m_fpga_batch_append(&batch, (new_val & 0xFF00) >> 8);
+	m_fpga_batch_append(&batch, (new_val & 0x00FF) >> 0);
+	m_fpga_batch_append(&batch, COMMAND_COMMIT_REG_UPDATES);
 	
+	append_send_queue(batch, 900);
+	
+	batch = m_new_fpga_transfer_batch();
+	
+	new_val = float_to_q_nminus1(1.2, 2);
+	
+	batch = m_new_fpga_transfer_batch();
 	m_fpga_batch_append(&batch, COMMAND_UPDATE_BLOCK_REG);
-	m_fpga_batch_append(&batch, 1);
 	m_fpga_batch_append(&batch, 0);
-	m_fpga_batch_append(&batch, 0x0B);
-	m_fpga_batch_append(&batch, 0x00);
+	m_fpga_batch_append(&batch, 0);
+	m_fpga_batch_append(&batch, (new_val & 0xFF00) >> 8);
+	m_fpga_batch_append(&batch, (new_val & 0x00FF) >> 0);
+	m_fpga_batch_append(&batch, COMMAND_COMMIT_REG_UPDATES);
 	
+	append_send_queue(batch, 1200);
+	
+	batch = m_new_fpga_transfer_batch();
+	
+	new_val = float_to_q_nminus1(1.3, 2);
+	
+	batch = m_new_fpga_transfer_batch();
 	m_fpga_batch_append(&batch, COMMAND_UPDATE_BLOCK_REG);
-	m_fpga_batch_append(&batch, 1);
 	m_fpga_batch_append(&batch, 0);
-	m_fpga_batch_append(&batch, 0x0B);
-	m_fpga_batch_append(&batch, 0x00);
+	m_fpga_batch_append(&batch, 0);
+	m_fpga_batch_append(&batch, (new_val & 0xFF00) >> 8);
+	m_fpga_batch_append(&batch, (new_val & 0x00FF) >> 0);
+	m_fpga_batch_append(&batch, COMMAND_COMMIT_REG_UPDATES);
 	
+	append_send_queue(batch, 1500);
+	
+	batch = m_new_fpga_transfer_batch();
+	
+	new_val = float_to_q_nminus1(1.4, 2);
+	
+	batch = m_new_fpga_transfer_batch();
 	m_fpga_batch_append(&batch, COMMAND_UPDATE_BLOCK_REG);
-	m_fpga_batch_append(&batch, 1);
 	m_fpga_batch_append(&batch, 0);
-	m_fpga_batch_append(&batch, 0x0B);
-	m_fpga_batch_append(&batch, 0x00);
+	m_fpga_batch_append(&batch, 0);
+	m_fpga_batch_append(&batch, (new_val & 0xFF00) >> 8);
+	m_fpga_batch_append(&batch, (new_val & 0x00FF) >> 0);
+	m_fpga_batch_append(&batch, COMMAND_COMMIT_REG_UPDATES);
 	
+	append_send_queue(batch, 1800);
+	
+	batch = m_new_fpga_transfer_batch();
+	
+	new_val = float_to_q_nminus1(1.5, 2);
+	
+	batch = m_new_fpga_transfer_batch();
 	m_fpga_batch_append(&batch, COMMAND_UPDATE_BLOCK_REG);
-	m_fpga_batch_append(&batch, 1);
 	m_fpga_batch_append(&batch, 0);
-	m_fpga_batch_append(&batch, 0x0B);
-	m_fpga_batch_append(&batch, 0x00);
-	
-	m_fpga_batch_append(&batch, COMMAND_UPDATE_BLOCK_REG);
-	m_fpga_batch_append(&batch, 1);
 	m_fpga_batch_append(&batch, 0);
-	m_fpga_batch_append(&batch, 0x0B);
-	m_fpga_batch_append(&batch, 0x00);
+	m_fpga_batch_append(&batch, (new_val & 0xFF00) >> 8);
+	m_fpga_batch_append(&batch, (new_val & 0x00FF) >> 0);
+	m_fpga_batch_append(&batch, COMMAND_COMMIT_REG_UPDATES);
 	
-	//append_send_queue(batch, 512);
+	append_send_queue(batch, 2000);
 	
 	int samples_to_process = (n_samples < MAX_SAMPLES) ? n_samples : MAX_SAMPLES;
 	
@@ -965,8 +1014,8 @@ int main(int argc, char** argv)
 			samples_processed++;
 			t += sample_duration;
 			
-			//io.sample_in = (uint16_t)(roundf(sinf(6.28 * 200.0f * t * ((float)samples_processed / (float)samples_to_process)) * 32767.0 * 0.5f));
-			io.sample_in = (uint16_t)(roundf(sinf(6.28 * 440.0f * t) * 32767.0 * 0.5f));
+			io.sample_in = (uint16_t)(roundf(sinf(6.28 * 100.0f * t * ((float)samples_processed / (float)samples_to_process)) * 32767.0 * 0.5f));
+			//io.sample_in = (uint16_t)(roundf(sinf(6.28 * 440.0f * t) * 32767.0 * 0.5f));
 			
 			//static_cast<int16_t>(in_samples[samples_processed]);
 			y = static_cast<int16_t>(io.sample_out);

@@ -1,5 +1,7 @@
 `default_nettype none
 
+`include "instr_dec.vh"
+
 module branch_router #(parameter data_width = 16, parameter n_blocks = 256, parameter n_block_regs = 2)
 	(
 		input wire clk,
@@ -67,12 +69,12 @@ module branch_router #(parameter data_width = 16, parameter n_blocks = 256, para
 		input wire [`N_INSTR_BRANCHES - 1 : 0] branch
 	);
 	
-	reg [`N_INSTR_BRANCHES - 1 : 0] branch_latched;
+	reg [`N_INSTR_BRANCHES - 1 : 0] branch_out;
 	
-	assign in_ready = ~(|out_valid) | out_ready[branch_latched];
+	assign in_ready = ~(|out_valid) | out_ready[branch_out];
 	
 	wire take_in  = in_ready & in_valid;
-	wire take_out = |(out_valid & out_ready);
+	wire take_out = out_valid[branch_out] & out_ready[branch_out];
 	
 	
 	always @(posedge clk) begin
@@ -80,9 +82,9 @@ module branch_router #(parameter data_width = 16, parameter n_blocks = 256, para
 			out_valid 	<= 0;
 		end else if (enable) begin
 			if (take_in) begin
-				out_valid[branch] <= 1;
+				out_valid <= (1 << branch);
 				
-				branch_latched <= branch;
+				branch_out <= branch;
 				
 				block_out <= block_in;
 				operation_out <= operation_in;

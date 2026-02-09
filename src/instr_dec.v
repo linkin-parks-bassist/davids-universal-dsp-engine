@@ -61,6 +61,7 @@ module instr_decoder #(parameter data_width = 16)
 						|| operation == `BLOCK_INSTR_ABS
 						|| operation == `BLOCK_INSTR_MIN
 						|| operation == `BLOCK_INSTR_MAX
+						|| operation == `BLOCK_INSTR_CLAMP
 						|| operation == `BLOCK_INSTR_MACZ
 						|| operation == `BLOCK_INSTR_MAC
 						|| operation == `BLOCK_INSTR_UMACZ
@@ -72,13 +73,14 @@ module instr_decoder #(parameter data_width = 16)
 	assign arg_b_needed = (operation == `BLOCK_INSTR_MADD
 						|| operation == `BLOCK_INSTR_MIN
 						|| operation == `BLOCK_INSTR_MAX
+						|| operation == `BLOCK_INSTR_CLAMP
 						|| operation == `BLOCK_INSTR_MACZ
 						|| operation == `BLOCK_INSTR_MAC
 						|| operation == `BLOCK_INSTR_UMACZ
 						|| operation == `BLOCK_INSTR_UMAC
 						|| operation == `BLOCK_INSTR_DELAY_WRITE);
 	
-	assign arg_c_needed = (operation == `BLOCK_INSTR_MADD);
+	assign arg_c_needed = (operation == `BLOCK_INSTR_MADD || operation == `BLOCK_INSTR_CLAMP);
 	
 	assign accumulator_needed = (operation == `BLOCK_INSTR_MOV_ACC
 					  || operation == `BLOCK_INSTR_MOV_LACC
@@ -92,10 +94,11 @@ module instr_decoder #(parameter data_width = 16)
 		else if (operation == `BLOCK_INSTR_MEM_WRITE  || operation == `BLOCK_INSTR_MEM_READ) 	branch = `INSTR_BRANCH_MEM;
 		else if (operation == `BLOCK_INSTR_MACZ 	  || operation == `BLOCK_INSTR_UMACZ
 			  || operation == `BLOCK_INSTR_MAC  	  || operation == `BLOCK_INSTR_UMAC)		branch = `INSTR_BRANCH_MAC;
-		else if (operation == `BLOCK_INSTR_MIN	      || operation == `BLOCK_INSTR_MAX
-              || operation == `BLOCK_INSTR_RSH        || operation == `BLOCK_INSTR_ABS
+		else if (operation == `BLOCK_INSTR_LSH 		  || operation == `BLOCK_INSTR_RSH
+			  || operation == `BLOCK_INSTR_ABS 		  || operation == `BLOCK_INSTR_MIN
+			  || operation == `BLOCK_INSTR_MAX 		  || operation == `BLOCK_INSTR_CLAMP
               || operation == `BLOCK_INSTR_MOV_ACC    || operation == `BLOCK_INSTR_MOV_LACC
-              || operation == `BLOCK_INSTR_MOV_UACC   || operation == `BLOCK_INSTR_LSH)         branch = `INSTR_BRANCH_MISC;
+              || operation == `BLOCK_INSTR_MOV_UACC)         									branch = `INSTR_BRANCH_MISC;
 		else
 			branch = `INSTR_BRANCH_MADD;
 	end
@@ -108,16 +111,6 @@ module instr_decoder #(parameter data_width = 16)
 	
 	assign writes_external = (operation == `BLOCK_INSTR_DELAY_WRITE || operation == `BLOCK_INSTR_MEM_WRITE);
 	
-	always_comb begin
-		case (operation)
-			`BLOCK_INSTR_MOV_ACC: 	misc_op = 0;
-			`BLOCK_INSTR_ABS: 		misc_op = 1;
-			`BLOCK_INSTR_MIN: 		misc_op = 2;
-			`BLOCK_INSTR_MAX:		misc_op = 3;
-			`BLOCK_INSTR_LSH: 		misc_op = 4;
-			`BLOCK_INSTR_RSH: 		misc_op = 5;
-			`BLOCK_INSTR_MOV_UACC: 	misc_op = 6;
-			`BLOCK_INSTR_MOV_LACC: 	misc_op = 7;
-		endcase
-	end
+	assign misc_op = operation - `MISC_OPCODE_MIN;
+	
 endmodule

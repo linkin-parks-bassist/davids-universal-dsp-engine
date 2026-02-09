@@ -18,11 +18,13 @@
 `define BLOCK_INSTR_ABS				5
 `define BLOCK_INSTR_MIN			    6
 `define BLOCK_INSTR_MAX			    7
-`define BLOCK_INSTR_MOV_ACC			8
-`define BLOCK_INSTR_MOV_LACC		9
-`define BLOCK_INSTR_MOV_UACC		10
+`define BLOCK_INSTR_CLAMP		    8
+`define BLOCK_INSTR_MOV_ACC			9
+`define BLOCK_INSTR_MOV_LACC		10
+`define BLOCK_INSTR_MOV_UACC		11
 
-`define N_MISC_OPS 8
+`define MISC_OPCODE_MIN 3
+`define N_MISC_OPS 		9
 
 // Accumulator MAC instructions. Uses MAC branch
 // _MAC_: acc = a * b + acc
@@ -33,17 +35,17 @@
 // wait on the accumulator as a dependency
 // the addition is done in the commit stage
 // therefore is it much faster!
-`define BLOCK_INSTR_MACZ			11
-`define BLOCK_INSTR_UMACZ			12
-`define BLOCK_INSTR_MAC				13
-`define BLOCK_INSTR_UMAC			14
+`define BLOCK_INSTR_MACZ			12
+`define BLOCK_INSTR_UMACZ			13
+`define BLOCK_INSTR_MAC				14
+`define BLOCK_INSTR_UMAC			15
 
 // Interfacing with `resources'. Each has its own branch
-`define BLOCK_INSTR_LUT_READ		15
-`define BLOCK_INSTR_DELAY_READ 		16
-`define BLOCK_INSTR_DELAY_WRITE 	17
-`define BLOCK_INSTR_MEM_READ 		18
-`define BLOCK_INSTR_MEM_WRITE		19
+`define BLOCK_INSTR_LUT_READ		16
+`define BLOCK_INSTR_DELAY_READ 		17
+`define BLOCK_INSTR_DELAY_WRITE 	18
+`define BLOCK_INSTR_MEM_READ 		19
+`define BLOCK_INSTR_MEM_WRITE		20
 
 `define N_INSTR_BRANCHES 	6
 

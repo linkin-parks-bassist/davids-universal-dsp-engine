@@ -56,6 +56,8 @@ module resource_branch #(parameter data_width = 16, parameter handle_width = 8, 
 	assign read_req  = (state == REQ) & ~write_latched;
 	assign write_req = (state == REQ) &  write_latched;
 	
+	reg [$clog2(n_blocks) - 1 : 0] block_latched;
+	reg [8:0] commit_id_latched;
 	reg [3:0] dest_latched;
 	reg write_latched;
 	reg [1:0] state;
@@ -76,11 +78,10 @@ module resource_branch #(parameter data_width = 16, parameter handle_width = 8, 
 						
 						dest_latched <= dest_in;
 						
-						commit_id_out <= commit_id_in;
-						
 						write_latched <= write;
 						
-						block_out <= block_in;
+						commit_id_latched <= commit_id_in;
+						block_latched <= block_in;
 						
 						state <= REQ;
 					end
@@ -91,7 +92,11 @@ module resource_branch #(parameter data_width = 16, parameter handle_width = 8, 
 						state <= IDLE;
 					end else if (!write_latched && read_ready) begin
 						result_out <= {{(data_width){data_in[data_width-1]}}, data_in};
+						
+						commit_id_out <= commit_id_latched;
+						block_out <= block_latched;
 						dest_out <= dest_latched;
+						
 						state <= DONE;
 					end
 				end

@@ -154,6 +154,11 @@ m_dsp_block_instr m_dsp_block_instr_max(int src_a, int src_a_reg, int src_b, int
 	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_MAX, src_a, src_a_reg, src_b, src_b_reg, 0, 0, dest, 0, 0);
 }
 
+m_dsp_block_instr m_dsp_block_instr_clamp(int src_a, int src_a_reg, int src_b, int src_b_reg, int src_c, int src_c_reg, int dest)
+{
+	return m_dsp_block_instr_type_a_str(BLOCK_INSTR_CLAMP, src_a, src_a_reg, src_b, src_b_reg, src_c, src_c_reg, dest, 0, 0);
+}
+
 m_dsp_block_instr m_dsp_block_instr_lut_read(int src_a, int src_a_reg, int lut, int dest)
 {
 	return m_dsp_block_instr_type_b_str(BLOCK_INSTR_LUT_READ, src_a, src_a_reg, 0, 0, dest, lut);
@@ -758,6 +763,64 @@ int m_fpga_transfer_batch_append_effect(
 	
 	return NO_ERROR;
 }
+
+int m_fpga_transfer_batch_append_effect_desc(
+		m_effect_desc *eff,
+		const m_fpga_resource_report *cxt,
+		m_fpga_resource_report *report,
+		m_fpga_transfer_batch *batch
+	)
+{
+	if (!eff || !cxt || !report || !batch)
+		return ERR_NULL_PTR;
+	
+	if (eff->n_blocks == 0)
+		return NO_ERROR;
+	
+	if (!eff->blocks || eff->n_blocks > N_BLOCKS)
+		return ERR_BAD_ARGS;
+	
+	m_parameter_pll *params = NULL;
+	
+	for (int i = 0; i < eff->n_params; i++)
+		params = m_parameter_pll_append(params, eff->params[i]);
+	
+	uint32_t instr_seq[eff->n_blocks];
+	
+	for (int i = 0; i < eff->n_res_reqs; i++)
+	{
+		m_fpga_transfer_batch_append_resource_request(batch, cxt, eff->res_reqs[i]);
+	}
+	
+	*report = m_empty_fpga_resource_report();
+	
+	m_dsp_blocks_encode_resource_aware(cxt, report, eff->blocks, eff->n_blocks, instr_seq);
+	
+	int ret_val;
+	
+	int block_n;
+	for (int i = 0; i < eff->n_blocks; i++)
+	{
+		block_n = i + cxt->blocks;
+		
+		if ((ret_val = m_fpga_batch_append(batch, COMMAND_WRITE_BLOCK_INSTR)) != NO_ERROR) return ret_val;
+		if (N_BLOCKS > 255)
+		{
+			if ((ret_val = m_fpga_batch_append(batch, (block_n & 0xFF00) >> 8)) != NO_ERROR) return ret_val;
+		}
+		if ((ret_val = m_fpga_batch_append(batch, block_n & 0x00FF)) != NO_ERROR) return ret_val;
+		
+		if ((ret_val = m_fpga_batch_append(batch, (instr_seq[i] & 0xFF000000) >> 24)) != NO_ERROR) return ret_val;
+		if ((ret_val = m_fpga_batch_append(batch, (instr_seq[i] & 0x00FF0000) >> 16)) != NO_ERROR) return ret_val;
+		if ((ret_val = m_fpga_batch_append(batch, (instr_seq[i] & 0x0000FF00) >> 8 )) != NO_ERROR) return ret_val;
+		if ((ret_val = m_fpga_batch_append(batch, (instr_seq[i] & 0x000000FF) >> 0 )) != NO_ERROR) return ret_val;
+	}
+	
+	if ((ret_val = m_fpga_transfer_batch_append_effect_register_writes(batch, eff, cxt->blocks, params)) != NO_ERROR) return ret_val;
+	
+	return NO_ERROR;
+}
+
 
 m_derived_quantity m_derived_quantity_const_float(float v)
 {
