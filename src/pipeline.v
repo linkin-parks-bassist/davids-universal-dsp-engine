@@ -202,7 +202,8 @@ module dsp_pipeline
 			.enable(1),
 			
 			.alloc_req  (alloc_delay),
-			.alloc_size (ctrl_data_addr_width),
+			.alloc_size ((buf_init_delay | (buf_init_delay >> 2) | (buf_init_delay >> 4)
+                | (buf_init_delay >> 8)) + 1),
 			.alloc_delay(buf_init_delay),
 			
 			.read_req(delay_read_req),

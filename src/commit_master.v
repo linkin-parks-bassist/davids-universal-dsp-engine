@@ -37,6 +37,19 @@ module commit_master #(parameter data_width = 16, parameter n_blocks = 256)
 	
 	bit found;
 	integer i;
+
+    bit found;
+	
+	integer i;
+	always @(*) begin
+		in_ready = 0;
+		for (i = 0; i < `N_INSTR_BRANCHES; i = i + 1) begin
+			if (in_valid[i] && commit_id[i] == next_commit_id)
+				in_ready[i] = 1;
+		end
+	end
+
+
 	always @(posedge clk) begin	
 		
 		accumulator_add_enable <= 0;
@@ -44,7 +57,6 @@ module commit_master #(parameter data_width = 16, parameter n_blocks = 256)
 		channel_write_enable <= 0;
 		
 		found = 0;
-		in_ready <= 0;
 		
 		if (reset) begin
 			next_commit_id <= 0;
@@ -66,7 +78,6 @@ module commit_master #(parameter data_width = 16, parameter n_blocks = 256)
 					end
 					
 					next_commit_id <= next_commit_id + 1;
-					in_ready[i] <= 1;
 					found = 1;
 				end
 			end

@@ -13,6 +13,7 @@
         <File path="src/biquad.v" type="file.verilog" enable="1"/>
         <File path="src/branch_router.v" type="file.verilog" enable="1"/>
         <File path="src/commit_master.v" type="file.verilog" enable="1"/>
+        <File path="src/commit_stage.v" type="file.verilog" enable="1"/>
         <File path="src/controller.v" type="file.verilog" enable="1"/>
         <File path="src/core.v" type="file.verilog" enable="1"/>
         <File path="src/delay_master.v" type="file.verilog" enable="1"/>
@@ -33,6 +34,7 @@
         <File path="src/pipeline.v" type="file.verilog" enable="1"/>
         <File path="src/regfile.v" type="file.verilog" enable="1"/>
         <File path="src/rr_arbiter.v" type="file.verilog" enable="1"/>
+        <File path="src/skid_buffer.v" type="file.verilog" enable="1"/>
         <File path="src/spi.v" type="file.verilog" enable="1"/>
         <File path="src/top.v" type="file.verilog" enable="1"/>
         <File path="dude.cst" type="file.cst" enable="1"/>

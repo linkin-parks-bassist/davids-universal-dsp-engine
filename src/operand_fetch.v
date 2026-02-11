@@ -89,7 +89,7 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 	reg [data_width - 1 : 0] channels [15 : 0];
 	
 	wire take_in = in_ready & in_valid;
-	wire [data_width - 1 : 0] channel_read_val = channels[take_in ? src : src_latched];
+	wire [data_width - 1 : 0] channel_read_val = channels[src_live];
 	
 	integer j;
     always @(posedge clk) begin
@@ -166,7 +166,7 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 					2'b01: begin
 						if (channels_scoreboard[i] != 0) begin
 							channels_scoreboard[i] <= channels_scoreboard[i] - 1;
-							busy_bits[i] <= (channels_scoreboard[0] != 1);
+							busy_bits[i] <= (channels_scoreboard[i] != 1);
 						end else begin
 							channels_scoreboard[i] <= channels_scoreboard[i];
 							busy_bits[i] <= busy_bits[i];
@@ -247,7 +247,7 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 	
     reg [$clog2(`N_MISC_OPS) - 1 : 0] misc_op_latched;
 
-	wire  [3 : 0] arg_pending_writes = channels_scoreboard[take_in ? src : src_latched];
+	wire  [3 : 0] arg_pending_writes = channels_scoreboard[src_live];
 	
 	reg signed [data_width - 1 : 0] arg_latched;
 	wire arg_resolved = ~arg_needed_latched | arg_valid;
