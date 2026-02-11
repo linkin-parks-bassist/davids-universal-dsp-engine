@@ -24,29 +24,19 @@ module commit_master #(parameter data_width = 16, parameter n_blocks = 256)
 		input wire [8 					  : 0] commit_id	[`N_INSTR_BRANCHES - 1 : 0],
 		input wire [`N_INSTR_BRANCHES - 1 : 0] commit_flag,
 		
-		output reg [3 : 0] 				channel_write_addr,
+		output reg [3 : 0] channel_write_addr,
 		output reg [data_width - 1 : 0] channel_write_val,
 		output reg channel_write_enable,
 		
 		output reg [2 * data_width - 1 : 0] accumulator_write_val,
 		output reg accumulator_write_enable,
-		output reg accumulator_add_enable
+		output reg accumulator_add_enable,
+		
+		output reg [8:0] next_commit_id
 	);
 	
-	reg [8:0] next_commit_id;
-	
 	bit found;
-	
 	integer i;
-	always @(*) begin
-		in_ready = 0;
-		for (i = 0; i < `N_INSTR_BRANCHES; i = i + 1) begin
-			if (in_valid[i] && commit_id[i] == next_commit_id)
-				in_ready[i] = 1;
-		end
-	end
-	
-	
 	always @(posedge clk) begin	
 		
 		accumulator_add_enable <= 0;
@@ -54,6 +44,7 @@ module commit_master #(parameter data_width = 16, parameter n_blocks = 256)
 		channel_write_enable <= 0;
 		
 		found = 0;
+		in_ready <= 0;
 		
 		if (reset) begin
 			next_commit_id <= 0;
@@ -75,7 +66,7 @@ module commit_master #(parameter data_width = 16, parameter n_blocks = 256)
 					end
 					
 					next_commit_id <= next_commit_id + 1;
-					
+					in_ready[i] <= 1;
 					found = 1;
 				end
 			end
