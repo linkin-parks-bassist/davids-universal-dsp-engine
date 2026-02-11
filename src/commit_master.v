@@ -35,11 +35,7 @@ module commit_master #(parameter data_width = 16, parameter n_blocks = 256)
 		output reg [8:0] next_commit_id
 	);
 	
-	bit found;
-	integer i;
-
-    bit found;
-	
+    bit found;	
 	integer i;
 	always @(*) begin
 		in_ready = 0;
