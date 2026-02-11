@@ -130,6 +130,18 @@ module shift_stage_1 #(parameter data_width = 16, parameter n_blocks = 256)
 	always @(posedge clk) begin
 		if (reset) begin
 			out_valid 	<= 0;
+			
+			block_out 			 <= 0;
+			shift_out 			 <= 0;
+			shift_disable_out 	 <= 0;
+			signedness_out 		 <= 0;
+			saturate_disable_out <= 0;
+			product_out 		 <= 0;
+			rounding_bit 		 <= 0;
+			arg_c_out 			 <= 0;
+			dest_out 			 <= 0;
+			commit_id_out 		 <= 0;
+			commit_flag_out 	 <= 0;
 		end else if (enable) begin
 			if (take_in) begin
 				out_valid <= 1;
@@ -348,6 +360,13 @@ module saturate_stage #(parameter data_width = 16, parameter n_blocks = 256)
 	always @(posedge clk) begin
 		if (reset) begin
 			out_valid <= 0;
+			
+			block_out <= 0;
+			result_out <= 0;
+			dest_out <= 0;
+			out_valid <= 0;
+			commit_id_out <= 0;
+			commit_flag_out <= 0;
 		end else if (enable) begin
 			if (take_in) begin
 				out_valid <= 1;

@@ -597,7 +597,7 @@ module dsp_core #(
 			.in_ready(in_ready_madd),
 			
 			.out_valid(out_valid_final_stages[`INSTR_BRANCH_MADD]),
-			.out_ready(in_ready_commit_fifo[`INSTR_BRANCH_MADD]),
+			.out_ready(in_ready_commit_skid[`INSTR_BRANCH_MADD]),
 			
 			.block_in(block_out_router),
 			.block_out(block_out_final_stages[`INSTR_BRANCH_MADD]),
@@ -636,7 +636,7 @@ module dsp_core #(
 			.in_ready(in_ready_mac),
 			
 			.out_valid(out_valid_final_stages[`INSTR_BRANCH_MAC]),
-			.out_ready(in_ready_commit_fifo[`INSTR_BRANCH_MAC]),
+			.out_ready(in_ready_commit_skid[`INSTR_BRANCH_MAC]),
 			
 			.block_in(block_out_router),
 			.block_out(block_out_final_stages[`INSTR_BRANCH_MAC]),
@@ -675,7 +675,7 @@ module dsp_core #(
 			.in_ready(in_ready_misc),
 			
 			.out_valid(out_valid_final_stages[`INSTR_BRANCH_MISC]),
-			.out_ready(in_ready_commit_fifo[`INSTR_BRANCH_MISC]),
+			.out_ready(in_ready_commit_skid[`INSTR_BRANCH_MISC]),
 			
 			.block_in(block_out_router),
 			.block_out(block_out_final_stages[`INSTR_BRANCH_MISC]),
@@ -722,7 +722,7 @@ module dsp_core #(
 			.in_ready(in_ready_delay),
 			
 			.out_valid(out_valid_final_stages[`INSTR_BRANCH_DELAY]),
-			.out_ready(in_ready_commit_fifo[`INSTR_BRANCH_DELAY]),
+			.out_ready(in_ready_commit_skid[`INSTR_BRANCH_DELAY]),
 			
 			.block_in(block_out_router),
 			.block_out(block_out_final_stages[`INSTR_BRANCH_DELAY]),
@@ -770,7 +770,7 @@ module dsp_core #(
 			.in_ready(in_ready_lut),
 			
 			.out_valid(out_valid_final_stages[`INSTR_BRANCH_LUT]),
-			.out_ready(in_ready_commit_fifo[`INSTR_BRANCH_LUT]),
+			.out_ready(in_ready_commit_skid[`INSTR_BRANCH_LUT]),
 			
 			.block_in(block_out_router),
 			.block_out(block_out_final_stages[`INSTR_BRANCH_LUT]),
@@ -841,7 +841,7 @@ module dsp_core #(
 			.in_ready(in_ready_mem),
 			
 			.out_valid(out_valid_final_stages[`INSTR_BRANCH_MEM]),
-			.out_ready(in_ready_commit_fifo[`INSTR_BRANCH_MEM]),
+			.out_ready(in_ready_commit_skid[`INSTR_BRANCH_MEM]),
 			
 			.block_in(block_out_router),
 			.block_out(block_out_final_stages[`INSTR_BRANCH_MEM]),
@@ -876,35 +876,35 @@ module dsp_core #(
 		);
 
 	wire [`N_INSTR_BRANCHES - 1 : 0] out_valid_final_stages;
-	wire [`N_INSTR_BRANCHES - 1 : 0] out_valid_commit_fifo;
+	wire [`N_INSTR_BRANCHES - 1 : 0] out_valid_commit_skid;
 	
 	wire [$clog2(n_blocks)  - 1 : 0] block_out_final_stages [`N_INSTR_BRANCHES - 1 : 0];
-	wire [$clog2(n_blocks)  - 1 : 0] block_out_commit_fifo  [`N_INSTR_BRANCHES - 1 : 0];
+	wire [$clog2(n_blocks)  - 1 : 0] block_out_commit_skid  [`N_INSTR_BRANCHES - 1 : 0];
 	wire [2 * data_width - 1 	: 0] result_final_stages	[`N_INSTR_BRANCHES - 1 : 0];
-	wire [2 * data_width - 1 	: 0] result_commit_fifo	    [`N_INSTR_BRANCHES - 1 : 0];
+	wire [2 * data_width - 1 	: 0] result_commit_skid	    [`N_INSTR_BRANCHES - 1 : 0];
 	wire [3					 	: 0] dest_final_stages		[`N_INSTR_BRANCHES - 1 : 0];
-	wire [3					 	: 0] dest_commit_fifo		[`N_INSTR_BRANCHES - 1 : 0];
+	wire [3					 	: 0] dest_commit_skid		[`N_INSTR_BRANCHES - 1 : 0];
 	wire [8 				 	: 0] commit_id_final_stages	[`N_INSTR_BRANCHES - 1 : 0];
-	wire [8 				 	: 0] commit_id_commit_fifo	[`N_INSTR_BRANCHES - 1 : 0];
+	wire [8 				 	: 0] commit_id_commit_skid	[`N_INSTR_BRANCHES - 1 : 0];
 	wire [`N_INSTR_BRANCHES - 1 : 0] commit_flag_final_stages;
-	wire [`N_INSTR_BRANCHES - 1 : 0] commit_flag_commit_fifo;
+	wire [`N_INSTR_BRANCHES - 1 : 0] commit_flag_commit_skid;
 
-	wire [`N_INSTR_BRANCHES - 1 : 0] in_ready_commit_fifo;
+	wire [`N_INSTR_BRANCHES - 1 : 0] in_ready_commit_skid;
 	
 	genvar k;
 	generate
-		for (k = 0; k < `N_INSTR_BRANCHES; k = k + 1) begin : commit_fifos
+		for (k = 0; k < `N_INSTR_BRANCHES; k = k + 1) begin : commit_skids
 			commit_stage #(.data_width(data_width), .n_blocks(n_blocks)) commit_2fifo
 				(.clk(clk), .enable(enable), .reset(reset | resetting), 
 				
-				  .in_valid(out_valid_final_stages[k]),  .in_ready(in_ready_commit_fifo[k]), 
-				 .out_valid(out_valid_commit_fifo[k]),  .out_ready(in_ready_commit_master[k]),
+				  .in_valid(out_valid_final_stages[k]),  .in_ready(in_ready_commit_skid[k]), 
+				 .out_valid(out_valid_commit_skid[k]),  .out_ready(in_ready_commit_master[k]),
 				 
-				         .block_in(block_out_final_stages[k]),         .block_out(block_out_commit_fifo[k]),
-				        .result_in   (result_final_stages[k]),        .result_out   (result_commit_fifo[k]),
-				      .dest_in     (dest_final_stages[k]),	            .dest_out     (dest_commit_fifo[k]),
-				     .commit_id_in(commit_id_final_stages[k]),     .commit_id_out(commit_id_commit_fifo[k]),
-				 .commit_flag_in(commit_flag_final_stages[k]), .commit_flag_out(commit_flag_commit_fifo[k]));
+				         .block_in(block_out_final_stages[k]),         .block_out(block_out_commit_skid[k]),
+				        .result_in   (result_final_stages[k]),        .result_out   (result_commit_skid[k]),
+				      .dest_in         (dest_final_stages[k]),	             .dest_out(dest_commit_skid[k]),
+				     .commit_id_in(commit_id_final_stages[k]),     .commit_id_out(commit_id_commit_skid[k]),
+				 .commit_flag_in(commit_flag_final_stages[k]), .commit_flag_out(commit_flag_commit_skid[k]));
 		end
 	endgenerate
 	
@@ -923,17 +923,17 @@ module dsp_core #(
 			.sample_tick(tick),
 			.sample_in(sample_in),
 			
-			.in_valid(out_valid_commit_fifo),
+			.in_valid(out_valid_commit_skid),
 			.in_ready(in_ready_commit_master),
 			
-			.block_in(block_out_commit_fifo),
+			.block_in(block_out_commit_skid),
 			
-			.result(result_commit_fifo),
-			.dest(dest_commit_fifo),
+			.result(result_commit_skid),
+			.dest(dest_commit_skid),
 			
-			.commit_flag(commit_flag_commit_fifo),
+			.commit_flag(commit_flag_commit_skid),
 			
-			.commit_id(commit_id_commit_fifo),
+			.commit_id(commit_id_commit_skid),
 			
 			.channel_write_addr(channel_write_addr),
 			.channel_write_val(channel_write_val),

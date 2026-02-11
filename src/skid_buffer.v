@@ -27,6 +27,7 @@ module skid_buffer #(parameter payload_width = 64)
 		if (reset) begin
 			skid <= 0;
 			out_valid <= 0;
+			payload_out <= 0;
 		end else if (enable) begin
 			case ({take_in, take_out})
 				2'b00: begin

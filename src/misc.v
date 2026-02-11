@@ -82,6 +82,25 @@ module misc_branch_stage_1 #(parameter data_width = 16, parameter n_blocks = 256
 	always @(posedge clk) begin
 		if (reset) begin
 			out_valid 	<= 0;
+			
+			block_out <= 0;
+			misc_op_out <= 0;
+			acc_shift_out <= 0;
+			upper_acc_out <= 0;
+			lower_acc_out <= 0;
+			abs_out <= 0;
+			min_out <= 0;
+			max_out <= 0;
+			lsh_out <= 0;
+			rsh_out <= 0;
+			clamp_min_out <= 0;
+			clamp_max_out <= 0;
+			clamp_out <= 0;
+			saturate_disable_out <= 0;
+			shift_out <= 0;
+			dest_out <= 0;
+			commit_id_out <= 0;
+			commit_flag_out <= 0;
 		end else if (enable) begin
 			if (take_in) begin
 				out_valid <= 1;
@@ -211,6 +230,23 @@ module misc_branch_stage_2 #(parameter data_width = 16, parameter n_blocks = 256
 	always @(posedge clk) begin
 		if (reset) begin
 			out_valid 	<= 0;
+			
+			block_out <= 0;
+			misc_op_out <= 0;
+			acc_shift_out <= 0;
+			upper_acc_out <= 0;
+			lower_acc_out <= 0;
+			abs_out <= 0;
+			min_out <= 0;
+			max_out <= 0;
+			lsh_out <= 0;
+			rsh_out <= 0;
+			clamp_out <= 0;
+			saturate_disable_out <= 0;
+			shift_out <= 0;
+			dest_out <= 0;
+			commit_id_out <= 0;
+			commit_flag_out <= 0;
 		end else if (enable) begin
 			if (take_in) begin
 				out_valid <= 1;
@@ -332,6 +368,12 @@ module misc_branch_stage_3 #(parameter data_width = 16, parameter n_blocks = 256
 	always @(posedge clk) begin
 		if (reset) begin
 			out_valid 	<= 0;
+			
+			block_out <= 0;
+			result_out <= 0;
+			dest_out <= 0;
+			commit_id_out <= 0;
+			commit_flag_out <= 0;
 		end else if (enable) begin
 			if (take_in) begin
 				out_valid <= 1;

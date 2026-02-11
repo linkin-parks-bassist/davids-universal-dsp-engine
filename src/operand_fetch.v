@@ -111,6 +111,9 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 
 	integer i;
 	always @(posedge clk) begin
+		for (i = 0; i < 16; i = i + 1)
+			channels_scoreboard[i] <= channels_scoreboard[i];
+	
 		if (reset) begin
 			for (i = 0; i < 16; i = i + 1)
 				channels_scoreboard[i] <= 0;
@@ -255,6 +258,7 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 	always @(posedge clk) begin
 		if (reset) begin
 			arg_valid <= 0;
+			arg_latched <= 0;
 		end else if (enable && busy) begin
 			if (!arg_needed_latched) begin
 				arg_latched <= 0;
@@ -288,7 +292,6 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 	
 	assign in_ready = ~busy & (~out_valid | out_ready);
 	
-	reg [1:0] state;
 	reg busy;
 	
 	reg [8:0] commit_id;
@@ -552,61 +555,95 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 	reg signed [data_width - 1 : 0] arg_c_3;
 
 	reg signed [3 : 0] src_a_1;
-	reg signed [3 : 0] src_a_reg_1;
-	reg signed [3 : 0] arg_a_needed_1;
+	reg signed         src_a_reg_1;
+	reg signed         arg_a_needed_1;
 	reg signed [3 : 0] src_b_1;
-	reg signed [3 : 0] src_b_reg_1;
-	reg signed [3 : 0] arg_b_needed_1;
+	reg signed         src_b_reg_1;
+	reg signed         arg_b_needed_1;
 	reg signed [3 : 0] src_c_1;
-	reg signed [3 : 0] src_c_reg_1;
-	reg signed [3 : 0] arg_c_needed_1;
+	reg signed         src_c_reg_1;
+	reg signed         arg_c_needed_1;
 
 	reg signed [3 : 0] src_a_2;
-	reg signed [3 : 0] src_a_reg_2;
-	reg signed [3 : 0] arg_a_needed_2;
+	reg signed         src_a_reg_2;
+	reg signed         arg_a_needed_2;
 	reg signed [3 : 0] src_b_2;
-	reg signed [3 : 0] src_b_reg_2;
-	reg signed [3 : 0] arg_b_needed_2;
+	reg signed         src_b_reg_2;
+	reg signed         arg_b_needed_2;
 	reg signed [3 : 0] src_c_2;
-	reg signed [3 : 0] src_c_reg_2;
-	reg signed [3 : 0] arg_c_needed_2;
+	reg signed         src_c_reg_2;
+	reg signed         arg_c_needed_2;
 	
 	always @(posedge clk) begin
-		if (out_valid_1 & in_ready_2) begin
-			arg_a_2 <= arg_a_fetched_out;
-			arg_b_2 <= arg_b_1;
-			arg_c_2 <= arg_c_1;
-		end
-		
-		if (out_valid_2 & in_ready_3) begin
-			arg_a_3 <= arg_a_2;
-			arg_b_3 <= arg_b_fetched_out;
-			arg_c_3 <= arg_c_2;
+		if (reset) begin
+			arg_a_1 <= 0;
+			arg_b_1 <= 0;
+			arg_c_1 <= 0;
+			arg_a_2 <= 0;
+			arg_b_2 <= 0;
+			arg_c_2 <= 0;
+			arg_a_3 <= 0;
+			arg_b_3 <= 0;
+			arg_c_3 <= 0;
+		end else begin
+			if (out_valid_1 & in_ready_2) begin
+				arg_a_2 <= arg_a_fetched_out;
+				arg_b_2 <= arg_b_1;
+				arg_c_2 <= arg_c_1;
+			end
+			
+			if (out_valid_2 & in_ready_3) begin
+				arg_a_3 <= arg_a_2;
+				arg_b_3 <= arg_b_fetched_out;
+				arg_c_3 <= arg_c_2;
+			end
 		end
 	end
 	always @(posedge clk) begin
-		if (in_valid & in_ready) begin
-			src_a_1 <= src_a_in;
-			src_b_1 <= src_b_in;
-			src_c_1 <= src_c_in;
-			src_a_reg_1 <= src_a_reg_in;
-			src_b_reg_1 <= src_b_reg_in;
-			src_c_reg_1 <= src_c_reg_in;
-			arg_a_needed_1 <= arg_a_needed_in;
-			arg_b_needed_1 <= arg_b_needed_in;
-			arg_c_needed_1 <= arg_c_needed_in;
-		end
-		
-		if (out_valid_1 & in_ready_2) begin
-			src_a_2 <= src_a_1;
-			src_b_2 <= src_b_1;
-			src_c_2 <= src_c_1;
-			src_a_reg_2 <= src_a_reg_1;
-			src_b_reg_2 <= src_b_reg_1;
-			src_c_reg_2 <= src_c_reg_1;
-			arg_a_needed_2 <= arg_a_needed_1;
-			arg_b_needed_2 <= arg_b_needed_1;
-			arg_c_needed_2 <= arg_c_needed_1;
+		if (reset) begin
+			src_a_1 <= 0;
+			src_a_reg_1 <= 0;
+			arg_a_needed_1 <= 0;
+			src_b_1 <= 0;
+			src_b_reg_1 <= 0;
+			arg_b_needed_1 <= 0;
+			src_c_1 <= 0;
+			src_c_reg_1 <= 0;
+			arg_c_needed_1 <= 0;
+
+			src_a_2 <= 0;
+			src_a_reg_2 <= 0;
+			arg_a_needed_2 <= 0;
+			src_b_2 <= 0;
+			src_b_reg_2 <= 0;
+			arg_b_needed_2 <= 0;
+			src_c_2 <= 0;
+			src_c_reg_2 <= 0;
+			arg_c_needed_2 <= 0;
+		end else begin
+			if (in_valid & in_ready) begin
+				src_a_1 <= src_a_in;
+				src_b_1 <= src_b_in;
+				src_c_1 <= src_c_in;
+				src_a_reg_1 <= src_a_reg_in;
+				src_b_reg_1 <= src_b_reg_in;
+				src_c_reg_1 <= src_c_reg_in;
+				arg_a_needed_1 <= arg_a_needed_in;
+				arg_b_needed_1 <= arg_b_needed_in;
+				arg_c_needed_1 <= arg_c_needed_in;
+			end
+			
+			if (out_valid_1 & in_ready_2) begin
+				src_a_2 <= src_a_1;
+				src_b_2 <= src_b_1;
+				src_c_2 <= src_c_1;
+				src_a_reg_2 <= src_a_reg_1;
+				src_b_reg_2 <= src_b_reg_1;
+				src_c_reg_2 <= src_c_reg_1;
+				arg_a_needed_2 <= arg_a_needed_1;
+				arg_b_needed_2 <= arg_b_needed_1;
+				arg_c_needed_2 <= arg_c_needed_1;
+			end
 		end
 	end
 	
