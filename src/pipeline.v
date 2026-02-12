@@ -173,6 +173,8 @@ module dsp_pipeline
 		.delay_read_ready(delay_read_ready),
 		.delay_write_ack (delay_write_ready),
 		
+		.n_blocks_running(n_blocks_running),
+		
 		.reg_writes_commit(reg_writes_commit),
 		
 		.full_reset(full_reset),
