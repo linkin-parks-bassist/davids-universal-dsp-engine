@@ -35,24 +35,29 @@ module commit_master #(parameter data_width = 16, parameter n_blocks = 256)
 		output reg [8:0] next_commit_id
 	);
 	
-    bit found;	
-	integer i;
-	always @(*) begin
-		in_ready = 0;
-		for (i = 0; i < `N_INSTR_BRANCHES; i = i + 1) begin
-			if (in_valid[i] && commit_id[i] == next_commit_id)
-				in_ready[i] = 1;
+    genvar i;
+    generate
+		for (i = 0; i < `N_INSTR_BRANCHES; i = i + 1) begin : one_hot
+			assign in_ready[i] = (in_valid[i] && commit_id[i] == next_commit_id) & ~sample_tick;
 		end
-	end
+    endgenerate
+    
+    reg [`N_INSTR_BRANCHES - 1 : 0] in_ready_prev;
+	reg acc_overwrite_prev;
+	reg [2 * data_width    - 1 : 0] result_prev [`N_INSTR_BRANCHES - 1 : 0];
+	reg [3 					   : 0] dest_prev	[`N_INSTR_BRANCHES - 1 : 0];
 
-
+	integer j;
 	always @(posedge clk) begin	
 		
 		accumulator_add_enable <= 0;
 		accumulator_write_enable <= 0;
 		channel_write_enable <= 0;
 		
-		found = 0;
+		in_ready_prev <= in_ready;
+		acc_overwrite_prev <= commit_flag[`INSTR_BRANCH_MAC];
+		result_prev <= result;
+		dest_prev <= dest;
 		
 		if (reset) begin
 			next_commit_id <= 0;
@@ -60,21 +65,25 @@ module commit_master #(parameter data_width = 16, parameter n_blocks = 256)
 			channel_write_addr 		<= 0;
 			channel_write_val  		<= sample_in;
 			channel_write_enable 	<= 1;
+			
+			in_ready_prev <= in_ready_prev;
+			acc_overwrite_prev <= acc_overwrite_prev;
+			result_prev <= result_prev;
+			dest_prev <= dest_prev;
 		end else if (enable) begin
-			for (i = 0; i < `N_INSTR_BRANCHES && !found; i = i + 1) begin
-				if (in_valid[i] && commit_id[i] == next_commit_id) begin
-					if (i == `INSTR_BRANCH_MAC) begin
-						accumulator_write_val <= result[i];
+			if (|in_ready) next_commit_id <= next_commit_id + 1;
+			
+			for (j = 0; j < `N_INSTR_BRANCHES; j = j + 1) begin
+				if (in_ready_prev[j]) begin
+					if (j == `INSTR_BRANCH_MAC) begin
+						accumulator_write_val <= result_prev[j];
 						accumulator_write_enable <= 1;
-						accumulator_add_enable <= ~commit_flag[i];
+						accumulator_add_enable <= ~acc_overwrite_prev;
 					end else begin
-						channel_write_addr <= dest[i];
-						channel_write_val  <= result[i][data_width - 1 : 0];
+						channel_write_val <= result_prev[j];
+						channel_write_addr <= dest_prev[j];
 						channel_write_enable <= 1;
 					end
-					
-					next_commit_id <= next_commit_id + 1;
-					found = 1;
 				end
 			end
 		end

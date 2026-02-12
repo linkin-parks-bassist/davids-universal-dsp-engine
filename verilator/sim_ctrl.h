@@ -64,7 +64,7 @@
 #define COMMAND_WRITE_BLOCK_INSTR 	0b10010000
 #define COMMAND_WRITE_BLOCK_REG 	0b11100000
 #define COMMAND_UPDATE_BLOCK_REG 	0b11101000
-#define COMMAND_ALLOC_SRAM_DELAY 	0b00100000
+#define COMMAND_ALLOC_DELAY 		0b00100000
 #define COMMAND_SWAP_PIPELINES 		0b00000001
 #define COMMAND_RESET_PIPELINE 		0b00001001
 #define COMMAND_SET_INPUT_GAIN 		0b00000010
@@ -105,7 +105,17 @@ m_dsp_block_instr m_decode_dsp_block_instr(uint32_t code);
 m_dsp_block_instr m_dsp_block_instr_type_a_str(int opcode, int src_a, int src_a_reg, int src_b, int src_b_reg, int src_c, int src_c_reg, int dest, int shift, int sat);
 m_dsp_block_instr m_dsp_block_instr_type_b_str(int opcode, int src_a, int src_a_reg, int src_b, int src_b_reg, int dest, int res_addr);
 
+#define ZERO_REGISTER_ADDR 		2
+#define POS_ONE_REGISTER_ADDR  	3
+#define NEG_ONE_REGISTER_ADDR   4
+
 m_dsp_block_instr m_dsp_block_instr_nop();
+m_dsp_block_instr m_dsp_block_instr_add(int src_a, int src_a_reg, int src_b, int src_b_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_add_unsat(int src_a, int src_a_reg, int src_b, int src_b_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_mul(int src_a, int src_a_reg, int src_b, int src_b_reg, int dest, int shift);
+m_dsp_block_instr m_dsp_block_instr_mul_noshift(int src_a, int src_a_reg, int src_b, int src_b_reg, int dest);
+m_dsp_block_instr m_dsp_block_instr_mul_unsat(int src_a, int src_a_reg, int src_b, int src_b_reg, int dest, int shift);
+m_dsp_block_instr m_dsp_block_instr_mul_unsat_noshift(int src_a, int src_a_reg, int src_b, int src_b_reg, int dest);
 m_dsp_block_instr m_dsp_block_instr_madd(int src_a, int src_a_reg, int src_b, int src_b_reg, int src_c, int src_c_reg, int dest, int shift);
 m_dsp_block_instr m_dsp_block_instr_madd_noshift(int src_a, int src_a_reg, int src_b, int src_b_reg, int src_c, int src_c_reg, int dest);
 m_dsp_block_instr m_dsp_block_instr_madd_unsat(int src_a, int src_a_reg, int src_b, int src_b_reg, int src_c, int src_c_reg, int dest, int shift);

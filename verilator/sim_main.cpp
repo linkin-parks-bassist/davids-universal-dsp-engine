@@ -455,7 +455,7 @@ sim_engine *new_sim_engine()
 #define COMMAND_WRITE_BLOCK_INSTR 	0b10010000
 #define COMMAND_WRITE_BLOCK_REG 	0b11100000
 #define COMMAND_UPDATE_BLOCK_REG 	0b11101000
-#define COMMAND_ALLOC_SRAM_DELAY 	0b00100000
+#define COMMAND_ALLOC_DELAY 	0b00100000
 #define COMMAND_SWAP_PIPELINES 		0b00000001
 #define COMMAND_RESET_PIPELINE 		0b00001001
 #define COMMAND_SET_INPUT_GAIN 		0b00000010
@@ -517,7 +517,7 @@ int sim_handle_transfer_batch(sim_engine *sim, m_fpga_transfer_batch batch)
 				
 				break;
 			
-			case COMMAND_ALLOC_SRAM_DELAY:
+			case COMMAND_ALLOC_DELAY:
 				
 				data = 			   batch.buf[++i];
 				data = data << 8 | batch.buf[++i];
@@ -769,6 +769,15 @@ int16_t sim_process_sample(sim_engine *sim, int16_t sample)
 }
 */
 
+m_effect_desc *m_h_eff_desc()
+{
+	m_effect_desc *eff = new_m_effect_desc("h");
+	
+	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_lsh(0, 0, 1, 0)));
+	
+	return eff;
+}
+
 m_effect_desc *m_biquad_eff_desc(float a0, float a1, float a2, float b0, float b1)
 {
 	m_effect_desc *eff = new_m_effect_desc("Biquad");
@@ -796,6 +805,32 @@ m_effect_desc *m_biquad_eff_desc(float a0, float a1, float a2, float b0, float b
 	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_mem_write(0, 0, 3)));
 	
 	return eff;
+}
+
+void queue_sends()
+{
+	m_fpga_transfer_batch batch = m_new_fpga_transfer_batch();
+	
+	m_fpga_batch_append(&batch, 0x90);
+	m_fpga_batch_append(&batch, 0x00);
+	m_fpga_batch_append(&batch, 0x0a);
+	m_fpga_batch_append(&batch, 0x12);
+	m_fpga_batch_append(&batch, 0x80);
+	m_fpga_batch_append(&batch, 0x01);
+	m_fpga_batch_append(&batch, 0xe0);
+	m_fpga_batch_append(&batch, 0x00);
+	m_fpga_batch_append(&batch, 0x00);
+	m_fpga_batch_append(&batch, 0x00);
+	m_fpga_batch_append(&batch, 0x00);
+	
+	append_send_queue(batch, 64);
+	
+	batch = m_new_fpga_transfer_batch();
+	
+	m_fpga_batch_append(&batch, 0x01);
+	
+	append_send_queue(batch, 70);
+	
 }
 
 int main(int argc, char** argv)
@@ -846,119 +881,17 @@ int main(int argc, char** argv)
 	
 	printf("Starting...\n");
 	
-	m_fpga_transfer_batch batch = m_new_fpga_transfer_batch();
-	m_effect_desc *eff = m_biquad_eff_desc(0.9915240, -1.9829756, 0.9915240, 1.9829756, -0.9830480);
+	m_effect_desc *eff = m_biquad_eff_desc(0.0046039, 0.0092079, 0.0046039, 1.7990964, -0.8175124);
 	
-	/*m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_clamp(0, 0, 0, 1, 1, 1, 0)));
-	m_effect_desc_add_register_val_literal(eff, 14, 0, -256);
-	m_effect_desc_add_register_val_literal(eff, 14, 1, -32768);*/
-	
-	m_fpga_resource_report local = m_empty_fpga_resource_report();
 	m_fpga_resource_report res = m_empty_fpga_resource_report();
+	m_fpga_resource_report local = m_empty_fpga_resource_report();
+	
+	m_fpga_transfer_batch batch = m_new_fpga_transfer_batch();
 	
 	m_fpga_transfer_batch_append_effect_desc(eff, &res, &local, &batch);
 	
 	m_fpga_batch_append(&batch, COMMAND_SWAP_PIPELINES);
-	
-	append_send_queue(batch, 128);
-	
-	/*int16_t new_val = 1024;
-	
-	batch = m_new_fpga_transfer_batch();
-	m_fpga_batch_append(&batch, COMMAND_UPDATE_BLOCK_REG);
-	m_fpga_batch_append(&batch, 4);
-	m_fpga_batch_append(&batch, 0);
-	m_fpga_batch_append(&batch, (new_val & 0xFF00) >> 8);
-	m_fpga_batch_append(&batch, (new_val & 0x00FF) >> 0);
-	m_fpga_batch_append(&batch, COMMAND_COMMIT_REG_UPDATES);
-	
-	append_send_queue(batch, 512);
-	
-	batch = m_new_fpga_transfer_batch();
-	eff = new_m_effect_desc("");
-	
-	m_effect_desc_add_block(eff, new_m_dsp_block_with_instr(m_dsp_block_instr_madd(0, 0, 0, 1, 1, 1, 0, 2)));
-	m_effect_desc_add_register_val(eff, 0, 0, 2, "1.0");
-	m_effect_desc_add_register_val(eff, 0, 1, 0, "0.0");
-	
-	local = m_empty_fpga_resource_report();
-	res = m_empty_fpga_resource_report();
-	
-	m_fpga_transfer_batch_append_effect_desc(eff, &res, &local, &batch);
-	
-	m_fpga_batch_append(&batch, COMMAND_SWAP_PIPELINES);
-	
-	append_send_queue(batch, 800);
-	
-	batch = m_new_fpga_transfer_batch();
-	
-	new_val = float_to_q_nminus1(1.1, 2);
-	
-	batch = m_new_fpga_transfer_batch();
-	m_fpga_batch_append(&batch, COMMAND_UPDATE_BLOCK_REG);
-	m_fpga_batch_append(&batch, 0);
-	m_fpga_batch_append(&batch, 0);
-	m_fpga_batch_append(&batch, (new_val & 0xFF00) >> 8);
-	m_fpga_batch_append(&batch, (new_val & 0x00FF) >> 0);
-	m_fpga_batch_append(&batch, COMMAND_COMMIT_REG_UPDATES);
-	
-	append_send_queue(batch, 900);
-	
-	batch = m_new_fpga_transfer_batch();
-	
-	new_val = float_to_q_nminus1(1.2, 2);
-	
-	batch = m_new_fpga_transfer_batch();
-	m_fpga_batch_append(&batch, COMMAND_UPDATE_BLOCK_REG);
-	m_fpga_batch_append(&batch, 0);
-	m_fpga_batch_append(&batch, 0);
-	m_fpga_batch_append(&batch, (new_val & 0xFF00) >> 8);
-	m_fpga_batch_append(&batch, (new_val & 0x00FF) >> 0);
-	m_fpga_batch_append(&batch, COMMAND_COMMIT_REG_UPDATES);
-	
-	append_send_queue(batch, 1200);
-	
-	batch = m_new_fpga_transfer_batch();
-	
-	new_val = float_to_q_nminus1(1.3, 2);
-	
-	batch = m_new_fpga_transfer_batch();
-	m_fpga_batch_append(&batch, COMMAND_UPDATE_BLOCK_REG);
-	m_fpga_batch_append(&batch, 0);
-	m_fpga_batch_append(&batch, 0);
-	m_fpga_batch_append(&batch, (new_val & 0xFF00) >> 8);
-	m_fpga_batch_append(&batch, (new_val & 0x00FF) >> 0);
-	m_fpga_batch_append(&batch, COMMAND_COMMIT_REG_UPDATES);
-	
-	append_send_queue(batch, 1500);
-	
-	batch = m_new_fpga_transfer_batch();
-	
-	new_val = float_to_q_nminus1(1.4, 2);
-	
-	batch = m_new_fpga_transfer_batch();
-	m_fpga_batch_append(&batch, COMMAND_UPDATE_BLOCK_REG);
-	m_fpga_batch_append(&batch, 0);
-	m_fpga_batch_append(&batch, 0);
-	m_fpga_batch_append(&batch, (new_val & 0xFF00) >> 8);
-	m_fpga_batch_append(&batch, (new_val & 0x00FF) >> 0);
-	m_fpga_batch_append(&batch, COMMAND_COMMIT_REG_UPDATES);
-	
-	append_send_queue(batch, 1800);
-	
-	batch = m_new_fpga_transfer_batch();
-	
-	new_val = float_to_q_nminus1(1.5, 2);
-	
-	batch = m_new_fpga_transfer_batch();
-	m_fpga_batch_append(&batch, COMMAND_UPDATE_BLOCK_REG);
-	m_fpga_batch_append(&batch, 0);
-	m_fpga_batch_append(&batch, 0);
-	m_fpga_batch_append(&batch, (new_val & 0xFF00) >> 8);
-	m_fpga_batch_append(&batch, (new_val & 0x00FF) >> 0);
-	m_fpga_batch_append(&batch, COMMAND_COMMIT_REG_UPDATES);
-	
-	append_send_queue(batch, 2000);*/
+	append_send_queue(batch, 70);
 	
 	int samples_to_process = (n_samples < MAX_SAMPLES) ? n_samples : MAX_SAMPLES;
 	
@@ -1014,7 +947,7 @@ int main(int argc, char** argv)
 			samples_processed++;
 			t += sample_duration;
 			
-			io.sample_in = (uint16_t)(roundf(sinf(6.28 * 100.0f * t * ((float)samples_processed / (float)samples_to_process)) * 32767.0 * 0.5f));
+			io.sample_in = (uint16_t)(roundf(sinf(6.28 * 2000.0f * t * ((float)samples_processed / (float)samples_to_process)) * 32767.0 * 0.5f));
 			//io.sample_in = (uint16_t)(roundf(sinf(6.28 * 440.0f * t) * 32767.0 * 0.5f));
 			
 			//static_cast<int16_t>(in_samples[samples_processed]);
