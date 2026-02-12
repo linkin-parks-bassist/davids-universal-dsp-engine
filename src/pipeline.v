@@ -47,7 +47,9 @@ module dsp_pipeline
 		input wire alloc_delay,
 		output wire resetting,
 
-        output wire[7:0] out
+        output wire[7:0] out,
+
+        output reg [$clog2(n_blocks) - 1 : 0] n_blocks_running
 	);
 	
 	reg signed [data_width - 1 : 0] sample_latched;

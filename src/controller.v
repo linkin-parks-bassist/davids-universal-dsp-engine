@@ -3,8 +3,8 @@
 
 module control_unit
 	#(
-		parameter n_blocks 	    	= 32,
-		parameter n_block_registers = 16,
+		parameter n_blocks 	    	= 256,
+		parameter n_block_registers = 2,
 		parameter data_width 	    = 16
 	)
 	(
@@ -44,7 +44,9 @@ module control_unit
 		
 		output reg invalid,
 		
-		output reg [7:0] spi_output
+		output reg [7:0] spi_output,
+
+        input wire [$clog2(n_blocks) - 1 : 0] pipeline_n_blocks [1:0]
 	);
 	
 	reg [7:0] in_byte_latched = 0;
@@ -91,11 +93,10 @@ module control_unit
 		set_input_gain  <= 0;
 		set_output_gain <= 0;
 		
-		//if (in_ready) spi_output <= in_byte;
+		spi_output <= (pipeline_n_blocks[current_pipeline] & 8'hff) | ((pipeline_n_blocks[~current_pipeline] & 8'hff) << 4);
 		
 		if (reset) begin
 			state <= `CONTROLLER_STATE_READY;
-			
 			spi_output <= 0;
 			pipeline_enables <= 2'b01;
 			current_pipeline <= 0;
@@ -302,7 +303,6 @@ module control_unit
 					block_instr_write[target_pipeline] <= 1;
 					state <= `CONTROLLER_STATE_READY;
 					wait_one <= 1;
-					spi_output <= 1 | (target_pipeline << 1);
 				end
 
 				`CONTROLLER_STATE_WRITE_BLOCK_REG: begin
@@ -330,7 +330,7 @@ module control_unit
 				`CONTROLLER_STATE_SWAP_WAIT: begin
 					if (!wait_one && !pipelines_swapping) begin
 						current_pipeline 		<= ~current_pipeline;
-						pipeline_full_reset[1] 	<= 1;
+						//pipeline_full_reset[1] 	<= 1;
 						pipeline_enables[1] 	<= 0;
 						
 						wait_one <= 1;

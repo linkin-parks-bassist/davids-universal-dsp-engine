@@ -50,7 +50,9 @@ module dsp_core #(
 		output wire regfile_syncing,
 		
 		input wire full_reset,
-		output reg resetting
+		output reg resetting,
+
+        output reg [block_addr_w - 1 : 0] n_blocks_running
 	);
 	
 	always @(posedge clk) begin
@@ -66,7 +68,6 @@ module dsp_core #(
 	reg [31 : 0] instrs [n_blocks - 1 : 0];
 	
 	reg [block_addr_w - 1 : 0] last_block;
-	reg [block_addr_w - 1 : 0] n_blocks_running;
 	
 	wire [block_addr_w - 1 : 0] block_read_addr  = block_read_addr_ifds;
 	wire [block_addr_w - 1 : 0] instr_write_addr = (resetting) ? blk_reset_ctr : command_block_target;
@@ -207,9 +208,9 @@ module dsp_core #(
 			active_regfile <= 0;
 		end else if (reg_writes_commit) begin
 			if (active_regfile == 0) begin
-				regfile_sync_a <= 1;
+				//regfile_sync_a <= 1;
 			end else if (active_regfile == 1) begin
-				regfile_sync_b <= 1;
+				//regfile_sync_b <= 1;
 			end
 			
 			active_regfile <= ~active_regfile;

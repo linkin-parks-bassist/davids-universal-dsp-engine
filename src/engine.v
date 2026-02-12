@@ -108,6 +108,8 @@ module dsp_engine_seq
     wire pipeline_a_resetting;
     wire pipeline_a_reset	 			= pipeline_reset		[current_pipeline];
 
+    wire [$clog2(n_blocks) : 0] pipeline_a_n_blocks = pipeline_n_blocks	[current_pipeline];
+
     wire pipeline_b_block_instr_write 	= block_instr_write		[~current_pipeline];
     wire pipeline_b_block_reg_write 	= block_reg_write  		[~current_pipeline];
     wire pipeline_b_block_reg_update 	= block_reg_update 		[~current_pipeline];
@@ -118,11 +120,15 @@ module dsp_engine_seq
     wire pipeline_b_full_reset 			= pipeline_full_reset	[~current_pipeline];
     wire pipeline_b_resetting;
     wire pipeline_b_reset	 			= pipeline_reset		[~current_pipeline];
+
+    wire [$clog2(n_blocks) : 0] pipeline_b_n_blocks = pipeline_n_blocks	[~current_pipeline];
     
     assign pipeline_resetting = {pipeline_b_resetting, pipeline_a_resetting};
     assign pipeline_regfiles_syncing = {(current_pipeline) ? pipeline_a_regfile_syncing : pipeline_a_regfile_syncing,
 										(current_pipeline) ? pipeline_b_regfile_syncing : pipeline_a_regfile_syncing};
     
+    wire [$clog2(n_blocks) - 1 : 0] pipeline_n_blocks [1:0];
+
     dsp_pipeline
 		#(
 			.data_width(data_width),
@@ -161,7 +167,9 @@ module dsp_engine_seq
 			.full_reset(pipeline_a_full_reset),
 			.enable(pipeline_a_enable),
 			
-			.resetting(pipeline_a_resetting)
+			.resetting(pipeline_a_resetting),
+
+            .n_blocks_running(pipeline_n_blocks[0])
 		);
     
     dsp_pipeline
@@ -201,7 +209,9 @@ module dsp_engine_seq
             .full_reset(pipeline_b_full_reset),
 			.enable(pipeline_b_enable),
 			
-			.resetting(pipeline_b_resetting)
+			.resetting(pipeline_b_resetting),
+
+            .n_blocks_running(pipeline_n_blocks[1])
 		);
 	
 	
@@ -257,6 +267,7 @@ module dsp_engine_seq
 			.pipeline_full_reset(pipeline_full_reset),
 			.pipeline_resetting(pipeline_resetting),
 			.pipeline_enables(pipeline_enables),
+			.pipeline_n_blocks(pipeline_n_blocks),
 			
 			.set_input_gain(set_input_gain),
 			.set_output_gain(set_output_gain),
