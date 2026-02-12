@@ -32,8 +32,16 @@ module commit_master #(parameter data_width = 16, parameter n_blocks = 256)
 		output reg accumulator_write_enable,
 		output reg accumulator_add_enable,
 		
-		output reg [`COMMIT_ID_WIDTH - 1 : 0] next_commit_id
+		output reg [`COMMIT_ID_WIDTH - 1 : 0] next_commit_id,
+		
+		output reg [7 : 0] byte_probe
 	);
+	
+	always @(posedge clk) begin
+		byte_probe[0] <= |in_valid;
+		byte_probe[1] <= in_valid[0];
+		byte_probe[2:7] <= commit_id[0];
+	end
 	
     genvar i;
     generate

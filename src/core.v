@@ -54,7 +54,7 @@ module dsp_core #(
 
         output reg [block_addr_w - 1 : 0] n_blocks_running,
         output reg [31:0] commits_accepted,
-        output wire [`COMMIT_ID_WIDTH - 1 : 0] next_commit_id
+        output wire [7 : 0] byte_probe
 	);
 	
 	always @(posedge clk) begin
@@ -917,7 +917,7 @@ module dsp_core #(
 			.accumulator_add_enable(accumulator_add_enable),
 			.accumulator_write_enable(accumulator_write_enable),
 			
-			.next_commit_id(next_commit_id)
+			.byte_probe(byte_probe)
 		);
 	
 	// Sequential reset counters
