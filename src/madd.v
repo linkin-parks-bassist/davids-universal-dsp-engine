@@ -48,6 +48,19 @@ module multiply_stage #(parameter data_width = 16, parameter n_blocks = 256)
 	wire take_out = out_valid & out_ready;
 
 	always @(posedge clk) begin
+		out_valid <= out_valid;
+		
+		block_out <= block_out;
+		shift_out <= shift_out;
+		shift_disable_out <= shift_disable_out;
+		signedness_out <= signedness_out;
+		saturate_disable_out <= saturate_disable_out;
+		product_out <= product_out;
+		arg_c_out <= arg_c_out;
+		dest_out <= dest_out;
+		commit_id_out <= commit_id_out;
+		commit_flag_out <= commit_flag_out;
+	
 		if (reset) begin
 			out_valid 	<= 0;
 		end else if (enable) begin
