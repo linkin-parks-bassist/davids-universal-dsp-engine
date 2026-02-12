@@ -67,6 +67,6 @@
 
 `define SHIFT_WIDTH   		5
 
+`define ZERO_REGISTER_ADDR 		4'd2
 `define POS_ONE_REGISTER_ADDR  	4'd3
 `define NEG_ONE_REGISTER_ADDR  	4'd4
-`define ZERO_REGISTER_ADDR 		4'd5

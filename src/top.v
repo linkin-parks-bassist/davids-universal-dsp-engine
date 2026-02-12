@@ -205,7 +205,7 @@ module top
     assign led3 = ~(|sample_in_abs[15:12]);
     assign led4 = ~(|sample_out_abs[15:12]);*/
 
-    assign led0 = ~(|out);
+    assign led0 = ~(current_pipeline);
     assign led1 = ~(engine_ready);
     assign led3 = ~(|control_state[3:0]);
     assign led4 = ~(|control_state[7:4]);
@@ -217,7 +217,7 @@ module top
     wire [sample_size-1:0] sample_out;
     wire [sample_size-1:0] sample_in;
 
-    wire [sample_size-1:0] sample_in_abs = sample_in[15] ? -sample_in : sample_in;
+    wire [sample_size-1:0] sample_in_abs  = sample_in[15] ? -sample_in : sample_in;
     wire [sample_size-1:0] sample_out_abs = sample_out[15] ? -sample_out : sample_out;
 
     wire sample_valid;

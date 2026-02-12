@@ -146,7 +146,7 @@ module control_unit
 							state <= `CONTROLLER_STATE_READY;
 						end
 
-						`COMMAND_ALLOC_SRAM_DELAY: begin
+						`COMMAND_ALLOC_DELAY: begin
 							load_block_number <= 0;
 							load_reg_number	  <= 0;
 							load_data 		  <= 1;
@@ -154,7 +154,7 @@ module control_unit
 							load_buf_delay    <= 1;
 							
 							state <= `CONTROLLER_STATE_GET_DATA;
-							ret_state <= `CONTROLLER_STATE_ALLOC_SRAM_DELAY;
+							ret_state <= `CONTROLLER_STATE_ALLOC_DELAY;
 						end
 
 						`COMMAND_SWAP_PIPELINES: begin
@@ -306,7 +306,7 @@ module control_unit
 					end
 				end
 
-				`CONTROLLER_STATE_ALLOC_SRAM_DELAY: begin
+				`CONTROLLER_STATE_ALLOC_DELAY: begin
 					alloc_delay[target_pipeline] <= 1;
 					state <= `CONTROLLER_STATE_READY;
 				end
