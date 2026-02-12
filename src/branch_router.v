@@ -1,6 +1,7 @@
 `default_nettype none
 
 `include "instr_dec.vh"
+`include "core.vh"
 
 module branch_router #(parameter data_width = 16, parameter n_blocks = 256, parameter n_block_regs = 2)
 	(
@@ -57,8 +58,8 @@ module branch_router #(parameter data_width = 16, parameter n_blocks = 256, para
 		input wire [7 : 0] res_addr_in,
 		output reg [7 : 0] res_addr_out,
 		
-		input wire [8:0] commit_id_in,
-		output reg [8:0] commit_id_out,
+		input wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
+		output reg [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out,
 		
 		input wire commit_flag_in,
 		output reg commit_flag_out,

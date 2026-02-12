@@ -20,8 +20,8 @@ module commit_stage #(parameter data_width = 16, parameter n_blocks = 256)
 		input  wire [3:0] dest_in,
 		output wire [3:0] dest_out,
 		
-		input  wire [8:0] commit_id_in,
-		output wire [8:0] commit_id_out,
+		input  wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
+		output wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out,
 
 		input  wire commit_flag_in,
 		output wire commit_flag_out

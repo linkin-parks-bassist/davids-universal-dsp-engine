@@ -56,8 +56,8 @@ module misc_branch_stage_1 #(parameter data_width = 16, parameter n_blocks = 256
 		input wire [3 : 0] dest_in,
 		output reg [3 : 0] dest_out,
 		
-		input wire [8 : 0] commit_id_in,
-		output reg [8 : 0] commit_id_out,
+		input wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
+		output reg [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out,
 		
 		input wire commit_flag_in,
 		output reg commit_flag_out
@@ -206,8 +206,8 @@ module misc_branch_stage_2 #(parameter data_width = 16, parameter n_blocks = 256
 		input wire [3 : 0] dest_in,
 		output reg [3 : 0] dest_out,
 		
-		input wire [8 : 0] commit_id_in,
-		output reg [8 : 0] commit_id_out,
+		input wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
+		output reg [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out,
 		
 		input wire commit_flag_in,
 		output reg commit_flag_out
@@ -332,8 +332,8 @@ module misc_branch_stage_3 #(parameter data_width = 16, parameter n_blocks = 256
 		input wire [3 : 0] dest_in,
 		output reg [3 : 0] dest_out,
 		
-		input wire [8 : 0] commit_id_in,
-		output reg [8 : 0] commit_id_out,
+		input wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
+		output reg [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out,
 		
 		input wire commit_flag_in,
 		output reg commit_flag_out
@@ -428,8 +428,8 @@ module misc_branch #(parameter data_width = 16, parameter n_blocks = 256)
 		
 		output wire signed [2 * data_width - 1 : 0] result_out,
 		
-		input  wire [8 : 0] commit_id_in,
-		output wire [8 : 0] commit_id_out,
+		input  wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
+		output wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out,
 		
 		input  wire commit_flag_in,
 		output wire commit_flag_out
@@ -462,7 +462,7 @@ module misc_branch #(parameter data_width = 16, parameter n_blocks = 256)
 	wire [4 : 0] shift_1_out;
 	wire [3 : 0] dest_1_out;
 	wire signed [2 * data_width - 1 : 0] result_1_out;
-	wire [8 : 0] commit_id_1_out;
+	wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_1_out;
 	wire commit_flag_1_out;
 	
 	misc_branch_stage_1 #(.data_width(data_width), .n_blocks(n_blocks)) stage_1
@@ -546,7 +546,7 @@ module misc_branch #(parameter data_width = 16, parameter n_blocks = 256)
 	wire [4 : 0] shift_2_out;
 	wire [3 : 0] dest_2_out;
 	wire signed [2 * data_width - 1 : 0] result_2_out;
-	wire [8 : 0] commit_id_2_out;
+	wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_2_out;
 	wire commit_flag_2_out;
 	
 
@@ -627,7 +627,7 @@ module misc_branch #(parameter data_width = 16, parameter n_blocks = 256)
 	wire [4 : 0] shift_3_out;
 	wire [3 : 0] dest_3_out;
 	wire signed [2 * data_width - 1 : 0] result_3_out;
-	wire [8 : 0] commit_id_3_out;
+	wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_3_out;
 	wire commit_flag_3_out;
 	
 	misc_branch_stage_3 #(.data_width(data_width), .n_blocks(n_blocks)) stage_3

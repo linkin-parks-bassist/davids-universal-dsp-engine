@@ -35,8 +35,8 @@ module multiply_stage #(parameter data_width = 16, parameter n_blocks = 256)
 		input wire [3:0] dest_in,
 		output reg [3:0] dest_out,
 		
-		input wire [8:0] commit_id_in,
-		output reg [8:0] commit_id_out,
+		input wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
+		output reg [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out,
 
 		input wire commit_flag_in,
 		output reg commit_flag_out
@@ -125,8 +125,8 @@ module shift_stage_1 #(parameter data_width = 16, parameter n_blocks = 256)
 		input wire [3:0] dest_in,
 		output reg [3:0] dest_out,
 		
-		input wire [8:0] commit_id_in,
-		output reg [8:0] commit_id_out,
+		input wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
+		output reg [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out,
 
 		input wire commit_flag_in,
 		output reg commit_flag_out
@@ -219,8 +219,8 @@ module shift_stage_2 #(parameter data_width = 16, parameter n_blocks = 256)
 		input wire [3:0] dest_in,
 		output reg [3:0] dest_out,
 		
-		input wire [8:0] commit_id_in,
-		output reg [8:0] commit_id_out,
+		input wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
+		output reg [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out,
 
 		input wire commit_flag_in,
 		output reg commit_flag_out
@@ -291,8 +291,8 @@ module add_stage #(parameter data_width = 16, parameter n_blocks = 256)
 		input wire [3:0] dest_in,
 		output reg [3:0] dest_out,
 		
-		input wire [8:0] commit_id_in,
-		output reg [8:0] commit_id_out,
+		input wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
+		output reg [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out,
 
 		input wire commit_flag_in,
 		output reg commit_flag_out
@@ -353,8 +353,8 @@ module saturate_stage #(parameter data_width = 16, parameter n_blocks = 256)
 		output reg out_valid,
 		input wire out_ready,
 		
-		input wire [8:0] commit_id_in,
-		output reg [8:0] commit_id_out,
+		input wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
+		output reg [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out,
 
 		input wire commit_flag_in,
 		output reg commit_flag_out
@@ -432,8 +432,8 @@ module mac_pipeline #(parameter data_width = 16, parameter n_blocks = 256)
 		input  wire [3:0] dest_in,
 		output wire [3:0] dest_out,
 		
-		input  wire [8:0] commit_id_in,
-		output wire [8:0] commit_id_out,
+		input  wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
+		output wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out,
 
 		input  wire commit_flag_in,
 		output wire commit_flag_out
@@ -454,7 +454,7 @@ module mac_pipeline #(parameter data_width = 16, parameter n_blocks = 256)
 	wire signed [2 * data_width - 1 : 0] accumulator_out_muls;
 	wire [3:0] dest_out_muls;
 	wire writes_accumulator_out_muls;
-	wire [8:0] commit_id_out_muls;
+	wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out_muls;
 	wire commit_flag_out_muls;
 	
 	multiply_stage #(.data_width(data_width)) multiply_stage
@@ -518,7 +518,7 @@ module mac_pipeline #(parameter data_width = 16, parameter n_blocks = 256)
 	wire signed [2 * data_width - 1 : 0] accumulator_out_sh1;
 	wire [3:0] dest_out_sh1;
 	wire writes_accumulator_out_sh1;
-	wire [8:0] commit_id_out_sh1;
+	wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out_sh1;
 	wire commit_flag_out_sh1;
 	wire rounding_bit;
 
@@ -644,8 +644,8 @@ module madd_pipeline #(parameter data_width = 16, parameter n_blocks = 256)
 		input  wire [3:0] dest_in,
 		output wire [3:0] dest_out,
 		
-		input  wire [8:0] commit_id_in,
-		output wire [8:0] commit_id_out,
+		input  wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
+		output wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out,
 
 		input wire commit_flag_in,
 		output wire commit_flag_out
@@ -659,7 +659,7 @@ module madd_pipeline #(parameter data_width = 16, parameter n_blocks = 256)
 	wire signed [data_width - 1 : 0] arg_c_out_mac;
 	wire signed [2 * data_width - 1 : 0] accumulator_out_mac;
 	wire signed [2 * data_width - 1 : 0] result_out_mac;
-	wire [8:0] commit_id_out_mac;
+	wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out_mac;
 	wire [3:0] dest_out_mac;
 	wire commit_flag_out_mac;
 
@@ -710,7 +710,7 @@ module madd_pipeline #(parameter data_width = 16, parameter n_blocks = 256)
 	wire out_valid_add;
 	wire [2 * data_width - 1 : 0] result_out_add;
 	wire [3:0] dest_out_add;
-	wire [8:0] commit_id_out_add;
+	wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out_add;
 	wire commit_flag_out_add;
 
 	add_stage #(.data_width(data_width)) add_stage

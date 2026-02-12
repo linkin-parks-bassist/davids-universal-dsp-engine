@@ -21,7 +21,7 @@ module commit_master #(parameter data_width = 16, parameter n_blocks = 256)
 		input wire [$clog2(n_blocks)  - 1 : 0] block_in		[`N_INSTR_BRANCHES - 1 : 0],
 		input wire [2 * data_width 	  - 1 : 0] result		[`N_INSTR_BRANCHES - 1 : 0],
 		input wire [3 					  : 0] dest			[`N_INSTR_BRANCHES - 1 : 0],
-		input wire [8 					  : 0] commit_id	[`N_INSTR_BRANCHES - 1 : 0],
+		input wire [`COMMIT_ID_WIDTH  - 1 : 0] commit_id	[`N_INSTR_BRANCHES - 1 : 0],
 		input wire [`N_INSTR_BRANCHES - 1 : 0] commit_flag,
 		
 		output reg [3 : 0] channel_write_addr,
@@ -32,7 +32,7 @@ module commit_master #(parameter data_width = 16, parameter n_blocks = 256)
 		output reg accumulator_write_enable,
 		output reg accumulator_add_enable,
 		
-		output reg [8:0] next_commit_id
+		output reg [`COMMIT_ID_WIDTH - 1 : 0] next_commit_id
 	);
 	
     genvar i;

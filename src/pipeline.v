@@ -1,5 +1,5 @@
 `include "instr_dec.vh"
-
+`include "core.vh"
 `include "lut.vh"
 
 `define PIPELINE_READY 			0
@@ -50,7 +50,8 @@ module dsp_pipeline
         output wire[7:0] out,
 
         output wire [$clog2(n_blocks) - 1 : 0] n_blocks_running,
-        output wire [31:0] commits_accepted
+        output wire [31:0] commits_accepted,
+        output wire [`COMMIT_ID_WIDTH - 1 : 0] next_commit_id
 	);
 	
 	reg signed [data_width - 1 : 0] sample_latched;
@@ -177,7 +178,8 @@ module dsp_pipeline
 		.full_reset(full_reset),
 		.resetting(resetting),
 		
-		.commits_accepted(commits_accepted)
+		.commits_accepted(commits_accepted),
+		.next_commit_id(next_commit_id)
 	);
 	
 	lut_master #(.data_width(data_width)) luts

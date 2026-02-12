@@ -53,7 +53,8 @@ module dsp_core #(
 		output reg resetting,
 
         output reg [block_addr_w - 1 : 0] n_blocks_running,
-        output reg [31:0] commits_accepted
+        output reg [31:0] commits_accepted,
+        output wire [`COMMIT_ID_WIDTH - 1 : 0] next_commit_id
 	);
 	
 	always @(posedge clk) begin
@@ -369,7 +370,7 @@ module dsp_core #(
 	wire [4 : 0] shift_out_ofs;
 	wire shift_disable_out_ofs;
 	wire [7 : 0] res_addr_out_ofs;
-	wire [8:0] commit_id_out_ofs;
+	wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out_ofs;
 	wire commit_flag_out_ofs;
 	
 	wire [$clog2(`N_INSTR_BRANCHES) - 1 : 0] branch_out_ofs;
@@ -479,7 +480,7 @@ module dsp_core #(
 	wire [4 : 0] shift_out_router;
 	wire shift_disable_out_router;
 	wire [7 : 0] res_addr_out_router;
-	wire [8:0] commit_id_out_router;
+	wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out_router;
 	wire commit_flag_out_router;
 	wire signed [2 * data_width - 1 : 0] accumulator_out_router;
 	
@@ -682,7 +683,7 @@ module dsp_core #(
 	wire [data_width - 1 : 0] arg_b_out_delay;
 	wire [2 * data_width - 1 : 0] result_out_delay;
 
-	wire [8:0] commit_id_out_delay;
+	wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out_delay;
 
 	resource_branch #(.data_width(data_width), .handle_width(8), .n_blocks(n_blocks)) delay_stage
 		(
@@ -780,7 +781,7 @@ module dsp_core #(
 	
 	wire [2 * data_width - 1 : 0] result_out_mem;
 
-	wire [8:0] commit_id_out_mem;
+	wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out_mem;
 	
 	wire mem_read_req;
 	reg  mem_read_req_1;
@@ -857,8 +858,8 @@ module dsp_core #(
 	wire [2 * data_width - 1 	: 0] result_commit_skid	    [`N_INSTR_BRANCHES - 1 : 0];
 	wire [3					 	: 0] dest_final_stages		[`N_INSTR_BRANCHES - 1 : 0];
 	wire [3					 	: 0] dest_commit_skid		[`N_INSTR_BRANCHES - 1 : 0];
-	wire [8 				 	: 0] commit_id_final_stages	[`N_INSTR_BRANCHES - 1 : 0];
-	wire [8 				 	: 0] commit_id_commit_skid	[`N_INSTR_BRANCHES - 1 : 0];
+	wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_final_stages	[`N_INSTR_BRANCHES - 1 : 0];
+	wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_commit_skid	[`N_INSTR_BRANCHES - 1 : 0];
 	wire [`N_INSTR_BRANCHES - 1 : 0] commit_flag_final_stages;
 	wire [`N_INSTR_BRANCHES - 1 : 0] commit_flag_commit_skid;
 
@@ -914,7 +915,9 @@ module dsp_core #(
 			
 			.accumulator_write_val(accumulator_write_val),
 			.accumulator_add_enable(accumulator_add_enable),
-			.accumulator_write_enable(accumulator_write_enable)
+			.accumulator_write_enable(accumulator_write_enable),
+			
+			.next_commit_id(next_commit_id)
 		);
 	
 	// Sequential reset counters

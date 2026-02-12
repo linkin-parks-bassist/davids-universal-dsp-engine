@@ -1,4 +1,5 @@
 `include "engine.vh"
+`include "core.vh"
 
 module dsp_engine_seq
 	#(
@@ -129,6 +130,7 @@ module dsp_engine_seq
     
     wire [$clog2(n_blocks) - 1 : 0] pipeline_n_blocks [1:0];
     wire [31 : 0] pipeline_n_commits [1:0];
+    wire [`COMMIT_ID_WIDTH - 1 : 0] pipeline_next_commit_id [1:0];
 
     dsp_pipeline
 		#(
@@ -171,7 +173,8 @@ module dsp_engine_seq
 			.resetting(pipeline_a_resetting),
 
             .n_blocks_running(pipeline_n_blocks[0]),
-            .commits_accepted(pipeline_n_commits[0])
+            .commits_accepted(pipeline_n_commits[0]),
+            .next_commit_id(pipeline_next_commit_id[0])
 		);
     
     dsp_pipeline
@@ -214,7 +217,8 @@ module dsp_engine_seq
 			.resetting(pipeline_b_resetting),
 
             .n_blocks_running(pipeline_n_blocks[1]),
-            .commits_accepted(pipeline_n_commits[1])
+            .commits_accepted(pipeline_n_commits[1]),
+            .next_commit_id(pipeline_next_commit_id[1])
 		);
 	
 	
@@ -272,6 +276,7 @@ module dsp_engine_seq
 			.pipeline_enables(pipeline_enables),
 			.pipeline_n_blocks(pipeline_n_blocks),
 			.pipeline_n_commits(pipeline_n_commits),
+			.pipeline_next_commit_id(pipeline_next_commit_id),
 			
 			.set_input_gain(set_input_gain),
 			.set_output_gain(set_output_gain),

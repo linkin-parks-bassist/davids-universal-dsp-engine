@@ -1,5 +1,6 @@
 `include "controller.vh"
 `include "instr_dec.vh"
+`include "core.vh"
 
 module control_unit
 	#(
@@ -47,7 +48,8 @@ module control_unit
 		output reg [7:0] spi_output,
 
         input wire [$clog2(n_blocks) - 1 : 0] pipeline_n_blocks [1:0],
-        input wire [31 : 0] pipeline_n_commits [1:0]
+        input wire [31 : 0] pipeline_n_commits [1:0],
+        input wire [`COMMIT_ID_WIDTH - 1 : 0] pipeline_next_commit_id [1:0]
 	);
 	
 	reg [7:0] in_byte_latched = 0;
@@ -94,7 +96,7 @@ module control_unit
 		set_input_gain  <= 0;
 		set_output_gain <= 0;
 		
-		spi_output <= pipeline_n_commits[current_pipeline][7:0];
+		spi_output <= pipeline_next_commit_id[current_pipeline];
 		
 		if (reset) begin
 			state <= `CONTROLLER_STATE_READY;
