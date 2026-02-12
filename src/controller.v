@@ -91,12 +91,12 @@ module control_unit
 		set_input_gain  <= 0;
 		set_output_gain <= 0;
 		
-		if (in_ready)
-			spi_output <= in_byte;
+		//if (in_ready) spi_output <= in_byte;
 		
 		if (reset) begin
 			state <= `CONTROLLER_STATE_READY;
 			
+			spi_output <= 0;
 			pipeline_enables <= 2'b01;
 			current_pipeline <= 0;
 		end
@@ -302,6 +302,7 @@ module control_unit
 					block_instr_write[target_pipeline] <= 1;
 					state <= `CONTROLLER_STATE_READY;
 					wait_one <= 1;
+					spi_output <= 1 | (target_pipeline << 1);
 				end
 
 				`CONTROLLER_STATE_WRITE_BLOCK_REG: begin
