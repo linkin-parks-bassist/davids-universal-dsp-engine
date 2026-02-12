@@ -52,12 +52,23 @@ module dsp_core #(
 		input wire full_reset,
 		output reg resetting,
 
-        output reg [block_addr_w - 1 : 0] n_blocks_running
+        output reg [block_addr_w - 1 : 0] n_blocks_running,
+        output reg [31:0] commits_accepted
 	);
 	
 	always @(posedge clk) begin
 		if (tick)
 			sample_out <= channels[0];
+	end
+	
+	always @(posedge clk) begin
+		if (reset | resetting) begin
+			commits_accepted <= 0;
+		end else if (enable) begin
+			if (|in_ready_commit_master) begin
+				commits_accepted <= commits_accepted + 1;
+			end
+		end
 	end
 	
 	localparam block_addr_w 	= $clog2(n_blocks);

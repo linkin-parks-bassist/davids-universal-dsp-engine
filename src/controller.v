@@ -46,7 +46,8 @@ module control_unit
 		
 		output reg [7:0] spi_output,
 
-        input wire [$clog2(n_blocks) - 1 : 0] pipeline_n_blocks [1:0]
+        input wire [$clog2(n_blocks) - 1 : 0] pipeline_n_blocks [1:0],
+        input wire [31 : 0] pipeline_n_commits [1:0]
 	);
 	
 	reg [7:0] in_byte_latched = 0;
@@ -93,7 +94,7 @@ module control_unit
 		set_input_gain  <= 0;
 		set_output_gain <= 0;
 		
-		spi_output <= (pipeline_n_blocks[current_pipeline] & 8'hff) | ((pipeline_n_blocks[~current_pipeline] & 8'hff) << 4);
+		spi_output <= pipeline_n_commits[current_pipeline][7:0];
 		
 		if (reset) begin
 			state <= `CONTROLLER_STATE_READY;

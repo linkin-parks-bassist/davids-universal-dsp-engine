@@ -128,6 +128,7 @@ module dsp_engine_seq
 										(current_pipeline) ? pipeline_b_regfile_syncing : pipeline_a_regfile_syncing};
     
     wire [$clog2(n_blocks) - 1 : 0] pipeline_n_blocks [1:0];
+    wire [31 : 0] pipeline_n_commits [1:0];
 
     dsp_pipeline
 		#(
@@ -169,7 +170,8 @@ module dsp_engine_seq
 			
 			.resetting(pipeline_a_resetting),
 
-            .n_blocks_running(pipeline_n_blocks[0])
+            .n_blocks_running(pipeline_n_blocks[0]),
+            .commits_accepted(pipeline_n_commits[0])
 		);
     
     dsp_pipeline
@@ -211,7 +213,8 @@ module dsp_engine_seq
 			
 			.resetting(pipeline_b_resetting),
 
-            .n_blocks_running(pipeline_n_blocks[1])
+            .n_blocks_running(pipeline_n_blocks[1]),
+            .commits_accepted(pipeline_n_commits[1])
 		);
 	
 	
@@ -268,6 +271,7 @@ module dsp_engine_seq
 			.pipeline_resetting(pipeline_resetting),
 			.pipeline_enables(pipeline_enables),
 			.pipeline_n_blocks(pipeline_n_blocks),
+			.pipeline_n_commits(pipeline_n_commits),
 			
 			.set_input_gain(set_input_gain),
 			.set_output_gain(set_output_gain),

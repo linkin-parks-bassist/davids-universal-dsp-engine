@@ -326,7 +326,7 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 	
 	always @(posedge clk) begin
 		if (reset) begin
-			busy   <= 0;
+			busy    <= 0;
 			out_valid <= 0;
 			commit_id   <= 0;
             branch_out   <= 0;

@@ -49,7 +49,8 @@ module dsp_pipeline
 
         output wire[7:0] out,
 
-        output reg [$clog2(n_blocks) - 1 : 0] n_blocks_running
+        output wire [$clog2(n_blocks) - 1 : 0] n_blocks_running,
+        output wire [31:0] commits_accepted
 	);
 	
 	reg signed [data_width - 1 : 0] sample_latched;
@@ -174,7 +175,9 @@ module dsp_pipeline
 		.reg_writes_commit(reg_writes_commit),
 		
 		.full_reset(full_reset),
-		.resetting(resetting)
+		.resetting(resetting),
+		
+		.commits_accepted(commits_accepted)
 	);
 	
 	lut_master #(.data_width(data_width)) luts
