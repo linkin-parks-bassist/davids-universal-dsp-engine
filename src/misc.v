@@ -218,7 +218,7 @@ module misc_branch_stage_2 #(parameter data_width = 16, parameter n_blocks = 256
 	wire take_in  = in_ready & in_valid;
 	wire take_out = out_valid & out_ready;
 	
-	wire signed [2 * data_width - 1 : 0] acc_sh_1 = shift_in[1] ? (accumulator_in >>> 2) : accumulator_in;
+	wire signed [2 * data_width - 1 : 0] acc_sh_1 = shift_in[1] ? (acc_shift_in   >>> 2) : accumulator_in;
 	wire signed [2 * data_width - 1 : 0] acc_sh_2 = shift_in[0] ? (acc_sh_1		  >>> 1) : acc_sh_1;
 
 	wire signed [data_width - 1 : 0] lsh_1 = shift_in[1] ? (arg_a_in << 2) : arg_a_in;
