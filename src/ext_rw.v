@@ -34,7 +34,7 @@ module resource_branch #(parameter data_width = 16, parameter handle_width = 8, 
 		output reg signed [data_width - 1 : 0] arg_b_out,
 		input wire signed [data_width - 1 : 0] data_in,
 		
-		input wire read_ready,
+		input wire read_valid,
 		input wire write_ack,
 		
 		input wire [3:0] dest_in,
@@ -90,7 +90,7 @@ module resource_branch #(parameter data_width = 16, parameter handle_width = 8, 
 				REQ: begin
 					if (write_latched && write_ack) begin
 						state <= IDLE;
-					end else if (!write_latched && read_ready) begin
+					end else if (!write_latched && read_valid) begin
 						result_out <= {{(data_width){data_in[data_width-1]}}, data_in};
 						
 						commit_id_out <= commit_id_latched;

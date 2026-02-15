@@ -29,8 +29,8 @@ module mixer #(parameter data_width = 16, parameter gain_shift = 4) (
 		input wire in_sample_valid,
 		input wire out_samples_valid,
 		
-		output reg in_sample_ready,
-		output reg out_sample_ready,
+		output reg in_sample_mixed,
+		output reg out_sample_valid,
 		
 		input wire set_input_gain,
 		input wire set_output_gain,
@@ -87,8 +87,8 @@ module mixer #(parameter data_width = 16, parameter gain_shift = 4) (
 	reg pipeline_swap_requested = 0;
 	
 	always @(posedge clk) begin
-		in_sample_ready  <= 0;
-		out_sample_ready <= 0;
+		in_sample_mixed  <= 0;
+		out_sample_valid <= 0;
 		
 		if (swap_pipelines)
 			pipeline_swap_requested <= 1;
@@ -122,7 +122,7 @@ module mixer #(parameter data_width = 16, parameter gain_shift = 4) (
 					if (in_sample_valid) begin
 						mul_arg_aa <= in_sample;
 						mul_arg_ab <= input_gain;
-						in_sample_ready <= 0;
+						in_sample_mixed <= 0;
 						state <= `MIXER_APPLY_INPUT_GAIN_1;
 						
 						if (pipelines_swapping) begin
@@ -176,7 +176,7 @@ module mixer #(parameter data_width = 16, parameter gain_shift = 4) (
 
 				`MIXER_APPLY_INPUT_GAIN_DONE: begin
 					in_sample_out <= prod_a_final;
-					in_sample_ready <= 1;
+					in_sample_mixed <= 1;
 					state <= `MIXER_REST;
 				end
 				
@@ -211,7 +211,7 @@ module mixer #(parameter data_width = 16, parameter gain_shift = 4) (
 
 				`MIXER_APPLY_OUTPUT_GAIN_DONE: begin
 					out_sample <= prod_a_final;
-					out_sample_ready <= 1;
+					out_sample_valid <= 1;
 					state <= `MIXER_REST;
 				end
 				

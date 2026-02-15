@@ -257,10 +257,10 @@ module top
             .in_sample(sample_in),
             .out_sample(sample_out),
         
-            .sample_ready(tick_engine),
+            .sample_valid(tick_engine),
         
             .command_in(spi_in),
-            .command_in_ready(spi_in_valid),
+            .command_in_valid(spi_in_valid),
             .invalid_command(invalid_command),
 
             .ready(engine_ready),
@@ -286,7 +286,7 @@ module top
             .enable(1),
 
             .mosi_byte(spi_in),
-            .data_ready(spi_in_valid)
+            .data_valid(spi_in_valid)
         );
 
 endmodule

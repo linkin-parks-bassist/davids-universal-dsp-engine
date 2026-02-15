@@ -22,7 +22,7 @@ module lut_master #(parameter data_width = 16)
 		input wire [data_width - 1 : 0] req_arg,
 		
 		output reg [data_width - 1 : 0] data_out,
-		output reg ready,
+		output reg valid,
 		
 		output reg invalid_request
 	);
@@ -40,19 +40,19 @@ module lut_master #(parameter data_width = 16)
 	wire signed [data_width - 1 : 0] interpolated;
 	
 	reg  interp_start = 0;
-	wire interp_ready;
+	wire interp_valid;
 	
 	wire [data_width - 1 : 0] tanh_base_sample;
 	wire [data_width - 1 : 0] tanh_next_sample;
 	wire [`LUT_FRAC_WIDTH - 1 : 0] tanh_frac;
     reg tanh_read = 0;
-    wire tanh_ready;
+    wire tanh_valid;
 
 	wire [data_width - 1 : 0] sin_base_sample;
 	wire [data_width - 1 : 0] sin_next_sample;
 	wire [`LUT_FRAC_WIDTH - 1 : 0] sin_frac;
     reg sin_read = 0;
-    wire sin_ready;
+    wire sin_valid;
 
 	sequential_interp #(.data_width(data_width), .interp_bits(`LUT_FRAC_WIDTH)) interp
 		(
@@ -65,7 +65,7 @@ module lut_master #(parameter data_width = 16)
 			.interpolated(interpolated),
 			
 			.start(interp_start),
-			.ready(interp_ready)
+			.out_valid(interp_valid)
 		);
 	
     reg wait_one = 0;
@@ -77,16 +77,17 @@ module lut_master #(parameter data_width = 16)
 
 		if (reset) begin
 			invalid_request <= 0;
-			ready <= 1;
+			valid <= 0;
 			state <= `LUT_MASTER_STATE_READY;
 		end
 		else begin
+			valid <= 0;
+			
 			case (state)
 				`LUT_MASTER_STATE_READY: begin
 					if (req) begin
 						lut_handle_latched 	<= lut_handle;
 						req_arg_latched 	<= req_arg;
-						ready <= 0;
 						state <= `LUT_MASTER_STATE_PROCESSING;
 					end
 				end
@@ -118,7 +119,7 @@ module lut_master #(parameter data_width = 16)
 				
                 `LUT_MASTER_STATE_SIN_WAIT: begin
                     sin_read <= 0;
-                    if (!wait_one && sin_ready) begin
+                    if (!wait_one && sin_valid) begin
                         base_sample <= sin_base_sample;
                         next_sample <= sin_next_sample;
                         frac <= sin_frac;
@@ -130,7 +131,7 @@ module lut_master #(parameter data_width = 16)
 
                 `LUT_MASTER_STATE_TANH_WAIT: begin
                     tanh_read <= 0;
-                    if (!wait_one && tanh_ready) begin
+                    if (!wait_one && tanh_valid) begin
                         base_sample <= tanh_base_sample;
                         next_sample <= tanh_next_sample;
                         frac <= tanh_frac;
@@ -146,16 +147,16 @@ module lut_master #(parameter data_width = 16)
 				end
 				
 				`LUT_MASTER_STATE_WAIT_INTERP2: begin
-					if (interp_ready) begin
+					if (interp_valid) begin
 						data_out <= interpolated;
-						ready <= 1;
+						valid <= 1;
 						state <= `LUT_MASTER_STATE_READY;
 					end
 				end
 				
 				`LUT_MASTER_STATE_SEND: begin
 					data_out <= interpolated;
-					ready <= 1;
+					valid <= 1;
 					state <= `LUT_MASTER_STATE_READY;
 				end
 				
@@ -176,7 +177,7 @@ module lut_master #(parameter data_width = 16)
         .frac(sin_frac),
 
         .read(sin_read),
-        .ready(sin_ready)
+        .valid(sin_valid)
     );
 	
 	tanh_4_lut_16 tanh_lut (
@@ -189,7 +190,7 @@ module lut_master #(parameter data_width = 16)
         .frac(tanh_frac),
     
         .read(tanh_read),
-        .ready(tanh_ready)
+        .valid(tanh_valid)
     );
 	
 endmodule

@@ -13,7 +13,7 @@ module sync_spi_slave #(parameter CPOL = 0, parameter CPHA = 0)
 		input 	wire 		enable,
 		
 		output 	reg [7:0] 	mosi_byte,
-		output 	reg 		data_ready
+		output 	reg 		data_valid
 	);
 	
 	reg sck_sync_ff;
@@ -50,7 +50,7 @@ module sync_spi_slave #(parameter CPOL = 0, parameter CPHA = 0)
             miso_byte_latched <= miso_byte;
         end
 
-		data_ready	<= 1'b0;
+		data_valid	<= 1'b0;
 		
 		if (cs_sync || reset) begin
 			mosi_byte 	<= 8'b0;
@@ -63,7 +63,7 @@ module sync_spi_slave #(parameter CPOL = 0, parameter CPHA = 0)
                 miso <= miso_byte_latched[7 - sr_index];
 
 				if (sr_index == 7) begin
-					data_ready 	<= 1'b1;
+					data_valid 	<= 1'b1;
 					sr_index 	<= 0;
                 end
 				else begin

@@ -52,7 +52,7 @@ module sequential_interp #(parameter data_width = 16, parameter interp_bits = 3)
 		input wire reset,
 		
 		input  wire start,
-		output reg ready,
+		output reg out_valid,
 		
 		input wire signed [data_width - 1 : 0] base,
 		input wire signed [data_width - 1 : 0] target,
@@ -71,17 +71,21 @@ module sequential_interp #(parameter data_width = 16, parameter interp_bits = 3)
 	reg signed  [data_width  - 1 : 0] diff_latched;
 	reg 		[interp_bits - 1 : 0] frac_latched;
 	
+	reg busy;
+	
 	integer i;
 	always @(posedge clk) begin
+		out_valid <= 0;
+		
 		if (reset) begin
 			index <= (interp_bits - 1);
 			interpolated <= 0;
 			interp_sum <= 0;
-			ready <= 1;
+			busy <= 0;
 		end
 		else begin
-			if (start & ready) begin
-				ready 		<= 0;
+			if (start & !busy) begin
+				busy <= 1;
 				
 				interp_sum  <= base + (frac[interp_bits - 1] ? (diff >>> 1) : 0);
 				
@@ -95,10 +99,10 @@ module sequential_interp #(parameter data_width = 16, parameter interp_bits = 3)
 				
 				index <= (interp_bits - 2);
 			end
-			else if (!ready) begin
+			else if (busy) begin
 				if (index == 0) begin
 					interpolated <= interp_sum + (frac_latched[0] ? diff_latched : 0);
-					ready <= 1;
+					busy <= 0;
 				end
 				else begin
 					interp_sum <= interp_sum + (frac_latched[index] ? diff_latched : 0);

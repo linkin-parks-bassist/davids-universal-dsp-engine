@@ -71,9 +71,9 @@ module dsp_pipeline
 	wire [`LUT_HANDLE_WIDTH - 1 : 0] lut_req_handle;
 	wire signed [data_width - 1 : 0] lut_req_arg;
 	wire signed [data_width - 1 : 0] lut_data;
-	wire lut_ready;
+	wire lut_valid;
 	
-	wire controller_ready;
+	wire controller_valid;
 	wire invalid_command;
 	
 	wire block_reg_write;
@@ -85,8 +85,8 @@ module dsp_pipeline
 	wire [data_width - 1 : 0] delay_write_data;
 	wire [data_width - 1 : 0] delay_write_inc;
 	wire [data_width - 1 : 0] delay_read_data;
-	wire delay_read_ready;
-	wire delay_write_ready;
+	wire delay_read_valid;
+	wire delay_write_ack;
 	
 	wire invalid_delay_read;
 	wire invalid_delay_write;
@@ -162,7 +162,7 @@ module dsp_pipeline
 		.lut_handle(lut_req_handle),
 		.lut_arg(lut_req_arg),
 		.lut_data(lut_data),
-		.lut_ready(lut_ready),
+		.lut_valid(lut_valid),
 		
 		.delay_read_req  (delay_read_req),
 		.delay_write_req (delay_write_req),
@@ -170,8 +170,8 @@ module dsp_pipeline
 		.delay_write_data(delay_write_data),
 		.delay_write_inc (delay_write_inc),
 		.delay_read_data (delay_read_data),
-		.delay_read_ready(delay_read_ready),
-		.delay_write_ack (delay_write_ready),
+		.delay_read_valid(delay_read_valid),
+		.delay_write_ack (delay_write_ack),
 		
 		.n_blocks_running(n_blocks_running),
 		
@@ -194,7 +194,7 @@ module dsp_pipeline
 			.req(lut_req),
 			
 			.data_out(lut_data),
-			.ready(lut_ready),
+			.valid(lut_valid),
 			
 			.invalid_request(invalid_lut_request)
 		);
@@ -225,7 +225,7 @@ module dsp_pipeline
 				
 			.data_out(delay_read_data),
 			
-			.read_valid(delay_read_ready),
+			.read_valid(delay_read_valid),
 			.write_ack(delay_write_ready)
 		);
 endmodule

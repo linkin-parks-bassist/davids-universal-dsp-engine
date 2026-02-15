@@ -6,7 +6,7 @@ module sin_2pi_lut_16
         input wire reset,
 
         input wire read,
-        output reg ready,
+        output reg valid,
 
 		input wire signed [15:0] x,
 		
@@ -37,16 +37,16 @@ module sin_2pi_lut_16
     always @(posedge clk) begin
         read_result <= sin_lut[read_addr];
         wait_one <= 0;
+        valid <= 0;
 
         if (reset) begin
             state <= 0;
-            ready <= 1;
         end
         else begin
             case (state)
                 0: begin
                     if (read) begin
-                        ready <= 0;
+                        valid <= 0;
                         read_addr <= base_index;
                         state <= 1;
                         wait_one <= 1;
@@ -66,7 +66,7 @@ module sin_2pi_lut_16
                     if (!wait_one) begin
                         next_sample <= read_result;
                         state <= 0;
-                        ready <= 1;
+                        valid <= 1;
                     end
                 end
             endcase
@@ -80,7 +80,7 @@ module tanh_4_lut_16
         input wire reset,
 
         input wire read,
-        output reg ready,
+        output reg valid,
 
 		input wire signed [15:0] x,
 		
@@ -116,13 +116,14 @@ module tanh_4_lut_16
 
         if (reset) begin
             state <= 0;
-            ready <= 1;
+            valid <= 0;
         end
         else begin
+            valid <= 0;
+            
             case (state)
                 0: begin
                     if (read) begin
-                        ready <= 0;
                         read_addr <= base_index;
                         state <= 1;
                         wait_one <= 1;
@@ -142,7 +143,7 @@ module tanh_4_lut_16
                     if (!wait_one) begin
                         next_sample <= read_result;
                         state <= 0;
-                        ready <= 1;
+                        valid <= 1;
                     end
                 end
             endcase

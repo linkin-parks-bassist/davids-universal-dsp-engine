@@ -35,7 +35,7 @@ module dsp_core #(
 		output reg signed [data_width - 1 : 0] lut_handle,
 		output reg signed [data_width - 1 : 0] lut_arg,
 		input wire signed [data_width - 1 : 0] lut_data,
-		input wire lut_ready,
+		input wire lut_valid,
 		
 		output wire delay_read_req,
 		output wire delay_write_req,
@@ -43,7 +43,7 @@ module dsp_core #(
 		output wire signed [data_width - 1 : 0] delay_write_data,
 		output wire signed [data_width - 1 : 0] delay_write_inc,
 		input  wire signed [data_width - 1 : 0] delay_read_data,
-		input  wire delay_read_ready,
+		input  wire delay_read_valid,
 		input  wire delay_write_ack,
 		
 		input wire reg_writes_commit,
@@ -730,7 +730,7 @@ module dsp_core #(
 			.read_req(delay_read_req),
 			.write_req(delay_write_req),
 			
-			.read_ready(delay_read_ready),
+			.read_valid(delay_read_valid),
 			.write_ack(1),
 			
 			.data_in(delay_read_data),
@@ -777,7 +777,7 @@ module dsp_core #(
 			.dest_in(dest_out_router),
 			.dest_out(dest_final_stages[`INSTR_BRANCH_LUT]),
 			
-			.read_ready(lut_ready),
+			.read_valid(lut_valid),
 			.data_in(lut_data),
 			
 			.write_ack(1),
@@ -851,7 +851,7 @@ module dsp_core #(
 			.write_req(mem_write_req),
 			
 			.data_in(mem_read_val),
-			.read_ready(mem_read_req_1),
+			.read_valid(mem_read_req_1),
 			
 			.write_ack(mem_write_ack),
 			

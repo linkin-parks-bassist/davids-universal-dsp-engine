@@ -18,10 +18,10 @@ module dsp_engine_seq
         input wire [data_width - 1 : 0]  in_sample,
         output reg [data_width - 1 : 0] out_sample,
         
-        input wire sample_ready,
+        input wire sample_valid,
         
         input  wire [7:0] command_in,
-        input  wire command_in_ready,
+        input  wire command_in_valid,
         output wire invalid_command,
         
         output reg ready,
@@ -231,7 +231,7 @@ module dsp_engine_seq
 			.data_in(command_in),
 			.data_out(command_byte),
 			
-			.write(command_in_ready),
+			.write(command_in_valid),
 			.next(inp_fifo_next),
 			
 			.nonempty(inp_fifo_nonempty),
@@ -248,7 +248,7 @@ module dsp_engine_seq
 			.reset(reset),
 			
 			.in_byte(command_byte),
-			.in_ready(inp_fifo_nonempty),
+			.in_valid(inp_fifo_nonempty),
 			.next(inp_fifo_next),
 			
 			.current_pipeline(current_pipeline),
@@ -303,8 +303,8 @@ module dsp_engine_seq
         .in_sample_valid(apply_input_gain),
         .out_samples_valid(mix_outputs),
         
-        .in_sample_ready(in_sample_valid),
-        .out_sample_ready(out_sample_valid),
+        .in_sample_mixed(in_sample_valid),
+        .out_sample_valid(out_sample_valid),
         
         .set_input_gain(set_input_gain),
         .set_output_gain(set_output_gain),
@@ -317,13 +317,12 @@ module dsp_engine_seq
 	always @(posedge clk) begin
 		pipeline_tick 		<= 0;
 		
-		out_sample_ready 	<= 0;
 		apply_input_gain 	<= 0;
 		mix_outputs			<= 0;
 		
 		case (state)
 			`ENGINE_STATE_READY: begin
-				if (sample_ready) begin
+				if (sample_valid) begin
 					in_sample_latched <= in_sample;
 					apply_input_gain <= 1;
 					ready <= 0;
@@ -355,7 +354,6 @@ module dsp_engine_seq
 			`ENGINE_STATE_MIXING: begin
 				if (out_sample_valid) begin
 					out_sample <= out_sample_mixed;
-					out_sample_ready <= 0;
 					ready <= 1;
 					state <= `ENGINE_STATE_READY;
 				end

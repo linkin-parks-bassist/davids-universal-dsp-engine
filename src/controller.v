@@ -15,7 +15,7 @@ module control_unit
         output wire [7:0] control_state,
 		
 		input wire [7:0] in_byte,
-		input wire in_ready,
+		input wire in_valid,
 		
 		output reg [$clog2(n_blocks)	  - 1 : 0] block_target,
 		output reg [$clog2(n_blocks) + `BLOCK_REG_ADDR_WIDTH - 1 : 0] reg_target,
@@ -107,7 +107,7 @@ module control_unit
 		else begin
 			case (state)
 				`CONTROLLER_STATE_READY: begin
-					if (in_ready) begin
+					if (in_valid) begin
 						command <= in_byte;
 						next <= 1;
 						
@@ -209,7 +209,7 @@ module control_unit
 				end
 				
 				`CONTROLLER_STATE_GET_BLOCK_NUMBER: begin
-					if (!wait_one && in_ready) begin
+					if (!wait_one && in_valid) begin
 						block_target <= in_byte[$clog2(n_blocks) - 1 : 0];
 						next <= 1;
 						
@@ -226,7 +226,7 @@ module control_unit
 				
 				
 				`CONTROLLER_STATE_GET_REG_NUMBER: begin
-					if (!wait_one && in_ready) begin
+					if (!wait_one && in_valid) begin
 						reg_target <= in_byte[`BLOCK_REG_ADDR_WIDTH - 1 : 0];
 						next <= 1;
 						
@@ -241,7 +241,7 @@ module control_unit
 				end
 				
 				`CONTROLLER_STATE_GET_DATA: begin
-					if (!wait_one && in_ready) begin
+					if (!wait_one && in_valid) begin
 						data_out <= data_out_in_byte[data_width - 1 : 0];
 						next <= 1;
 						
@@ -266,7 +266,7 @@ module control_unit
 					if (wait_one) begin
 						wait_one <= 0;
 					end
-					else if (in_ready) begin
+					else if (in_valid) begin
 						instr_out  <= instr_out_in_byte[`BLOCK_INSTR_WIDTH - 1 : 0];
 						next <= 1;
 						
@@ -286,7 +286,7 @@ module control_unit
 					if (wait_one) begin
 						wait_one <= 0;
 					end
-					else if (in_ready) begin
+					else if (in_valid) begin
 						buf_init_delay  <= {buf_init_delay[2 * data_width - 8 - 1 : 0], in_byte};
 						next <= 1;
 						
