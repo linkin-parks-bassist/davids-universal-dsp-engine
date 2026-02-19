@@ -32,7 +32,7 @@ module control_unit
 		input wire [1:0] pipeline_regfiles_syncing,
 		output reg [1:0] alloc_delay,
 		output reg [1:0] pipeline_full_reset,
-		output reg [1:0] pipeline_resetting,
+		input wire [1:0] pipeline_resetting,
 		output reg [1:0] pipeline_enables,
 		output reg [1:0] pipeline_reset,
 		
