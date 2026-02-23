@@ -156,22 +156,22 @@ module control_unit
 							end
 							
 							`COMMAND_WRITE_BLOCK_REG_0: begin
-								block_target <= 0;
+								reg_target <= 0;
 								bytes_needed <= block_bytes + data_bytes;
 							end
 							
 							`COMMAND_UPDATE_BLOCK_REG_0: begin
-								block_target <= 0;
+								reg_target <= 0;
 								bytes_needed <= block_bytes + data_bytes;
 							end
 							
 							`COMMAND_WRITE_BLOCK_REG_1: begin
-								block_target <= 1;
+								reg_target <= 1;
 								bytes_needed <= block_bytes + data_bytes;
 							end
 							
 							`COMMAND_UPDATE_BLOCK_REG_1: begin
-								block_target <= 1;
+								reg_target <= 1;
 								bytes_needed <= block_bytes + data_bytes;
 							end
 							

@@ -69,11 +69,11 @@ module top #(
 	/***********/
 
 	// Useful LED indicators (active low)
-	assign led0 = ~(|out[3:0]);
-	assign led1 = ~out[4];
-	assign led3 = ~out[5];
-	assign led4 = ~out[6];
-	assign led5 = ~out[7];
+	assign led0 = ~current_pipeline;
+	assign led1 = ~out[0];
+	assign led3 = ~out[1];
+	assign led4 = ~out[2];
+	assign led5 = ~out[3];
 
 	// I2S
 	wire sample_valid;
