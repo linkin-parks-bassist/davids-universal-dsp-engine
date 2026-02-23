@@ -138,7 +138,7 @@ module control_unit
 		else begin
 			case (state)
 				READY: begin
-					if (in_valid) begin
+					if (!wait_one && in_valid) begin
 						command <= in_byte;
 						wait_one <= 1;
 						next <= 1;
