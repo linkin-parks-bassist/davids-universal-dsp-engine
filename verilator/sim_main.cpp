@@ -198,152 +198,6 @@ int tick()
 	
 	return 0;
 }
-/*
-m_effect_desc *m_h_eff_desc()
-{
-	m_effect_desc *eff = new_m_effect_desc("h");
-	
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_lsh(0, 0, 1, 0)));
-	
-	return eff;
-}
-
-m_effect_desc *m_biquad_eff_desc(float a0, float a1, float a2, float b0, float b1)
-{
-	m_effect_desc *eff = new_m_effect_desc("Biquad");
-	
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mem_read(1, 1)));
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mem_read(2, 2)));
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mem_read(3, 3)));
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mem_read(4, 4))); //3
-	
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_macz(0, 0, 0, 1, 3)));
-	m_effect_desc_add_register_val_literal(eff, 4, 0, float_to_q_nminus1(a0, 3));
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mac(1, 0, 0, 1, 3)));
-	m_effect_desc_add_register_val_literal(eff, 5, 0, float_to_q_nminus1(a1, 3));
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mac(2, 0, 0, 1, 3)));
-	m_effect_desc_add_register_val_literal(eff, 6, 0, float_to_q_nminus1(a2, 3));
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mac(3, 0, 0, 1, 3)));
-	m_effect_desc_add_register_val_literal(eff, 7, 0, float_to_q_nminus1(b0, 3));
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mac(4, 0, 0, 1, 3))); //8
-	m_effect_desc_add_register_val_literal(eff, 8, 0, float_to_q_nminus1(b1, 3));
-	
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mem_write(0, 0, 1)));
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mem_write(1, 0, 2)));
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mem_write(3, 0, 4)));
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mov_acc(0))); //12
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mem_write(0, 0, 3)));
-	
-	return eff;
-}
-
-m_effect_desc *create_lpf_eff_desc()
-{
-	m_effect_desc *eff = new_m_effect_desc("Low Pass Filter");
-	m_parameter *cutoff = new_m_parameter_wni("Cutoff Frequency", "cutoff", 100.0,  1.0, 1000.0);
-	
-	m_effect_desc_add_param(eff, cutoff);
-	
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mem_read(1, 1)));
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mem_read(2, 2)));
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mem_read(3, 3)));
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mem_read(4, 4))); //3
-	
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_macz(0, 0, 0, 1, 14)));
-	m_effect_desc_add_register_val(eff, 4, 0, 0, "/ / - 1 cos / * * 2 pi cutoff sample_rate 2 + 1 / sin / * * 2 pi cutoff sample_rate sqrt 2");
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mac(1, 0, 0, 1, 14)));
-	m_effect_desc_add_register_val(eff, 5, 0, 0, "/ - 1 cos / * * 2 pi cutoff sample_rate + 1 / sin / * * 2 pi cutoff sample_rate sqrt 2");
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mac(2, 0, 0, 1, 14)));
-	m_effect_desc_add_register_val(eff, 6, 0, 0, "/ / - 1 cos / * * 2 pi cutoff sample_rate 2 + 1 / sin / * * 2 pi cutoff sample_rate sqrt 2");
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mac_noshift(3, 0, 0, 1)));
-	m_effect_desc_add_register_val(eff, 7, 0, 1, "/ * 2 cos / * * 2 pi cutoff sample_rate + 1 / sin / * * 2 pi cutoff sample_rate sqrt 2");
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mac_noshift(4, 0, 0, 1))); //8
-	m_effect_desc_add_register_val(eff, 8, 0, 1, "- 0 / - 1 / sin / * * 2 pi cutoff sample_rate sqrt 2 + 1 / sin / * * 2 pi cutoff sample_rate sqrt 2");
-	
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mem_write(0, 0, 1)));
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mem_write(1, 0, 2)));
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mem_write(3, 0, 4)));
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mov_acc_sh(14, 0))); //12
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mem_write(0, 0, 3)));
-	
-	return eff;
-}
-
-m_effect_desc *create_hpf_eff_desc()
-{
-	m_effect_desc *eff = new_m_effect_desc("High Pass Filter");
-	m_parameter *cutoff = new_m_parameter_wni("Cutoff Frequency", "cutoff", 1000.0,  1.0, 1000.0);
-	
-	m_effect_desc_add_param(eff, cutoff);
-	
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mem_read(1, 1)));
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mem_read(2, 2)));
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mem_read(3, 3)));
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mem_read(4, 4))); //3
-	
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_macz(0, 0, 0, 1, 2)));
-	m_effect_desc_add_register_val(eff, 4, 0, 2, "/ / + 1 cos / * * 2 pi cutoff sample_rate 2 + 1 / sin / * * 2 pi cutoff sample_rate sqrt 2");
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mac(1, 0, 0, 1, 2)));
-	m_effect_desc_add_register_val(eff, 5, 0, 2, "- 0 / + 1 cos / * * 2 pi cutoff sample_rate + 1 / sin / * * 2 pi cutoff sample_rate sqrt 2");
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mac(2, 0, 0, 1, 2)));
-	m_effect_desc_add_register_val(eff, 6, 0, 2, "/ / + 1 cos / * * 2 pi cutoff sample_rate 2 + 1 / sin / * * 2 pi cutoff sample_rate sqrt 2");
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mac(3, 0, 0, 1, 1)));
-	m_effect_desc_add_register_val(eff, 7, 0, 1, "/ * 2 cos / * * 2 pi cutoff sample_rate + 1 / sin / * * 2 pi cutoff sample_rate sqrt 2");
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mac(4, 0, 0, 1, 1))); //8
-	m_effect_desc_add_register_val(eff, 8, 0, 1, "- 0 / - 1 / sin / * * 2 pi cutoff sample_rate sqrt 2 + 1 / sin / * * 2 pi cutoff sample_rate sqrt 2");
-	
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mem_write(0, 0, 1)));
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mem_write(1, 0, 2)));
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mem_write(3, 0, 4)));
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mov_acc(0))); //12
-	m_effect_desc_add_block(eff, new_m_block_with_instr(m_block_instr_mem_write(0, 0, 3)));
-	
-	return eff;
-}*/
-
-void queue_sends()
-{
-	m_fpga_transfer_batch batch = m_new_fpga_transfer_batch();
-	
-	m_fpga_batch_append(&batch, 0x90); 
-	m_fpga_batch_append(&batch, 0x00); 
-	m_fpga_batch_append(&batch, 0x0a); 
-	m_fpga_batch_append(&batch, 0x12); 
-	m_fpga_batch_append(&batch, 0x80); 
-	m_fpga_batch_append(&batch, 0x01); 
-	m_fpga_batch_append(&batch, 0xe0); 
-	m_fpga_batch_append(&batch, 0x00); 
-	m_fpga_batch_append(&batch, 0x00); 
-	m_fpga_batch_append(&batch, 0x00); 
-	m_fpga_batch_append(&batch, 0x00); 
-	m_fpga_batch_append(&batch, 0x01); 
-	
-	append_send_queue(batch, 64);
-	
-	batch = m_new_fpga_transfer_batch();
-	
-	m_fpga_batch_append(&batch, 0x01);
-	
-	append_send_queue(batch, 256);
-	
-	batch = m_new_fpga_transfer_batch();
-	
-	m_fpga_batch_append(&batch, 0x90);
-	m_fpga_batch_append(&batch, 0x00);
-	m_fpga_batch_append(&batch, 0x0a);
-	m_fpga_batch_append(&batch, 0x12);
-	m_fpga_batch_append(&batch, 0x80);
-	m_fpga_batch_append(&batch, 0x01);
-	m_fpga_batch_append(&batch, 0xe0);
-	m_fpga_batch_append(&batch, 0x00);
-	m_fpga_batch_append(&batch, 0x00);
-	m_fpga_batch_append(&batch, 0x00);
-	m_fpga_batch_append(&batch, 0x00);
-	m_fpga_batch_append(&batch, 0x01);
-	
-	append_send_queue(batch, 512);
-	
-}
 
 int main(int argc, char** argv)
 {
@@ -394,31 +248,11 @@ int main(int argc, char** argv)
 	
 	printf("Starting...\n");
 	
-	/*m_effect_desc *eff = create_hpf_eff_desc();
+	m_effect_desc *d = m_read_eff_desc_from_file("eff/delay.eff");
 	
-	m_eff_resource_report res = m_empty_fpga_resource_report();
-	m_eff_resource_report local = m_empty_fpga_resource_report();
+	m_transformer d_t;
 	
-	m_fpga_transfer_batch batch = m_new_fpga_transfer_batch();
-	
-	m_fpga_transfer_batch_append_effect_desc(eff, &res, &local, &batch);
-	
-	m_eff_resource_report_integrate(&res, &local);
-	
-	local = m_empty_fpga_resource_report();
-	
-	eff = create_lpf_eff_desc();
-	
-	m_fpga_transfer_batch_append_effect_desc(eff, &res, &local, &batch);
-	
-	m_fpga_batch_append(&batch, COMMAND_SWAP_PIPELINES);
-	append_send_queue(batch, 70);*/
-	
-	m_effect_desc *eff = m_read_eff_desc_from_file("verilator/bqd.eff");
-	
-	m_transformer trans;
-	
-	int ret_val = init_transformer_from_effect_desc(&trans, eff);
+	init_transformer_from_effect_desc(&d_t, d);
 	
 	m_fpga_transfer_batch batch = m_new_fpga_transfer_batch();
 	
@@ -428,38 +262,11 @@ int main(int argc, char** argv)
 	
 	int pos = 0;
 	
-	m_fpga_batch_append_transformer(&batch, &trans, &res, &pos);
+	m_fpga_batch_append_transformer(&batch, &d_t, &res, &pos);
 	
 	m_fpga_batch_append(&batch, COMMAND_SWAP_PIPELINES);
 	
 	append_send_queue(batch, 70);
-	
-	batch = m_new_fpga_transfer_batch();
-	
-	m_fpga_batch_append(&batch, 0xE8);
-	m_fpga_batch_append(&batch, 0x04);
-	m_fpga_batch_append(&batch, 0x28);
-	m_fpga_batch_append(&batch, 0xB4);
-	m_fpga_batch_append(&batch, 0xE8);
-	m_fpga_batch_append(&batch, 0x05);
-	m_fpga_batch_append(&batch, 0x00);
-	m_fpga_batch_append(&batch, 0x00);
-	m_fpga_batch_append(&batch, 0xE8);
-	m_fpga_batch_append(&batch, 0x06);
-	m_fpga_batch_append(&batch, 0x00);
-	m_fpga_batch_append(&batch, 0x00);
-	m_fpga_batch_append(&batch, 0xE8);
-	m_fpga_batch_append(&batch, 0x07);
-	m_fpga_batch_append(&batch, 0x00);
-	m_fpga_batch_append(&batch, 0x00);
-	m_fpga_batch_append(&batch, 0xE8);
-	m_fpga_batch_append(&batch, 0x08);
-	m_fpga_batch_append(&batch, 0x00);
-	m_fpga_batch_append(&batch, 0x00);
-
-	m_fpga_batch_append(&batch, COMMAND_COMMIT_REG_UPDATES);
-
-	append_send_queue(batch, 1024);
 	
 	int samples_to_process = (n_samples < MAX_SAMPLES) ? n_samples : MAX_SAMPLES;
 	

@@ -1,0 +1,15 @@
+v1.0
+
+.INFO
+
+name: "MAC Gain"
+
+.PARAMETERS
+
+b0: (name: "b0", default: 1.0, min: -2.0, max: 2.0)
+
+.CODE
+
+macz [b0] c0
+
+mov_acc c0

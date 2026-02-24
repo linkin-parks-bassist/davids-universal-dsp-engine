@@ -21,7 +21,7 @@
 #define VERILATOR
 #endif
 
-#define MAX_SAMPLES		2048
+#define MAX_SAMPLES		512
 //#define RUN_EMULATOR
 
 #define DUMP_WAVEFORM

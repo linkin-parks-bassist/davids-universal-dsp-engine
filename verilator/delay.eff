@@ -1,0 +1,19 @@
+v1.0
+
+.INFO
+
+name: "Deeeelay"
+
+.PARAMETERS
+
+b0: (name: "b0", default: 1.0, min: -2.0, max: 2.0)
+
+.RESOURCES
+
+delay: (type: "delay", delay: 2.9)
+
+.CODE
+
+delay_read c1 $delay
+madd c0 c1 [0.5] c0
+delay_write $delay c0
