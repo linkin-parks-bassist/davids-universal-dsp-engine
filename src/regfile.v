@@ -46,7 +46,7 @@ module block_regfile #(parameter data_width = 16, parameter n_blocks = 256)
 	
 	reg write_issued;
 	
-	assign register_0_out = registers_packed_out[	data_width - 1 :		  0];
+	assign register_0_out = registers_packed_out[	 data_width - 1 :		   0];
 	assign register_1_out = registers_packed_out[2 * data_width - 1 : data_width];
 	
 	
@@ -76,7 +76,7 @@ module block_regfile #(parameter data_width = 16, parameter n_blocks = 256)
 			if (sync_addr_changed_ever && sync_addr == sync_start_addr)
 				sync_addr_wrapped <= 1;
 			
-			write_addr_int <= sync_addr;
+			write_addr_int <= sync_addr_prev;
 			write_val_int  <= sync_value;
 			
 			write_enable_int <= sync_addr_changed || (n_active_blocks < 2);
@@ -87,8 +87,6 @@ module block_regfile #(parameter data_width = 16, parameter n_blocks = 256)
 			syncing <= 1;
 			sync_start_addr <= sync_addr;
 			sync_addr_prev <= sync_addr;
-			write_addr_int <= sync_addr;
-			write_val_int <= sync_value;
 			
 			sync_addr_changed_ever <= 0;
 			sync_addr_changed <= 0;

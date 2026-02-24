@@ -199,7 +199,7 @@ module dsp_core #(
 		.syncing(regfile_syncing_b)
 	);
 	
-	assign regfile_syncing = (active_regfile) ? regfile_syncing_b : regfile_syncing_a;
+	assign regfile_syncing = regfile_syncing_b | regfile_syncing_a;
 
 	wire [block_addr_w - 1 : 0] reg_read_addr = (command_reg_write) ? command_block_target : block_read_addr;
 	
