@@ -1,0 +1,14 @@
+v1.0
+
+.INFO
+
+name: "MAC Gain, Decibel, 2nd position"
+
+.PARAMETERS
+
+gain: (name: "Gain", default: 0.0, min: -24.0, max: 24.0, units: "dB")
+
+.CODE
+
+macz c0 [10^(gain/20)]
+mov_acc c0
