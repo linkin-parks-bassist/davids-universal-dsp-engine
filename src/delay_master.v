@@ -40,13 +40,17 @@ module delay_master #(parameter data_width  = 16,
 		
 		output reg invalid_read,
 		output reg invalid_write,
-		output reg invalid_alloc
+		output reg invalid_alloc,
+		
+		output wire [$clog2(n_buffers + 1) - 1 : 0] n_buffers_active
 	);
 	
 	localparam DELAY_FORMAT = 8;
-	localparam addr_width = $clog2(memory_size);
+	localparam addr_width   = $clog2(memory_size);
 	localparam delay_width  = addr_width + DELAY_FORMAT;
 	localparam handle_width = $clog2(n_buffers);
+	
+	assign n_buffers_active = n_buffers_allocd;
 	
 	localparam IDLE 	 	= 3'd0;
 	localparam WRITE_1		= 3'd1;
@@ -150,6 +154,9 @@ module delay_master #(parameter data_width  = 16,
 			buffer_initd <= 0;
 			alloc_addr <= 0;
 			read_wait <= 0;
+			
+			mem_read_req <= 0;
+			mem_write_req <= 0;
 		end else if (alloc_req) begin
 			if (alloc_too_big || buffers_exhausted) begin
 				invalid_alloc <= 1;
@@ -168,13 +175,13 @@ module delay_master #(parameter data_width  = 16,
 			end
 		end else if (enable) begin
 			if (read_wait) begin
-				if (buf_data_write_enable || write_state == IDLE) begin
+				if (buf_data_write_enable) begin
 					data_out <= buf_data_new;
 					read_valid <= 1;
 					read_wait <= 0;
 					read_wait_one <= 1;
 				end else if (write_state == IDLE) begin
-					data_out <= buf_data[read_handle];
+					data_out <= buf_data[read_wait_handle];
 					read_valid <= 1;
 					read_wait <= 0;
 					read_wait_one <= 1;

@@ -29,6 +29,8 @@ module dsp_engine #(
 		output wire [7:0] out
 	);
 
+	assign out = current_pipeline ? byte_probe_b : byte_probe_a;
+
 	/*******/
 	/*******/
 	/* DSP */
@@ -38,6 +40,9 @@ module dsp_engine #(
 	/***************************************************************************/
 	/* Dual DSP piplines for atomic, artifact-free runtime DSP reconfiguration */
 	/***************************************************************************/
+	
+	wire [7:0] byte_probe_a;
+	wire [7:0] byte_probe_b;
 	
 	dsp_pipeline #(.data_width(data_width), .n_blocks(n_blocks)) pipeline_a (
 		.clk(clk),
@@ -71,7 +76,9 @@ module dsp_engine #(
 		.full_reset(pipeline_a_full_reset),
 		.enable(pipeline_a_enable),
 		
-		.resetting(pipeline_a_resetting)
+		.resetting(pipeline_a_resetting),
+		
+		.byte_probe(byte_probe_a)
 	);
 	
 	dsp_pipeline #(.data_width(data_width), .n_blocks(n_blocks)) pipeline_b (
@@ -105,7 +112,9 @@ module dsp_engine #(
 		.full_reset(pipeline_b_full_reset),
 		.enable(pipeline_b_enable),
 		
-		.resetting(pipeline_b_resetting)
+		.resetting(pipeline_b_resetting),
+		
+		.byte_probe(byte_probe_b)
 	);
 	
 	/**********************************************************/
@@ -167,6 +176,8 @@ module dsp_engine #(
 	/* Global control unit; executes commands recieved over SPI */
 	/************************************************************/
 	
+	wire [7:0] control_state;
+	
 	control_unit #(.n_blocks(n_blocks), .data_width(data_width)) controller (
 		.clk(clk),
 		.reset(reset),
@@ -203,7 +214,7 @@ module dsp_engine #(
 		
 		.invalid(invalid_command),
 		
-		.control_state(out)
+		.control_state(control_state)
 	);
 	
 	/*******/

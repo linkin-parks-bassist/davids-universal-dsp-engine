@@ -102,7 +102,9 @@ module dsp_pipeline #(
 		.regfile_syncing(regfile_syncing),
 		
 		.full_reset(full_reset),
-		.resetting(resetting)
+		.resetting(resetting),
+		
+		.out(byte_probe)
 	);
 	
 	/************************/

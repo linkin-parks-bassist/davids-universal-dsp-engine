@@ -61,8 +61,12 @@ module dsp_core #(
 		output wire regfile_syncing,
 		
 		input wire full_reset,
-		output reg resetting
+		output reg resetting,
+		
+		output wire [7:0] out
 	);
+	
+	assign out = {5'b0, delay_read_req, delay_write_req};
 	
 	localparam block_addr_w 	= $clog2(n_blocks);
 	localparam mem_addr_w 		= $clog2(memory_size);
