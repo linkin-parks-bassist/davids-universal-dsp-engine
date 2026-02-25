@@ -104,6 +104,9 @@ module control_unit
     localparam RESET_WAIT = 8'd4;
 
     reg [15 : 0] total_bytes;
+    
+    reg [31:0] timeout_ctr;
+    reg timeout;
 
 	always @(posedge clk) begin
 		reg_writes_commit <= 0;
@@ -123,7 +126,20 @@ module control_unit
 		set_input_gain  <= 0;
 		set_output_gain <= 0;
 
+        timeout <= 0;
+        
+		if (state != LISTEN || in_valid) begin
+			timeout_ctr <= 0;
+		end else begin
+			if (timeout_ctr == `CONTROLLER_TIMEOUT_CYCLES - 1)
+				timeout <= 1;
+			else
+				timeout_ctr <= timeout_ctr + 1;
+		end
+
+		
 		if (reset) begin
+			timeout_ctr <= 0;
 			state <= READY;
 			pipeline_enables <= 2'b01;
 			current_pipeline <= 0;
@@ -134,8 +150,10 @@ module control_unit
 			pipeline_full_reset <= 2'b11;
 
             total_bytes <= 0;
-		end
-		else begin
+		end else if (timeout) begin
+			state <= READY;
+			timeout_ctr <= 0;
+		end else begin
 			case (state)
 				READY: begin
 					if (!wait_one && in_valid) begin

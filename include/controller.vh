@@ -11,3 +11,11 @@
 `define COMMAND_SET_INPUT_GAIN 		8'b00000010
 `define COMMAND_SET_OUTPUT_GAIN 	8'b00000011
 `define COMMAND_COMMIT_REG_UPDATES 	8'b00001010
+
+// If we're in a 'waiting' state, but no new data has
+// appeared for a whole 100ms, then it's likely
+// there was an alignment mistake, possibly
+// in software, or a transfer corruption.
+// In this case, reset the controller, so that
+// the machine doesn't get permanently locked up!
+`define CONTROLLER_TIMEOUT_CYCLES	32'd11250000
