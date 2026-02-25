@@ -90,7 +90,6 @@ module delay_master #(parameter data_width  = 16,
 	always @(posedge clk) begin
 		if (buf_data_write_enable) begin
 			buf_data[write_handle_r] <= buf_data_new;
-			buf_data_invalid[write_handle_r] <= 0;
 		end
 	end
 	
@@ -272,6 +271,7 @@ module delay_master #(parameter data_width  = 16,
 				WRITE_7: begin
 					buf_info_write_data <= {addr, size, delay, position, gain, wrapped};
 					buf_info_write_handle <= write_handle_r;
+                    buf_data_invalid[write_handle_r] <= 0;
 					buf_info_write_enable <= 1;
 					write_state <= IDLE;
 				end

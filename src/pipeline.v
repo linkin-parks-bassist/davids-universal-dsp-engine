@@ -125,7 +125,7 @@ module dsp_pipeline #(
 	);
 	
 	// Delay buffers
-	localparam delay_mem_size = 8192;
+	localparam delay_mem_size = 16384;
 	localparam delay_mem_addr_width = $clog2(delay_mem_size);
 	reg [data_width - 1 : 0] delay_mem [delay_mem_size - 1 : 0];
 	
@@ -158,8 +158,8 @@ module dsp_pipeline #(
 	
 	delay_master #(
 		.data_width(data_width), 
-		.n_buffers(3),
-		.memory_size(8192)
+		.n_buffers(16),
+		.memory_size(delay_mem_size)
 	) delays (
 		.clk(clk),
 		.reset(reset | full_reset),
