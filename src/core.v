@@ -1009,6 +1009,8 @@ module dsp_core #(
 			resetting <= 0;
 		end else if (full_reset) begin
 			resetting <= 1;
+			blk_reset_ctr <= 0;
+			mem_reset_ctr <= 0;
 		end else if (resetting) begin
 			ready <= 0;
 			

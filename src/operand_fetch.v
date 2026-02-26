@@ -94,7 +94,8 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 	integer j;
 	always @(posedge clk) begin
 		if (reset) begin
-			for (j = 0; j < 16; j = j + 1) begin
+			channels[0] = 1;
+			for (j = 1; j < 16; j = j + 1) begin
 				channels[j] = 0;
 			end
 		end else begin

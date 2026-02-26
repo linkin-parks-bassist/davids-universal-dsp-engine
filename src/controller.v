@@ -54,17 +54,8 @@ module control_unit
 	
 	reg [2:0] state = READY;
     assign control_state = {5'b0, state[2:0]};
-
-	reg load_block_number;
-	reg load_reg_number;
-	reg load_block_instr;
-	reg load_data;
-	reg load_buf_delay;
 	
 	reg wait_one = 0;
-	
-	wire target_pipeline_inst = ~in_byte[3];
-	wire target_pipeline = ~command[3];
 
 	wire ready = (state == READY);
 	
@@ -147,6 +138,7 @@ module control_unit
             total_bytes <= 0;
             
             programming <= 0;
+            reg_target <= 0;
 		end else if (timeout) begin
 			pipeline_full_reset[back_pipeline] <= 1;
 			programming <= 0;
