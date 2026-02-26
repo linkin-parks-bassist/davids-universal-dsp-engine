@@ -115,7 +115,7 @@ module delay_master #(parameter data_width  = 16,
 	reg [$clog2(n_buffers + 1) - 1 : 0] n_buffers_allocd;
 	
 	wire buffers_exhausted 	= (n_buffers_allocd == n_buffers);
-	wire alloc_too_big		= alloc_addr + alloc_size >= memory_size;
+	wire alloc_too_big		= alloc_addr + alloc_size > memory_size;
 	
 	reg read_wait;
 	reg [data_width - 1 : 0] read_wait_handle;
@@ -172,6 +172,11 @@ module delay_master #(parameter data_width  = 16,
 				
 				buf_info_write_handle <= n_buffers_allocd;
 				buf_info_write_enable <= 1;
+				
+				// Clear the buffer's output slot
+				buf_data_new <= 0;
+				write_handle_r <= n_buffers_allocd;
+				buf_data_write_enable <= 1;
 			end
 		end else if (enable) begin
 			if (read_wait) begin
