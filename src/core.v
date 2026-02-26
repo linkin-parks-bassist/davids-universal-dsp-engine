@@ -66,7 +66,9 @@ module dsp_core #(
 		output wire [7:0] out
 	);
 	
-	assign out = {5'd0, any_delay_acks, any_delay_reqs, in_ready_delay};
+	assign out = {5'd0, any_delay_acks, any_delay_reqs, any_zero_writes};
+	
+	reg any_zero_writes;
 	
     reg any_delay_reqs;
     reg any_delay_acks;
@@ -75,9 +77,12 @@ module dsp_core #(
         if (reset | full_reset) begin
             any_delay_reqs <= 0;
             any_delay_acks <= 0;
+            any_zero_writes <= 0;
         end else if (enable) begin
             any_delay_reqs <= any_delay_reqs | delay_read_req | delay_write_req;
             any_delay_acks <= any_delay_acks | delay_read_valid | delay_write_ack;
+            
+            any_zero_writes <= any_zero_writes | (command_reg_write && (command_block_target == 0));
         end
     end
 
