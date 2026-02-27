@@ -158,8 +158,6 @@ module control_unit
             
 			timeout_ctr <= 0;
             timeout_max <= `CONTROLLER_TIMEOUT_CYCLES;
-            
-            timeout_blinker <= 0;
 		end else if (timeout) begin
 			pipeline_full_reset[back_pipeline] <= 1;
 			programming 	<= 0;
