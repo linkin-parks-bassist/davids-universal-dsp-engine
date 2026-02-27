@@ -43,6 +43,16 @@ module sync_spi_slave #(parameter CPOL = 0, parameter CPHA = 0)
 	reg cs_sync	  = 1;
 	reg cs_sync_prev = 1;
 	
+	wire cs_stably_low = !cs_sync && !cs_sync_prev;
+	
+	reg mosi_sync_ff;
+	reg mosi_sync;
+
+	always @(posedge clk) begin
+		mosi_sync_ff <= mosi;
+		mosi_sync    <= mosi_sync_ff;
+	end
+	
 	wire data_read = (sr_index == 7);
 	
 	reg [2:0] sr_index  = 3'b0;
@@ -54,7 +64,7 @@ module sync_spi_slave #(parameter CPOL = 0, parameter CPHA = 0)
 		sck_sync <= sck_sync_ff;
 		
 		cs_sync_ff   <= cs;
-		cs_sync	  <= cs_sync_ff;
+		cs_sync	  	 <= cs_sync_ff;
 		cs_sync_prev <= cs_sync;
 		
 		if (!cs_sync && cs_sync_prev) begin
@@ -68,9 +78,9 @@ module sync_spi_slave #(parameter CPOL = 0, parameter CPHA = 0)
 			sr_index	<= 3'b0;
 			miso		<= 0;
 		end
-		else if (!cs_sync && enable) begin
+		else if (!cs_sync && !cs_sync_prev && enable) begin
 			if (sample_edge) begin
-				mosi_byte <= {mosi_byte[6:0], mosi};
+				mosi_byte <= {mosi_byte[6:0], mosi_sync};
 				miso <= miso_byte_latched[7 - sr_index];
 
 				if (sr_index == 7) begin
