@@ -54,7 +54,7 @@ module control_unit
 	
 	reg [2:0] state = READY;
 	reg [2:0] state_prev = READY;
-    assign control_state = {5'b0, state[2:0]};
+    assign control_state = {4'd0, timeout_blinker, timeout_active, programming, |state};
 	
 	reg wait_one = 0;
 
@@ -103,6 +103,9 @@ module control_unit
     reg [31:0] timeout_ctr;
     reg [31:0] timeout_max;
     reg timeout;
+    
+    wire timeout_blinker = |timeout_blinker_ctr;
+    reg [31:0] timeout_blinker_ctr;
     
     reg programming;
     reg ignore_command;
@@ -155,6 +158,8 @@ module control_unit
             
 			timeout_ctr <= 0;
             timeout_max <= `CONTROLLER_TIMEOUT_CYCLES;
+            
+            timeout_blinker <= 0;
 		end else if (timeout) begin
 			pipeline_full_reset[back_pipeline] <= 1;
 			programming 	<= 0;
@@ -163,6 +168,8 @@ module control_unit
 			ignore_command  <= 0;
 			state 			<= RESET_WAIT;
             timeout_max <= `CONTROLLER_TIMEOUT_CYCLES;
+            
+            timeout_blinker_ctr <= 32'd112500000;
 		end else begin
 			if (timeout_active | programming) begin
 				if ((wait_one && in_valid) || state_prev != state)
@@ -172,6 +179,9 @@ module control_unit
 				else
 					timeout_ctr <= timeout_ctr + 1;
 			end
+			
+			if (timeout_blinker_ctr != 0)
+				timeout_blinker_ctr <= timeout_blinker_ctr - 1;
 		
 			case (state)
 				READY: begin

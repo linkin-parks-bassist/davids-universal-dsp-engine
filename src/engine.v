@@ -29,7 +29,7 @@ module dsp_engine #(
 		output wire [7:0] out
 	);
 
-	assign out = current_pipeline ? byte_probe_b : byte_probe_a;
+	assign out = control_state;
 
 	/*******/
 	/*******/
