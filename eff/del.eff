@@ -1,0 +1,23 @@
+v1.0
+
+.INFO
+
+name: "Delay"
+
+.PARAMETERS
+
+delay_gain: (name: "Delay Gain", default: 0.7, min: 0, max: 1 - 2^(-15), group: 1)
+
+.SETTINGS
+
+delay_ms: (name: "Delay", type: "int", default: 180, min: 0, max: 370, page: "main", group: 2, units: " ms")
+
+.RESOURCES
+
+delay1: (type: "delay", delay: delay_ms)
+
+.CODE
+
+delay_read c1 $delay1
+madd c0 c1 [delay_gain]  c0
+delay_write $delay1 c0

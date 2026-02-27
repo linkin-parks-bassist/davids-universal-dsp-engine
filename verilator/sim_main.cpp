@@ -248,11 +248,34 @@ int main(int argc, char** argv)
 	
 	printf("Starting...\n");
 	
-	m_effect_desc *d = m_read_eff_desc_from_file("eff/delay.eff");
+	printf("Load delay...\n");
+	m_effect_desc *delay_desc = m_read_eff_desc_from_file("eff/del.eff");
+	printf("Load gain...\n");
+	m_effect_desc *gain_desc = m_read_eff_desc_from_file("eff/gain.eff");
+	printf("Load low pass filter...\n");
+	m_effect_desc *lpf_desc = m_read_eff_desc_from_file("eff/lpf.eff");
+	printf("Load high pass filter...\n");
+	m_effect_desc *hpf_desc = m_read_eff_desc_from_file("eff/hpf.eff");
+	printf("Load band pass filter...\n");
+	m_effect_desc *bpf_desc = m_read_eff_desc_from_file("eff/bpf.eff");
+	printf("Load band stop filter...\n");
+	m_effect_desc *bsf_desc = m_read_eff_desc_from_file("eff/bsf.eff");
 	
-	m_transformer d_t;
+	printf("Effects loaded.\n");
 	
-	init_transformer_from_effect_desc(&d_t, d);
+	m_transformer delay_trans;
+	m_transformer gain_trans;
+	m_transformer lpf_trans;
+	m_transformer hpf_trans;
+	m_transformer bpf_trans;
+	m_transformer bsf_trans;
+	
+	if (delay_desc) init_transformer_from_effect_desc(&delay_trans, delay_desc);
+	if (gain_desc)  init_transformer_from_effect_desc(&gain_trans, gain_desc);
+	if (lpf_desc)   init_transformer_from_effect_desc(&lpf_trans, lpf_desc);
+	if (hpf_desc)   init_transformer_from_effect_desc(&hpf_trans, hpf_desc);
+	if (bpf_desc)   init_transformer_from_effect_desc(&bpf_trans, bpf_desc);
+	if (bsf_desc)   init_transformer_from_effect_desc(&bsf_trans, bsf_desc);
 	
 	m_fpga_transfer_batch batch = m_new_fpga_transfer_batch();
 	
@@ -261,10 +284,12 @@ int main(int argc, char** argv)
 	res.delays = 0;
 	
 	int pos = 0;
+
+	m_fpga_batch_append(&batch, COMMAND_BEGIN_PROGRAM);
 	
-	m_fpga_batch_append_transformer(&batch, &d_t, &res, &pos);
+	m_fpga_batch_append_transformer(&batch, &delay_trans, &res, &pos);
 	
-	m_fpga_batch_append(&batch, COMMAND_SWAP_PIPELINES);
+	m_fpga_batch_append(&batch, COMMAND_END_PROGRAM);
 	
 	append_send_queue(batch, 70);
 	
@@ -322,7 +347,7 @@ int main(int argc, char** argv)
 			samples_processed++;
 			t += sample_duration;
 			
-			io.sample_in = (uint16_t)(roundf(sinf(6.28 * 1000.0f * t * ((float)samples_processed / (float)samples_to_process)) * 32767.0 * 0.5f));
+			io.sample_in = (uint16_t)(roundf(sinf(6.28 * 1500.0f * t/* * ((float)samples_processed / (float)samples_to_process)*/) * 32767.0 * 0.5f));
 			//io.sample_in = static_cast<int16_t>(in_samples[samples_processed]);
 			y = static_cast<int16_t>(io.sample_out);
 			out_samples.push_back(y);
