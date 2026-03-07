@@ -457,11 +457,12 @@ module control_unit
 						if (health) begin
 							swap_pipelines <= 1;
 							
-							
 							swap_pipelines <= 1;
 							
 							state <= SWAP_WAIT;
 							spi_byte_out <= SPI_RESPONSE_OK;
+							
+							wait_one <= 1;
 						end else begin
 							pipeline_full_reset[back_pipeline] <= 1;
 							state <= READY;
