@@ -81,7 +81,7 @@ M-FPGA includes a general-purpose filter engine. It computes arbitrary filters o
 
 ## Instruction Set
 
-The assembly language, as implemented by [M-interface](github.com/linkin-parks-bassist/m-interface) supports inline math expressions, enclosed with `[`, `]` and written into registers by the control MCU. Additionally, one can make direct references to declared resources such as delay buffers or filters, prepended with `$`. Syntax-wise, arguments are separated by spaces, and destination channels always appear as the final argument. Channels are written `cN`, for `N` a decimal number or hex digit between 0 and 15 (inclusive) (0-f, respectively).
+The assembly language, as implemented by [M-interface](https://github.com/linkin-parks-bassist/m-interface) supports inline math expressions, enclosed with `[`, `]` and written into registers by the control MCU. Additionally, one can make direct references to declared resources such as delay buffers or filters, prepended with `$`. Syntax-wise, arguments are separated by spaces, and destination channels always appear as the final argument. Channels are written `cN`, for `N` a decimal number or hex digit between 0 and 15 (inclusive) (0-f, respectively).
 
 | Instruction | Example  		                | Notes                            |
 |-------------|---------------------------------|----------------------------------|
