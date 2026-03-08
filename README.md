@@ -22,7 +22,7 @@ Implements a fixed-point, pipelined, programmable audio processing core targetin
 
 ## Architecture
 
-The overall architecture of M-FPGA is shown below. The engine receives audio over I2S, processes it, and transmits it via I2S. It is intended for use with a microcontroller running the corresponding software [M-interface](github.com/linkin-parks-bassist/m-interface) and connected to the FPGA via SPI.
+The overall architecture of M-FPGA is shown below. The engine receives audio over I2S, processes it, and transmits it via I2S. It is intended for use with a microcontroller running the corresponding software [M-interface](https://github.com/linkin-parks-bassist/m-interface) and connected to the FPGA via SPI.
 
 <p align="center">
   <img src="docs/resources/M-fpga.svg" alt="Global schematic" width="60%">
