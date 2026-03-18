@@ -39,12 +39,6 @@ for mod in "${MODULES[@]}"; do
     echo
 done
 
-echo "======================================"
-echo "SUMMARY"
-echo "======================================"
-echo "Passed: $PASS"
-echo "Failed: $FAIL"
-
 if [ $FAIL -ne 0 ]; then
     exit 1
 fi

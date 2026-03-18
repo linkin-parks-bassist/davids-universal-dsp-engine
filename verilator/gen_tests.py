@@ -17,10 +17,11 @@ TEST_MODULES = [
 
 module_re = re.compile(r"\bmodule\s+(\w+)\b")
 
+
 def find_modules():
     wanted = set(TEST_MODULES)
     found = {}
-    
+
     for root, _, files in os.walk(SRC_ROOT):
         for f in files:
             if not f.endswith(".v"):
@@ -46,21 +47,18 @@ def find_modules():
 
     return [name for name in TEST_MODULES if name in found]
 
+
 SIM_MAIN_TEMPLATE = textwrap.dedent("""\
 #include <verilated.h>
 #include <verilated_vcd_c.h>
 #include "V{module}.h"
+#include "test_framework.h"
 
-#include <vector>
-#include <functional>
-#include <cstdio>
-
-struct Test {{
-    const char* name;
-    std::function<void(V{module}*, VerilatedVcdC*)> fn;
-}};
-
-extern std::vector<Test>& get_tests();
+std::vector<Test>& get_tests()
+{{
+    static std::vector<Test> tests;
+    return tests;
+}}
 
 static vluint64_t sim_time = 0;
 double sc_time_stamp() {{ return sim_time; }}
@@ -128,7 +126,10 @@ int main(int argc, char** argv)
 }}
 """)
 
-TESTS_TEMPLATE = textwrap.dedent("""\
+
+TEST_FRAMEWORK_TEMPLATE = textwrap.dedent("""\
+#pragma once
+
 #include <vector>
 #include <functional>
 #include <cstdio>
@@ -142,11 +143,7 @@ struct Test {{
     std::function<void(V{module}*, VerilatedVcdC*)> fn;
 }};
 
-std::vector<Test>& get_tests()
-{{
-    static std::vector<Test> tests;
-    return tests;
-}}
+std::vector<Test>& get_tests();
 
 #define TEST(name) \\
     void name(V{module}*, VerilatedVcdC*); \\
@@ -163,7 +160,18 @@ std::vector<Test>& get_tests()
         exit(1); \\
     }}
 
+#define EXPECT_NE(a,b) \\
+    if ((a)==(b)) {{ \\
+        printf("FAIL: %s == %s (both %d, expected different)\\n", #a, #b, (int)(a)); \\
+        exit(1); \\
+    }}
+
 extern void tick(V{module}* dut, VerilatedVcdC* tfp);
+""")
+
+
+TESTS_TEMPLATE = textwrap.dedent("""\
+#include "test_framework.h"
 
 TEST(example)
 {{
@@ -171,6 +179,7 @@ TEST(example)
     dut->eval();
 }}
 """)
+
 
 RUN_SH_TEMPLATE = textwrap.dedent("""\
 #!/bin/bash
@@ -198,6 +207,38 @@ def write_file(path, content, executable=False):
         os.chmod(path, 0o755)
 
 
+def ensure_tests_include(path):
+    if not os.path.exists(path):
+        return
+
+    with open(path) as f:
+        text = f.read()
+
+    include_line = '#include "test_framework.h"'
+
+    if include_line in text:
+        return
+
+    stripped = text.lstrip()
+
+    if stripped.startswith("#include"):
+        lines = text.splitlines()
+        insert_at = 0
+        while insert_at < len(lines) and lines[insert_at].startswith("#include"):
+            insert_at += 1
+        lines.insert(insert_at, include_line)
+        new_text = "\n".join(lines)
+        if text.endswith("\n"):
+            new_text += "\n"
+    else:
+        new_text = include_line + "\n\n" + text
+
+    with open(path, "w") as f:
+        f.write(new_text)
+
+    print(f"[+] inserted test_framework.h include into {path}")
+
+
 def main():
     os.makedirs(OUT_ROOT, exist_ok=True)
 
@@ -212,16 +253,21 @@ def main():
         os.makedirs(out_dir, exist_ok=True)
 
         sim_main = os.path.join(out_dir, "sim_main.cpp")
+        framework = os.path.join(out_dir, "test_framework.h")
         tests = os.path.join(out_dir, "tests.cpp")
         run_sh = os.path.join(out_dir, "run.sh")
 
         write_file(sim_main, SIM_MAIN_TEMPLATE.format(module=name))
         print(f"[+] regenerated sim_main.cpp for {name}")
 
+        write_file(framework, TEST_FRAMEWORK_TEMPLATE.format(module=name))
+        print(f"[+] regenerated test_framework.h for {name}")
+
         if not os.path.exists(tests):
             write_file(tests, TESTS_TEMPLATE.format(module=name))
             print(f"[+] created tests.cpp for {name}")
         else:
+            ensure_tests_include(tests)
             print(f"[=] preserved tests.cpp for {name}")
 
         write_file(run_sh, RUN_SH_TEMPLATE.format(module=name), executable=True)

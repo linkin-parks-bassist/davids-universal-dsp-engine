@@ -21,3 +21,8 @@ dude.gprj
 dude.gprj.user
 dude.gprj.user
 *.gprj
+
+/verilator/test/**/obj_dir/
+/verilator/test/**/*.vcd
+/verilator/test/**/core
+/verilator/test/**/core.*
