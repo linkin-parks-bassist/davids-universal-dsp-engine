@@ -1,6 +1,6 @@
 #include <verilated.h>
 #include <verilated_vcd_c.h>
-#include "Vhealth_monitor.h"
+#include "Vmultiply_stage.h"
 #include "test_framework.h"
 
 std::vector<Test>& get_tests()
@@ -15,12 +15,12 @@ static const char* g_current_test_name = nullptr;
 
 double sc_time_stamp() { return sim_time; }
 
-void settle(Vhealth_monitor* dut, VerilatedVcdC* tfp)
+void settle(Vmultiply_stage* dut, VerilatedVcdC* tfp)
 {
     dut->eval();
 }
 
-void tick(Vhealth_monitor* dut, VerilatedVcdC* tfp)
+void tick(Vmultiply_stage* dut, VerilatedVcdC* tfp)
 {
     dut->clk = 1;
     dut->eval();
@@ -140,7 +140,7 @@ int main(int argc, char** argv)
 {
     Verilated::commandArgs(argc, argv);
 
-    Vhealth_monitor* dut = new Vhealth_monitor;
+    Vmultiply_stage* dut = new Vmultiply_stage;
 
     dut->clk = 0;
     dut->reset = 0;

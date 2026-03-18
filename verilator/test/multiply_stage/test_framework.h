@@ -6,12 +6,12 @@
 #include <cstdlib>
 #include <cstdint>
 
-#include "Vfilter_master.h"
+#include "Vmultiply_stage.h"
 #include <verilated_vcd_c.h>
 
 struct Test {
     const char* name;
-    std::function<void(Vfilter_master*, VerilatedVcdC*)> fn;
+    std::function<void(Vmultiply_stage*, VerilatedVcdC*)> fn;
 };
 
 std::vector<Test>& get_tests();
@@ -41,13 +41,13 @@ static inline int64_t bits_s(uint64_t x, unsigned width)
 }
 
 #define TEST(name) \
-    void name(Vfilter_master*, VerilatedVcdC*); \
+    void name(Vmultiply_stage*, VerilatedVcdC*); \
     struct name##_registrar { \
         name##_registrar() { \
             get_tests().push_back({#name, name}); \
         } \
     } name##_registrar_instance; \
-    void name(Vfilter_master* dut, VerilatedVcdC* tfp)
+    void name(Vmultiply_stage* dut, VerilatedVcdC* tfp)
 
 void test_fail_eq(const char* expr_a,
                   const char* expr_b,
@@ -115,5 +115,5 @@ void test_fail_s(const char* expr_a,
         } \
     } while (0)
 
-extern void settle(Vfilter_master* dut, VerilatedVcdC* tfp);
-extern void tick(Vfilter_master* dut, VerilatedVcdC* tfp);
+extern void settle(Vmultiply_stage* dut, VerilatedVcdC* tfp);
+extern void tick(Vmultiply_stage* dut, VerilatedVcdC* tfp);

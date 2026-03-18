@@ -48,6 +48,9 @@ module multiply_stage #(parameter data_width = 16, parameter n_blocks = 256, par
 	
 	wire take_in  = in_ready & in_valid;
 	wire take_out = out_valid & out_ready;
+	
+	wire signed [full_width - 1 : 0] product_signed = $signed(arg_a_in) * $signed(arg_b_in);
+	wire 	    [full_width - 1 : 0] product_unsigned = $unsigned(arg_a_in) * $unsigned(arg_b_in);
 
 	always @(posedge clk) begin
 		out_valid <= out_valid;
@@ -76,7 +79,7 @@ module multiply_stage #(parameter data_width = 16, parameter n_blocks = 256, par
 				saturate_disable_out <= saturate_disable_in;
 				signedness_out 		 <= signedness_in;
 				
-				product_out 		 <= signedness_in ? $signed(arg_a_in) * $signed(arg_b_in) : arg_a_in * arg_b_in;
+				product_out 		 <= signedness_in ? product_signed : product_unsigned;
 				arg_c_out 			 <= arg_c_in;
 				
 				dest_out 			 <= dest_in;
