@@ -4,9 +4,9 @@
 
 # Kestrel Core
 
-Hardware DSP engine for Kestrel.
+Hardware DSP core for Kestrel.
 
-Implements a fixed-point, pipelined, programmable audio processing core targeting Gowin GW2AR devices.
+Implements a pipelined fixed-point, programmable audio processing core targeting Gowin GW2AR devices.
 
 ## Features
 
