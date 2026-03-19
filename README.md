@@ -15,9 +15,9 @@ Implements a pipelined fixed-point, programmable audio processing core targeting
 - Out-of-order execution with scoreboard hazard prevention
 - Order enforced at commit boundary
 - Delay buffer controller
-- Arbitrary IIR filter engine
-- Variable fixed-point format controlled by instruction field
 - Simple instruction set
+- Variable fixed-point format controlled by instruction field
+- Arbitrary IIR filter engine
 - Timing closure at 112.5MHz on GW2AR-18 (logic depth 10)
 
 ## Architecture
