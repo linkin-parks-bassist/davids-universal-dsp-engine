@@ -247,7 +247,7 @@ always @(posedge clk) begin
             {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_Write;
             SDRAM_A[10] <= 1'b1;        // set auto precharge
             SDRAM_A[9:0] <= {1'b0, addr_buf[COL_WIDTH - 1 + addr_offs : addr_offs]};  // column address
-            SDRAM_DQM <= addr_buf[0] == 2'd0 ? 4'b1100 : 4'b0011;     // only write the correct word
+            SDRAM_DQM <= addr_buf[0] ? 4'b0011 : 4'b1100;     // only write the correct word
             off <= addr_buf[0];
             dq_out <= {din_buf,din_buf,din_buf,din_buf};
             dq_oen <= 1'b0;                 // DQ output on
