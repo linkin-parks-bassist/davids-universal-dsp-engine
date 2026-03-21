@@ -74,6 +74,7 @@ module lut_master #(parameter data_width = 16) (
 		wait_one <= 0;
 		tanh_read <= 0;
 		sin_read  <= 0;
+		valid <= 0;
 
 		if (reset) begin
 			invalid_request <= 0;
@@ -81,11 +82,10 @@ module lut_master #(parameter data_width = 16) (
 			state <= `LUT_MASTER_STATE_READY;
 		end
 		else begin
-			valid <= 0;
 			
 			case (state)
 				`LUT_MASTER_STATE_READY: begin
-					if (req) begin
+					if (!wait_one && req) begin
 						lut_handle_latched 	<= lut_handle;
 						req_arg_latched 	<= req_arg;
 						state <= `LUT_MASTER_STATE_PROCESSING;
@@ -151,6 +151,7 @@ module lut_master #(parameter data_width = 16) (
 						data_out <= interpolated;
 						valid <= 1;
 						state <= `LUT_MASTER_STATE_READY;
+						wait_one <= 1;
 					end
 				end
 				
@@ -158,6 +159,7 @@ module lut_master #(parameter data_width = 16) (
 					data_out <= interpolated;
 					valid <= 1;
 					state <= `LUT_MASTER_STATE_READY;
+					wait_one <= 1;
 				end
 				
 				`LUT_MASTER_STATE_ERROR: begin

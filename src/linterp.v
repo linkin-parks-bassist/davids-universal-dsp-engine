@@ -105,6 +105,7 @@ module sequential_interp #(parameter data_width = 16, parameter interp_bits = 3)
 				if (index == 0) begin
 					interpolated <= interp_sum + (frac_latched[0] ? diff_latched : 0);
 					busy <= 0;
+					out_valid <= 1;
 				end
 				else begin
 					interp_sum <= interp_sum + (frac_latched[index] ? diff_latched : 0);

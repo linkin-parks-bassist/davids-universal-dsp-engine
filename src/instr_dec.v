@@ -88,7 +88,7 @@ module instr_decoder #(parameter data_width = 16)
 					  || operation == `BLOCK_INSTR_MOV_LACC
 					  || operation == `BLOCK_INSTR_MOV_UACC);
 	
-	assign signedness = (operation != `BLOCK_INSTR_UMACZ);
+	assign signedness = (operation != `BLOCK_INSTR_UMACZ && operation != `BLOCK_INSTR_UMAC);
 	
 	always_comb begin
 		if	  (operation == `BLOCK_INSTR_DELAY_READ || operation == `BLOCK_INSTR_DELAY_WRITE) branch = `INSTR_BRANCH_DELAY;

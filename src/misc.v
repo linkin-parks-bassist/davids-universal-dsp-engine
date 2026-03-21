@@ -369,8 +369,8 @@ module misc_branch_stage_3 #(parameter data_width = 16, parameter n_blocks = 256
 	assign results[`BLOCK_INSTR_MAX	  - `MISC_OPCODE_MIN] = max_in;
 	assign results[`BLOCK_INSTR_CLAMP	- `MISC_OPCODE_MIN] = clamp_in;
 	assign results[`BLOCK_INSTR_MOV_ACC  - `MISC_OPCODE_MIN] = acc_shift_in;
-	assign results[`BLOCK_INSTR_MOV_LACC - `MISC_OPCODE_MIN] = upper_acc_in;
-	assign results[`BLOCK_INSTR_MOV_UACC - `MISC_OPCODE_MIN] = lower_acc_in;
+	assign results[`BLOCK_INSTR_MOV_LACC - `MISC_OPCODE_MIN] = lower_acc_in;
+	assign results[`BLOCK_INSTR_MOV_UACC - `MISC_OPCODE_MIN] = upper_acc_in;
 	
 	wire signed [full_width - 1 : 0] result;
 	

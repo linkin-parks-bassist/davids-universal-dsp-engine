@@ -606,7 +606,7 @@ module dsp_core #(
 		.shift				(shift_out_router),
 		.shift_disable		(shift_disable_out_router),
 		.signedness_in		(signedness_out_router),
-		.saturate_disable_in(saturate_disable_out_router),
+		.saturate_disable_in(1'b1),
 		
 		.arg_a_in(arg_a_out_router),
 		.arg_b_in(arg_b_out_router),
