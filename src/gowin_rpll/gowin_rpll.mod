@@ -1,8 +1,8 @@
 -series GW2AR
 -device GW2AR-18
 -device_version C
--package QFN88P
--part_number GW2AR-LV18QN88PC8/I7
+-package QFN88
+-part_number GW2AR-LV18QN88C8/I7
 
 
 -mod_name Gowin_rPLL
@@ -13,21 +13,22 @@
 -file_type vlg
 -dev_type GW2AR-18C
 -dyn_idiv_sel false
--idiv_sel 9
+-idiv_sel 6
 -dyn_fbdiv_sel false
--fbdiv_sel 41
+-fbdiv_sel 25
 -dyn_odiv_sel false
 -odiv_sel 8
--dyn_da_en true
+-dyn_da_en false
 -rst_sig false
 -rst_sig_p false
 -fclkin 27
 -clkfb_sel 0
--en_lock true
+-en_lock false
 -clkout_bypass false
--clkout_ft_dir 1
--en_clkoutp false
+-en_clkoutp true
 -clkoutp_bypass false
+-psda_sel 8
+-dutyda_sel 8
 -en_clkoutd false
 -clkoutd_bypass false
 -en_clkoutd3 false

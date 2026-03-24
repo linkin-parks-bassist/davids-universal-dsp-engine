@@ -77,7 +77,7 @@ module delay_master #(parameter data_width  = 16,
 	reg [addr_width  - 1 : 0] addr;
 	reg [addr_width  - 1 : 0] size;
 	reg [delay_width - 1 : 0] delay;
-	reg signed [delay_width - 1 : 0] delay_offset;
+	reg signed [delay_width - 1 : 0] req_delay_offset;
 	reg  [addr_width  - 1 : 0] position;
 	wire [addr_width  - 1 : 0] next_position = (position + 1 == size) ? 0 : position + 1;
 	reg signed [data_width : 0] gain;
@@ -110,10 +110,9 @@ module delay_master #(parameter data_width  = 16,
 	
 	reg [addr_width - 1 : 0] alloc_addr;
 	
-	wire [data_width - DELAY_FORMAT - 1 : 0] delay_offs = delay_offset[data_width - 1 : addr_width - DELAY_FORMAT];
-	wire [addr_width - 1 : 0] delay_addr_raw = addr + position - delay_offs;
-	wire [addr_width - 1 : 0] delay_addr = (delay_offs > position) ? addr + position - delay_offs + size
-																		 : addr + position - delay_offs;
+	wire [data_width - DELAY_FORMAT - 1 : 0] delay_addr_delta = delay[data_width - 1 : addr_width - DELAY_FORMAT];
+	wire [addr_width - 1 : 0] delay_addr = (delay_addr_delta > position) ? addr + position - delay_addr_delta + size
+																		 : addr + position - delay_addr_delta;
 	
 	reg [addr_width + DELAY_FORMAT - 1 : 0] write_inc_clamped;
 	
@@ -198,7 +197,7 @@ module delay_master #(parameter data_width  = 16,
 						read_handle_r <= read_handle;
 						buf_info_read_handle <= read_handle;
 						invalid_read <= !buffer_initd[read_handle];
-						delay_offset <= read_delay;
+						req_delay_offset <= read_delay;
 						
 						state <= buffer_initd[read_handle] ? READ_1 : IDLE;
 					end else if (~write_wait_one & write_req) begin
@@ -223,7 +222,12 @@ module delay_master #(parameter data_width  = 16,
 				end
 				
 				READ_3: begin
-					delay <= $unsigned($signed(delay) + delay_offset);
+                    if (req_delay_offset <= -delay)
+                        delay <= 1;
+                    else if (delay + req_delay_offset > size - 1)
+                        delay <= size - 1;
+                    else
+                        delay <= $unsigned($signed(delay) + req_delay_offset);
 					state <= READ_4;
 				end
 				

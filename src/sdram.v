@@ -49,29 +49,29 @@ module sdram
 )
 (
     // SDRAM side interface
-    inout [DATA_WIDTH-1:0]      SDRAM_DQ,
+    inout wire [DATA_WIDTH-1:0]      SDRAM_DQ,
     output reg [ROW_WIDTH-1:0]  SDRAM_A,
     output reg [BANK_WIDTH-1:0] SDRAM_BA,
-    output            SDRAM_nCS,    // not strictly necessary, always 0
+    output wire      SDRAM_nCS,    // not strictly necessary, always 0
     output reg        SDRAM_nWE,
     output reg        SDRAM_nRAS,
     output reg        SDRAM_nCAS,
-    output            SDRAM_CLK,
-    output            SDRAM_CKE,    // not strictly necessary, always 1
+    output wire       SDRAM_CLK,
+    output wire       SDRAM_CKE,    // not strictly necessary, always 1
     output reg  [3:0] SDRAM_DQM,
     
     // Logic side interface
-    input             clk,
-    input             clk_sdram,    	// phase shifted from clk (normally 180-degrees)
-    input             resetn,
-    input             rd,           	// command: read
-    input             wr,           	// command: write
-    input             refresh,      	// command: auto refresh. 4096 refresh cycles in 64ms. Once per 15us.
-    input      [21:0] addr,         	// word address, buffered at rd/wr pulse time
-    input  [data_width - 1 : 0] din,    // data input, buffered at wr pulse time
-    output [data_width - 1 : 0] dout,   // data output, available 4 cycles after rd becomes 1
+    input wire       clk,
+    input wire        clk_sdram,    	// phase shifted from clk (normally 180-degrees)
+    input wire        resetn,
+    input wire        rd,           	// command: read
+    input wire        wr,           	// command: write
+    input wire        refresh,      	// command: auto refresh. 4096 refresh cycles in 64ms. Once per 15us.
+    input wire [21:0] addr,         	// word address, buffered at rd/wr pulse time
+    input wire [data_width - 1 : 0] din,    // data input, buffered at wr pulse time
+    output wire [data_width - 1 : 0] dout,   // data output, available 4 cycles after rd becomes 1
 										// output is buffered until next read request
-    output [DATA_WIDTH-1:0] dout32, 	// 32-bit data output
+    output wire [DATA_WIDTH-1:0] dout32, 	// 32-bit data output
     output reg        data_ready,   	// available 6 cycles after wr is set
     output reg        busy          	// 0: ready for next command
 );
