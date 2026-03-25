@@ -43,10 +43,25 @@ module delay_master #(parameter data_width  = 16,
 		output reg invalid_write,
 		output reg invalid_alloc,
 		
-		output wire any_buffers
+		output wire any_buffers,
+
+        input wire [6 * 8 - 1 : 0] control_bus
 	);
 	
-	
+    reg alloc_req_r;
+    reg [addr_width - 1 : 0] alloc_size_r;
+	reg [addr_width - 1 : 0] alloc_delay_r;
+
+    always @(posedge clk) begin
+        if (reset) begin
+            alloc_req_r <= 0;
+        end else begin
+            alloc_req_r <= alloc_req;
+            alloc_size_r <= control_bus[24 + addr_width - 1 : 24];
+            alloc_delay_r <= control_bus[addr_width : 0];
+        end
+    end
+
 	localparam addr_width   = $clog2(memory_size);
 	localparam delay_width  = addr_width;
 	localparam handle_width = $clog2(n_buffers);
@@ -69,7 +84,7 @@ module delay_master #(parameter data_width  = 16,
 	
 	reg [3:0] state;
 	
-	localparam buf_info_width = addr_width + addr_width + delay_width + addr_width + data_width + 1 + 1;
+	localparam buf_info_width = addr_width + addr_width + delay_width + addr_width + data_width + 1;
 	
 	reg [buf_info_width - 1 : 0] buf_info [n_buffers - 1 : 0];
 	
@@ -79,7 +94,7 @@ module delay_master #(parameter data_width  = 16,
 	reg signed [delay_width - 1 : 0] req_delay_offset;
 	reg  [addr_width  - 1 : 0] position;
 	wire [addr_width  - 1 : 0] next_position = (position + 1 == size) ? 0 : position + 1;
-	reg signed [data_width : 0] gain;
+	reg signed [data_width - 1 : 0] gain;
 	reg wrapped;
 	
 	reg [buf_info_width - 1 : 0] buf_info_read;
@@ -116,7 +131,7 @@ module delay_master #(parameter data_width  = 16,
 	reg [$clog2(n_buffers + 1) - 1 : 0] n_buffers_allocd;
 	
 	wire buffers_exhausted 	= (n_buffers_allocd == n_buffers);
-	wire alloc_too_big		= alloc_addr + alloc_size > memory_size;
+	wire alloc_too_big		= alloc_addr + alloc_size_r > memory_size;
 	
 	reg read_wait;
 	reg [data_width - 1 : 0] read_wait_handle;
@@ -132,11 +147,12 @@ module delay_master #(parameter data_width  = 16,
 	wire signed [2 * data_width - 1 : 0] product = $signed(mem_data_in) * $signed(gain);
 	reg  signed [2 * data_width - 1 : 0] product_r;
 	
-	wire [addr_width  - 1 : 0] alloc_size_wm  = alloc_size [addr_width  - 1 : 0];
-	wire [delay_width - 1 : 0] alloc_delay_wm = alloc_delay[delay_width - 1 : 0];
+	wire [addr_width  - 1 : 0] alloc_size_wm  = alloc_size_r [addr_width  - 1 : 0];
+	wire [delay_width - 1 : 0] alloc_delay_wm = alloc_delay_r[delay_width - 1 : 0];
 	
 	reg read_wait_one;
 	reg write_wait_one;
+    reg allocing;
 	
 	always @(posedge clk) begin
 		write_ack <= 0;
@@ -162,11 +178,11 @@ module delay_master #(parameter data_width  = 16,
 			
 			mem_read_req <= 0;
 			mem_write_req <= 0;
-		end else if (alloc_req) begin
+		end else if (alloc_req_r) begin
 			if (alloc_too_big || buffers_exhausted) begin
 				invalid_alloc <= 1;
 			end else begin
-				alloc_addr <= alloc_addr + alloc_size;
+				alloc_addr <= alloc_addr + alloc_size_r;
 				buffer_initd[n_buffers_allocd] <= 1;
 				n_buffers_allocd <= n_buffers_allocd + 1;
 				
@@ -196,7 +212,6 @@ module delay_master #(parameter data_width  = 16,
 						invalid_write <= !buffer_initd[write_handle];
 						
 						state <= buffer_initd[write_handle] ? WRITE_1 : IDLE;
-						write_ack <= 1;
 					end
 				end
 				
@@ -210,12 +225,12 @@ module delay_master #(parameter data_width  = 16,
 				end
 				
 				READ_3: begin
-                    if ($signed(delay) + req_delay_offset < 1)
+                    /*if ($signed(delay) + req_delay_offset < 1)
                         delay <= 1;
                     else if (delay + req_delay_offset > (size - 1))
                         delay <= size - 1;
                     else
-                        delay <= $unsigned($signed(delay) + req_delay_offset);
+                        delay <= $unsigned($signed(delay) + req_delay_offset);*/
 					state <= READ_4;
 				end
 				
@@ -284,6 +299,7 @@ module delay_master #(parameter data_width  = 16,
 						
 						state <= IDLE;
 						write_wait_one <= 1;
+						write_ack <= 1;
 					end
 				end
 			endcase

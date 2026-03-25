@@ -76,7 +76,9 @@ module dsp_pipeline #(
 		output wire [sdram_addr_width - 2 : 0] sdram_addr,
 		output wire [data_width - 1 : 0] sdram_data_out,
 
-		input wire [data_width - 1 : 0] sdram_data_in
+		input wire [data_width - 1 : 0] sdram_data_in,
+
+        input wire [6 * 8 - 1 : 0] control_bus
 	);
 
     assign byte_probe = core_out;
@@ -243,7 +245,9 @@ module dsp_pipeline #(
 		.mem_read_valid(sdram_read_valid),
 		.mem_write_ack (sdram_write_ack),
 
-        .any_buffers(any_delay_buffers)
+        .any_buffers(any_delay_buffers),
+
+        .control_bus(control_bus)
 	);
 	
 	wire filter_calc_req;
@@ -275,7 +279,9 @@ module dsp_pipeline #(
 		.handle_in(filter_handle_out),
 		.data_in(filter_data_out),
 		.data_out(filter_data_in),
-		.out_valid(filter_data_valid)
+		.out_valid(filter_data_valid),
+
+        .control_bus(control_bus)
 	);
 	
 	/**********/

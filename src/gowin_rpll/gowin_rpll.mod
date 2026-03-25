@@ -23,7 +23,7 @@
 -rst_sig_p false
 -fclkin 27
 -clkfb_sel 0
--en_lock false
+-en_lock true
 -clkout_bypass false
 -en_clkoutp true
 -clkoutp_bypass false

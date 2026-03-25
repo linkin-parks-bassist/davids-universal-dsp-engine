@@ -5,13 +5,14 @@
 //Part Number: GW2AR-LV18QN88C8/I7
 //Device: GW2AR-18
 //Device Version: C
-//Created Time: Sun Mar 22 18:01:54 2026
+//Created Time: Thu Mar 26 06:53:22 2026
 
 //Change the instance name and port connections to the signal names
 //--------Copy here to design--------
 
     Gowin_rPLL your_instance_name(
         .clkout(clkout), //output clkout
+        .lock(lock), //output lock
         .clkoutp(clkoutp), //output clkoutp
         .clkin(clkin) //input clkin
     );

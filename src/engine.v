@@ -116,7 +116,9 @@ module dsp_engine #(
 		.sdram_addr(pipeline_a_sdram_addr),
 		.sdram_data_out(pipeline_a_sdram_data),
 		
-		.sdram_data_in(sdram_data_in)
+		.sdram_data_in(sdram_data_in),
+
+        .control_bus(control_bus)
 	);
 	
 	dsp_pipeline #(.data_width(data_width), .n_blocks(n_blocks), .sdram_addr_width(sdram_addr_width)) pipeline_b (
@@ -176,7 +178,9 @@ module dsp_engine #(
 		.sdram_addr(pipeline_b_sdram_addr),
 		.sdram_data_out(pipeline_b_sdram_data),
 		
-		.sdram_data_in(sdram_data_in)
+		.sdram_data_in(sdram_data_in),
+
+        .control_bus(control_bus)
 	);
 	
 	/**********************************************************/
@@ -284,6 +288,8 @@ module dsp_engine #(
 	wire [7 : 0] filter_alloc_format;
 	wire [data_width - 1 : 0] filter_coef_target;
 	wire [filter_width : 0] filter_coef_data;
+
+    wire [6 * 8 - 1 : 0] control_bus;
 	
 	control_unit #(.n_blocks(n_blocks), .data_width(data_width)) controller (
 		.clk(clk),
@@ -337,7 +343,9 @@ module dsp_engine #(
 		
 		.control_state(control_state),
 		
-		.spi_byte_out(spi_byte_out)
+		.spi_byte_out(spi_byte_out),
+
+        .control_bus(control_bus)
 	);
 	
 	wire pipeline_a_sdram_reqs;

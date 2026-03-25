@@ -21,8 +21,42 @@ module filter_master #(parameter data_width = 16, parameter math_width = 18, par
 		input wire [7:0] handle_in,
 		input wire signed [data_width - 1 : 0] data_in,
 		output reg signed [data_width - 1 : 0] data_out,
-		output reg out_valid
+		output reg out_valid,
+
+        input wire [6 * 8 - 1 : 0] control_bus
 	);
+
+    reg alloc_req_r;
+    reg coef_write_r;
+    reg coef_commit_r;
+
+    reg [7 : 0] alloc_format_r;
+    reg [data_width - 1 : 0] order_ff_r;
+	reg [data_width - 1 : 0] order_fb_r;
+
+    reg [7:0] coef_write_handle_r;
+    reg [data_width - 1 : 0] coef_target_r;
+    reg signed [math_width - 1 : 0] coef_data_r;
+
+    always @(posedge clk) begin
+        if (reset) begin
+            alloc_req_r <= 0;
+            coef_write_r <= 0;
+            coef_commit_r <= 0;
+        end else begin
+            alloc_req_r <= alloc_req;
+            coef_write_r <= coef_write;
+            coef_commit_r <= coef_commit;
+            
+            alloc_format_r <= control_bus[2 * data_width + 8 - 1 : 2 * data_width];
+            order_ff_r <= control_bus[2 * data_width - 1 : data_width];
+            order_fb_r <= control_bus[data_width - 1 : 0];
+
+            coef_write_handle_r <= control_bus[6 * 8 - 1 : 5 * 8];
+            coef_target_r <= control_bus[24 + 2 * 8 - 1 : 24];
+            coef_data_r <= control_bus[data_width - 1 + 2 : 0];
+        end
+    end
 
 	localparam handle_width = $clog2(n_filters);
 	localparam addr_width   = $clog2(mem_size);
@@ -89,7 +123,7 @@ module filter_master #(parameter data_width = 16, parameter math_width = 18, par
 	wire filter_capacity = (next_handle < n_filters);
 	wire mem_capacity = (next_addr + order_ff + order_fb < mem_size);
 	
-	reg [addr_width - 1 : 0] coef_target_r;
+	reg [addr_width - 1 : 0] coef_target_addr;
 	reg signed [math_width - 1 : 0] coef_to_write;
 	
 	reg coef_writing;
@@ -166,7 +200,7 @@ module filter_master #(parameter data_width = 16, parameter math_width = 18, par
 			current_order_ff <= 0;
 			current_order_fb <= 0;
 			
-			coef_target_r <= 0;
+			coef_target_addr <= 0;
 			coef_to_write <= 0;
 			
 			coef_committing <= 0;
@@ -192,7 +226,7 @@ module filter_master #(parameter data_width = 16, parameter math_width = 18, par
 		end else if (busy) begin
 			if (coef_writing) begin
 				if (!wait_one) begin
-					coef_mem_write_addr <= config_mem_read_val[addr_width : 1] + coef_target_r;
+					coef_mem_write_addr <= config_mem_read_val[addr_width : 1] + coef_target_addr;
 					coef_mem_write_val <= coef_to_write;
 					{coef_mem_b_write_enable, coef_mem_a_write_enable} <= {write_back ^ config_mem_read_val[0], write_back ^ ~config_mem_read_val[0]};
 					coef_commit_cooldown <= 1;
@@ -331,25 +365,25 @@ module filter_master #(parameter data_width = 16, parameter math_width = 18, par
 				endcase
 			end 
 		end else begin
-			if (alloc_req) begin
+			if (alloc_req_r) begin
 				if (filter_capacity && mem_capacity) begin
 					config_mem_write_addr <= next_handle;
-					config_mem_write_val <= {alloc_format[4:0], order_fb[degree_width - 1 : 0], order_ff[degree_width - 1 : 0], next_addr, 1'b0};
+					config_mem_write_val <= {alloc_format_r[4:0], order_fb_r[degree_width - 1 : 0], order_ff_r[degree_width - 1 : 0], next_addr, 1'b0};
 					config_mem_write_enable <= 1;
 					next_handle <= next_handle + 1;
-					next_addr <= next_addr + order_ff + order_fb;
+					next_addr <= next_addr + order_ff_r + order_fb_r;
 					state_invalid[next_handle] <= 1;
 				end
-			end else if (~coef_write_cooldown & coef_write) begin
-				config_mem_read_addr <= coef_write_handle;
-				coef_target_r <= coef_target[addr_width - 1 : 0];
-				coef_to_write <= coef_data;
-				write_back <= ~coef_commit;
+			end else if (~coef_write_cooldown & coef_write_r) begin
+				config_mem_read_addr <= coef_write_handle_r;
+				coef_target_addr <= coef_target_r[addr_width - 1 : 0];
+				coef_to_write <= coef_data_r;
+				write_back <= ~coef_commit_r;
 				coef_writing <= 1;
 				wait_one <= 1;
 				busy <= 1;
-			end else if (~coef_commit_cooldown & coef_commit) begin
-				config_mem_read_addr <= coef_write_handle;
+			end else if (~coef_commit_cooldown & coef_commit_r) begin
+				config_mem_read_addr <= coef_write_handle_r;
 				coef_committing <= 1;
 				wait_one <= 1;
 				busy <= 1;

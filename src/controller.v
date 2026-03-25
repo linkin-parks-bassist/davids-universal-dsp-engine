@@ -62,7 +62,9 @@ module control_unit
 		output reg invalid,
 		
 		output wire [7:0] control_state,
-		output reg  [7:0] spi_byte_out
+		output reg  [7:0] spi_byte_out,
+
+        output reg [6 * 8 - 1 : 0] control_bus
 	);
 	
 	reg [7:0] in_byte_latched;
@@ -361,6 +363,7 @@ module control_unit
 				end
 				
 				EXECUTE: begin
+                    control_bus <= bytes_in;
 					case (command)
 						`COMMAND_WRITE_BLOCK_INSTR: begin
 							block_target <= instr_write_block;
