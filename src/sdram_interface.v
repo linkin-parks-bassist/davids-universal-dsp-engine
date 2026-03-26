@@ -86,16 +86,11 @@ module sdram_interface #(parameter data_width = 16, parameter addr_width = 22)
 					read_wait <= 0;
 					
 					cooldowns[{client, 0}] <= 1;
-				end else if (~controller_busy) begin
-					data_out <= 0;
-					read_valid[client] <= 1;
-					read_wait <= 0;
-					
-					cooldowns[{client, 0}] <= 1;
 				end
 			end
 		end else if (write_wait) begin
 			write_wait <= 0;
+			cooldowns[{client, 1}] <= 1;
 		end else if (!controller_busy) begin
 			if (refresh_needed) begin
 				refresh <= 1;
@@ -112,8 +107,6 @@ module sdram_interface #(parameter data_width = 16, parameter addr_width = 22)
 					
 					client <= next_priority;
 					addr_to_controller <= {next_priority, addr_in[next_priority]};
-					
-					cooldowns[{next_priority, 1}] <= 1;
 					
 					next_priority <= ~next_priority;
 					write_wait <= 1;
@@ -135,7 +128,6 @@ module sdram_interface #(parameter data_width = 16, parameter addr_width = 22)
 					client <= ~next_priority;
 					addr_to_controller <= {~next_priority, addr_in[~next_priority]};
 					
-					cooldowns[{~next_priority, 1}] <= 1;
 					write_wait <= 1;
 					wait_one <= 1;
 				end else if (!cooldowns[{~next_priority, 0}]) begin //read

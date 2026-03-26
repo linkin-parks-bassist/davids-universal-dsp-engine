@@ -192,7 +192,7 @@ always @(posedge clk) begin
         {IDLE, 4'bxxxx}: if (rd | wr) begin
             // bank activate
             {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_BankActivate;
-            SDRAM_BA <= addr[ROW_WIDTH + COL_WIDTH+BANK_WIDTH - 1 + addr_offs : ROW_WIDTH + COL_WIDTH + addr_offs];    // bank id
+            SDRAM_BA <= addr[ROW_WIDTH + COL_WIDTH + BANK_WIDTH - 1 + addr_offs : ROW_WIDTH + COL_WIDTH + addr_offs];    // bank id
             SDRAM_A <= addr[ROW_WIDTH + COL_WIDTH - 1 + addr_offs : COL_WIDTH + addr_offs];      // 12-bit row address
             state <= rd ? READ : WRITE;
             addr_buf <= addr;
@@ -222,7 +222,7 @@ always @(posedge clk) begin
         {READ, T_RCD}: begin
             {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_Read;
             SDRAM_A[10] <= 1'b1;        // set auto precharge
-            SDRAM_A[9:0] <= {1'b0, addr_buf[COL_WIDTH-1 + addr_offs : addr_offs]};  // column address
+            SDRAM_A[9:0] <= {1'b0, addr_buf[COL_WIDTH - 1 + addr_offs : addr_offs]};  // column address
             SDRAM_DQM <= 4'b0;
             off <= addr_buf[0];
         end

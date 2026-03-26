@@ -124,7 +124,6 @@ module dsp_pipeline #(
 		.delay_write_req (delay_write_req),
 		.delay_req_handle(delay_req_handle),
 		.delay_write_data(delay_write_data),
-		.delay_write_inc (delay_write_inc),
 		.delay_read_data (delay_read_data),
 		.delay_read_delay(delay_read_delay),
 		.delay_read_valid(delay_read_valid),
@@ -192,7 +191,6 @@ module dsp_pipeline #(
 		.read_handle (delay_req_handle),
 		.read_delay	 (delay_read_delay),
 		.write_data  (delay_write_data),
-		.write_inc   (delay_write_inc),
 			
 		.data_out(delay_read_data),
 		
@@ -282,7 +280,6 @@ module dsp_pipeline #(
 	wire delay_write_req;
 	wire [data_width - 1 : 0] delay_req_handle;
 	wire [data_width - 1 : 0] delay_write_data;
-	wire [data_width - 1 : 0] delay_write_inc;
 	wire [data_width - 1 : 0] delay_read_data;
 	wire delay_read_valid;
 	wire delay_write_ack;

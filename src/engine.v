@@ -349,32 +349,28 @@ module dsp_engine #(
 	);
 	
 	wire pipeline_a_sdram_reqs;
-	wire pipeline_a_sdram_req_types;
-	
-	wire [sdram_addr_width - 2 : 0] pipeline_a_sdram_addr;
-	wire [data_width       - 1 : 0] pipeline_a_sdram_data;
-	
 	wire pipeline_b_sdram_reqs;
+	wire pipeline_a_sdram_req_types;
 	wire pipeline_b_sdram_req_types;
 	
+	wire [sdram_addr_width - 2 : 0] pipeline_a_sdram_addr;
 	wire [sdram_addr_width - 2 : 0] pipeline_b_sdram_addr;
+	wire [data_width       - 1 : 0] pipeline_a_sdram_data;
 	wire [data_width       - 1 : 0] pipeline_b_sdram_data;
 	
+	wire [sdram_addr_width - 2 : 0] pipeline_sdram_addr [1:0];
+	assign pipeline_sdram_addr[0] = pipeline_a_sdram_addr;
+	assign pipeline_sdram_addr[1] = pipeline_b_sdram_addr;
+	
+	wire [data_width - 1 : 0] pipeline_sdram_data [1:0];
+	assign pipeline_sdram_data[0] = pipeline_a_sdram_data;
+	assign pipeline_sdram_data[1] = pipeline_b_sdram_data;
+
 	wire [1:0] pipeline_sdram_reqs;
 	wire [1:0] pipeline_sdram_req_types;
 	
 	wire [1:0] sdram_write_ack;
 	wire [1:0] sdram_read_valid;
-	
-	wire [sdram_addr_width - 2 : 0] pipeline_sdram_addr [1:0];
-	
-	assign pipeline_sdram_addr[0] = pipeline_a_sdram_addr;
-	assign pipeline_sdram_addr[1] = pipeline_b_sdram_addr;
-	
-	wire [data_width - 1 : 0] pipeline_sdram_data [1:0];
-	
-	assign pipeline_sdram_data[0] = pipeline_a_sdram_data;
-	assign pipeline_sdram_data[1] = pipeline_b_sdram_data;
 	
 	wire [data_width - 1 : 0] sdram_data_in;
 	

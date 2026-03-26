@@ -21,7 +21,6 @@ module delay_master #(parameter data_width  = 16,
 		input wire [data_width - 1 : 0] write_handle,
 		
 		input wire signed [data_width - 1 : 0] write_data,
-		input wire signed [data_width - 1 : 0] write_inc,
 		input wire signed [data_width - 1 : 0] read_delay,
 		
 		input wire [	addr_width - 1 : 0] alloc_size,
@@ -111,14 +110,6 @@ module delay_master #(parameter data_width  = 16,
 	
 	reg [n_buffers  - 1 : 0] buf_data_invalid;
 	reg [n_buffers  - 1 : 0] buffer_initd;
-	reg [data_width - 1 : 0] buf_data [n_buffers - 1 : 0];
-	reg buf_data_write_enable;
-	
-	always @(posedge clk) begin
-		if (buf_data_write_enable) begin
-			buf_data[write_handle_r] <= buf_data_new;
-		end
-	end
 	
 	reg [addr_width - 1 : 0] alloc_addr;
 	
@@ -141,13 +132,16 @@ module delay_master #(parameter data_width  = 16,
 	reg signed [data_width - 1 : 0] write_inc_r;
 	reg        [data_width - 1 : 0] write_handle_r;
 	reg        [data_width - 1 : 0] read_handle_r;
+
+	reg signed [data_width - 1 : 0] mul_a;
 	
-	wire signed [2 * data_width - 1 : 0] product = $signed(mem_data_in) * $signed(gain);
+	wire signed [2 * data_width - 1 : 0] product = $signed(mul_a) * $signed(gain);
 	reg  signed [2 * data_width - 1 : 0] product_r;
 	
 	wire [addr_width  - 1 : 0] alloc_size_wm  = alloc_size_r [addr_width  - 1 : 0];
 	wire [delay_width - 1 : 0] alloc_delay_wm = alloc_delay_r[delay_width - 1 : 0];
 	
+    reg wait_one;
 	reg read_wait_one;
 	reg write_wait_one;
     reg allocing;
@@ -157,12 +151,12 @@ module delay_master #(parameter data_width  = 16,
 		read_valid <= 0;
 		
 		buf_info_write_enable <= 0;
-		buf_data_write_enable <= 0;
 		
 		invalid_alloc <= 0;
 		invalid_write <= 0;
 		invalid_read  <= 0;
 		
+        wait_one <= 0;
 		read_wait_one <= 0;
 		write_wait_one <= 0;
 	
@@ -235,21 +229,27 @@ module delay_master #(parameter data_width  = 16,
 					mem_addr <= delay_addr;
 					mem_req  <= 1;
                     mem_req_type <= 0;
+                    wait_one <= 1;
 					
 					state <= READ_5;
 				end
 				
 				READ_5: begin
-					state <= READ_6;
-				end
-				
-				READ_6: begin
-					if (mem_read_valid) begin
-						product_r 		<= product;
+					if (~wait_one & mem_read_valid) begin
+                        mul_a           <= mem_data_in;
 						mem_req 	    <= 0;
-						state 			<= READ_7;
+						state 			<= READ_6;
+                        wait_one        <= 1;
 					end
 				end
+
+                READ_6: begin
+                    if (~wait_one) begin
+                        product_r <= product;
+                        state <= READ_7;
+                    end
+                end
+                
 				
 				READ_7: begin
 					data_out 	<= product_r >>> (data_width - 2);
