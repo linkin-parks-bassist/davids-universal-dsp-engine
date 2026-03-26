@@ -167,10 +167,6 @@ module dsp_pipeline #(
 	// Delay buffers
 	localparam delay_mem_addr_width = sdram_addr_width;
 	localparam delay_mem_size = (1 << (delay_mem_addr_width));
-<<<<<<< Updated upstream
-	//reg [data_width - 1 : 0] delay_mem [delay_mem_size - 1 : 0];
-=======
->>>>>>> Stashed changes
 
     wire [data_width - 1 : 0] delay_read_delay;
     wire any_delay_buffers;
