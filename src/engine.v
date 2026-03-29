@@ -68,19 +68,12 @@ module dsp_engine #(
 		
 		.ready(pipeline_a_ready),
 		.error(pipeline_a_error),
-		
-		.block_target(block_target),
-		.reg_target(reg_target),
 
-		.instr_val(ctrl_instr_out),
 		.instr_write(pipeline_a_block_instr_write),
 	
 		.ctrl_data(ctrl_data_out),
-		.delay_size(delay_alloc_size),
-		.init_delay(delay_init_delay),
 		.reg_write(pipeline_a_block_reg_write),
 		.reg_write_ack(reg_write_acks[0]),
-		.reg_update(pipeline_a_block_reg_update),
 		
 		.reg_writes_commit(pipeline_a_reg_writes_commit),
 		.regfile_syncing(pipeline_b_regfile_syncing),
@@ -90,15 +83,8 @@ module dsp_engine #(
 		
 		.filter_coef_write(pipeline_a_filter_coef_write),
 		.filter_coef_commit(pipeline_a_filter_coef_commit),
-		.filter_coef_write_handle(filter_coef_write_handle),
-		.filter_coef_target(filter_coef_target),
-		.filter_coef_data(filter_coef_data),
 		
 		.filter_ack(filter_ack[0]),
-		
-		.filter_order_ff(filter_order_ff),
-		.filter_order_fb(filter_order_fb),
-		.filter_alloc_format(filter_alloc_format),
 		
 		.full_reset(pipeline_a_full_reset),
 		.enable(pipeline_a_enable),
@@ -117,8 +103,13 @@ module dsp_engine #(
 		.sdram_data_out(pipeline_a_sdram_data),
 		
 		.sdram_data_in(sdram_data_in),
+		
+		.data_req(pipeline_data_req[0]),
+		
+		.data_return(pipeline_a_data_return),
+		.data_return_valid(pipeline_a_data_return_valid),
 
-        .control_bus(control_bus)
+        .ctrl_data_in(ctrl_data)
 	);
 	
 	dsp_pipeline #(.data_width(data_width), .n_blocks(n_blocks), .sdram_addr_width(sdram_addr_width)) pipeline_b (
@@ -131,18 +122,11 @@ module dsp_engine #(
 		
 		.ready(pipeline_b_ready),
 		.error(pipeline_b_error),
-		
-		.block_target(block_target),
-		.reg_target(reg_target),
 
-		.instr_val(ctrl_instr_out),
 		.instr_write(pipeline_b_block_instr_write),
 	
 		.ctrl_data(ctrl_data_out),
-		.delay_size(delay_alloc_size),
-		.init_delay(delay_init_delay),
 		.reg_write(pipeline_b_block_reg_write),
-		.reg_update(pipeline_b_block_reg_update),
 		
 		.reg_writes_commit(pipeline_b_reg_writes_commit),
 		.regfile_syncing(pipeline_a_regfile_syncing),
@@ -152,15 +136,8 @@ module dsp_engine #(
 		
 		.filter_coef_write(pipeline_b_filter_coef_write),
 		.filter_coef_commit(pipeline_b_filter_coef_commit),
-		.filter_coef_write_handle(filter_coef_write_handle),
-		.filter_coef_target(filter_coef_target),
-		.filter_coef_data(filter_coef_data),
 		
 		.filter_ack(filter_ack[1]),
-		
-		.filter_order_ff(filter_order_ff),
-		.filter_order_fb(filter_order_fb),
-		.filter_alloc_format(filter_alloc_format),
 
 		.full_reset(pipeline_b_full_reset),
 		.enable(pipeline_b_enable),
@@ -179,8 +156,13 @@ module dsp_engine #(
 		.sdram_data_out(pipeline_b_sdram_data),
 		
 		.sdram_data_in(sdram_data_in),
+		
+		.data_req(pipeline_data_req[1]),
+		
+		.data_return(pipeline_b_data_return),
+		.data_return_valid(pipeline_b_data_return_valid),
 
-        .control_bus(control_bus)
+        .ctrl_data_in(ctrl_data)
 	);
 	
 	/**********************************************************/
@@ -289,7 +271,21 @@ module dsp_engine #(
 	wire [data_width - 1 : 0] filter_coef_target;
 	wire [filter_width : 0] filter_coef_data;
 
-    wire [6 * 8 - 1 : 0] control_bus;
+    wire [`CTRL_DATA_BUS_WIDTH - 1 : 0] ctrl_data;
+    
+    wire [1:0] pipeline_data_req;
+    
+    wire [31:0] pipeline_a_data_return;
+    wire pipeline_a_data_return_valid;
+    wire [31:0] pipeline_b_data_return;
+    wire pipeline_b_data_return_valid;
+    wire [31:0] pipeline_data_return [1:0];
+    wire [1 :0] pipeline_data_return_valid;
+    
+    assign pipeline_data_return[0] = pipeline_a_data_return;
+    assign pipeline_data_return[1] = pipeline_b_data_return;
+    assign pipeline_data_return_valid[0] = pipeline_a_data_return_valid;
+    assign pipeline_data_return_valid[1] = pipeline_b_data_return_valid;
 	
 	control_unit #(.n_blocks(n_blocks), .data_width(data_width)) controller (
 		.clk(clk),
@@ -335,17 +331,18 @@ module dsp_engine #(
 		.set_input_gain(set_input_gain),
 		.set_output_gain(set_output_gain),
 		
-		.invalid(invalid_command),
-		
 		.health(health),
 		.health_monitor_enable(health_monitor_enable),
 		.health_monitor_reset(health_monitor_reset),
 		
-		.control_state(control_state),
-		
 		.spi_byte_out(spi_byte_out),
+		
+		.pipeline_data_req(pipeline_data_req),
 
-        .control_bus(control_bus)
+		.pipeline_data_return(pipeline_data_return),
+		.pipeline_data_return_valid(pipeline_data_return_valid),
+
+        .ctrl_data_out(ctrl_data)
 	);
 	
 	wire pipeline_a_sdram_reqs;

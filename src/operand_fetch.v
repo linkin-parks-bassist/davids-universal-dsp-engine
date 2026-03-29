@@ -346,8 +346,9 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 			4'd0: reg_value = register_0_in;
 			4'd1: reg_value = register_1_in;
 			
-			4'd3: reg_value = (1 << (data_width - 2));
-			4'd4: reg_value = (1 << (data_width - 1));
+			`POS_ONE_REGISTER_ADDR: reg_value = (1 << (data_width - 2));
+			`NEG_ONE_REGISTER_ADDR: reg_value = (1 << (data_width - 1));
+			`SQRT2D2_REGISTER_ADDR: reg_value = (data_width == 16) ? 23170 : 5931641;
 			default: reg_value = 0;
 		endcase
 	end

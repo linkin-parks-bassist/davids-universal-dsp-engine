@@ -42,7 +42,7 @@ module delay_master #(parameter data_width  = 16,
 		
 		output wire any_buffers,
 
-        input wire [6 * 8 - 1 : 0] control_bus
+        input wire [`CTRL_DATA_BUS_WIDTH - 1 : 0] ctrl_data_in
 	);
 	
     reg alloc_req_r;
@@ -54,8 +54,8 @@ module delay_master #(parameter data_width  = 16,
             alloc_req_r <= 0;
         end else begin
             alloc_req_r <= alloc_req;
-            alloc_size_r <= control_bus[24 + addr_width - 1 : 24];
-            alloc_delay_r <= control_bus[addr_width : 0];
+            alloc_size_r <= ctrl_data_in[24 + addr_width - 1 : 24];
+            alloc_delay_r <= ctrl_data_in[addr_width : 0];
         end
     end
 

@@ -37,11 +37,6 @@ module dsp_core #(
 		input wire command_reg_write,
 		input wire command_instr_write,
 		
-		input wire [$clog2(n_blocks) - 1 : 0] command_block_target,
-		input wire command_reg_target,
-		input wire [31 : 0] command_instr_write_val,
-		input wire signed [data_width - 1 : 0] command_reg_write_val,
-		
 		output reg lut_req,
 		output reg signed [data_width - 1 : 0] lut_handle,
 		output reg signed [data_width - 1 : 0] lut_arg,
@@ -70,10 +65,27 @@ module dsp_core #(
 		input wire full_reset,
 		output reg resetting,
 		
-		output wire [7:0] out
+		input wire data_req,
+		
+		output reg [31:0] data_return,
+		output reg data_return_valid,
+		
+        input wire [`CTRL_DATA_BUS_WIDTH - 1 : 0] ctrl_data_in
 	);
 	
-	assign out = {5'd0, any_zero_madds, recent_zero_write, any_zero_writes};
+	wire [$clog2(n_blocks) - 1 : 0] command_block_target;
+	wire command_reg_target;
+	wire [31 : 0] command_instr_write_val;
+	wire signed [data_width - 1 : 0] command_reg_write_val;
+	
+	
+	assign command_instr_write_val = ctrl_data_in[31 : 0];
+	assign command_block_target =  (command_instr_write) ? ctrl_data_in[$clog2(n_blocks) + 32 - 1 : 32]
+														 : ctrl_data_in[$clog2(n_blocks) + data_width + 8 - 1 : data_width + 8];
+		
+	assign command_reg_write_val = ctrl_data_in[data_width - 1 : 0];
+	assign command_reg_target  	 = |ctrl_data_in[data_width + 8 - 1 : data_width - 1];
+	
 	
 	reg enable_req_r;
 	reg enable_core;
@@ -91,45 +103,6 @@ module dsp_core #(
 			end
 		end
 	end
-	
-	reg any_zero_writes;
-    reg recent_zero_write;
-    reg any_zero_madds;
-    reg [32:0] zero_write_ctr;
-	
-    reg any_delay_reqs;
-    reg any_delay_acks;
-
-    wire zero_write = (command_reg_write && (command_block_target == 0));
-
-    always @(posedge clk) begin
-        if (reset | full_reset) begin
-            any_delay_reqs <= 0;
-            any_delay_acks <= 0;
-            any_zero_writes <= 0;
-            zero_write_ctr <= 0;
-            recent_zero_write <= 0;
-            any_zero_madds <= 0;
-        end else if (enable_core) begin
-            any_delay_reqs <= any_delay_reqs | delay_read_req | delay_write_req;
-            any_delay_acks <= any_delay_acks | delay_read_valid | delay_write_ack;
-            
-            any_zero_writes <= any_zero_writes | zero_write;
-
-            if (zero_write) begin
-                zero_write_ctr <= 32'd112500000;
-                recent_zero_write <= 1;
-            end else if (zero_write_ctr != 0) begin
-                recent_zero_write <= 1;
-                zero_write_ctr <= zero_write_ctr - 1;
-            end else begin
-                recent_zero_write <= 0;
-            end
-
-            if (in_ready_commit_master[`INSTR_BRANCH_MADD] && (block_out_commit_stage[`INSTR_BRANCH_MADD] == 0))
-                any_zero_madds <= 1;
-        end
-    end
 
 	localparam block_addr_w 	= $clog2(n_blocks);
 	localparam mem_addr_w 		= $clog2(memory_size);
@@ -146,6 +119,7 @@ module dsp_core #(
 	reg [block_addr_w - 1 : 0] last_block;
 	reg [block_addr_w     : 0] n_blocks_running;
 	
+	reg  [block_addr_w - 1 : 0] block_read_addr_prev;
 	wire [block_addr_w - 1 : 0] block_read_addr  = block_read_addr_bfds;
 	wire [block_addr_w - 1 : 0] instr_write_addr = (resetting) ? blk_reset_ctr : command_block_target;
 	reg  [31 			   : 0] instr_read_val;
@@ -182,6 +156,7 @@ module dsp_core #(
 		end
 	
 		instr_read_val <= instrs[block_read_addr];
+		block_read_addr_prev <= block_read_addr;
 		
 		if (instr_write_enable & ~resetting) begin
 			instrs[instr_write_addr] <= instr_write_val;
@@ -203,6 +178,71 @@ module dsp_core #(
 			channel_read_val <= channels[channel_read_addr];
 			if (channel_write_enable)
 				channels[channel_write_addr] <= channel_write_val;
+		end
+	end
+	
+	reg data_req_active;
+	
+	reg  [`CTRL_DATA_BUS_WIDTH - 1 : 0] data_req_ctrl_data_r;
+	wire [7:0] data_req_type = data_req_ctrl_data_r[7:0];
+	wire [block_addr_w - 1 : 0] block_data_req_addr;
+	wire [7 : 0] block_data_req_reg;
+	
+	generate
+		if (n_blocks > 255) begin
+			assign block_data_req_addr = data_req_ctrl_data_r[23:8];
+			assign block_data_req_reg = data_req_ctrl_data_r[31:24];
+		end else begin
+			assign block_data_req_addr = data_req_ctrl_data_r[15:8];
+			assign block_data_req_reg = data_req_ctrl_data_r[23:16];
+		end
+	endgenerate
+	
+	always @(posedge clk) begin
+		data_return_valid <= 0;
+	
+		if (reset | resetting) begin
+			data_return_valid <= 0;
+			data_req_active <= 0;
+		end else begin
+			if (data_req) begin
+				data_req_ctrl_data_r <= ctrl_data_in;
+				data_req_active <= 1;
+			end else if (data_req_active) begin
+				case (data_req_type)
+					`DATA_REQ_N_BLOCKS: begin
+						data_return <= n_blocks_running;
+						data_return_valid <= 1;
+						data_req_active <= 0;
+					end
+					
+					`DATA_REQ_BLOCK_INSTR: begin
+						if (block_read_addr_prev == block_data_req_addr) begin
+							data_return <= instr_read_val;
+							data_return_valid <= 1;
+							data_req_active <= 0;
+						end
+					end
+					
+					`DATA_REQ_BLOCK_REG: begin
+						if (block_read_addr_prev == block_data_req_addr) begin
+							case (block_data_req_reg)
+								8'b0: data_return <= register_0_read_value;
+								8'b1: data_return <= register_1_read_value;
+								{4'd0, `POS_ONE_REGISTER_ADDR}: data_return <= (1 << (data_width - 2));
+								{4'd0, `NEG_ONE_REGISTER_ADDR}: data_return <= (1 << (data_width - 1));
+								{4'd0, `SQRT2D2_REGISTER_ADDR}: data_return <= (data_width == 16) ? 23170 : 5931641;
+							endcase
+							data_return_valid <= 1;
+							data_req_active <= 0;
+						end
+					end
+					
+					default: begin
+						data_req_active <= 0;
+					end
+				endcase
+			end
 		end
 	end
 	

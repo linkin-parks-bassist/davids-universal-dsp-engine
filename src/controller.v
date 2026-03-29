@@ -59,28 +59,59 @@ module control_unit
 		output reg health_monitor_reset,
 		input wire health,
 		
-		output reg invalid,
+		output wire [7:0] spi_byte_out,
 		
-		output wire [7:0] control_state,
-		output reg  [7:0] spi_byte_out,
+		output reg [1:0] pipeline_data_req,
+		
+		input wire [31:0] pipeline_data_return [1:0],
+		input wire [1 :0] pipeline_data_return_valid,
 
-        output reg [6 * 8 - 1 : 0] control_bus
+        output reg [`CTRL_DATA_BUS_WIDTH - 1 : 0] ctrl_data_out
 	);
+	
+	wire [7:0] flags;
+	
+	assign flags[0] = initialised_flag;
+	assign flags[1] = busy_flag;
+	assign flags[2] = timeout_flag;
+	assign flags[3] = programming_flag;
+	assign flags[4] = bad_flag;
+	assign flags[5] = data_ready_flag;
+	assign flags[6] = cmd_err_flag;
+	
+	reg initialised_flag;
+	reg busy_flag;
+	reg timeout_flag;
+	wire programming_flag = programming;
+	reg bad_flag;
+	wire data_ready_flag = data_ready;
+	reg cmd_err_flag;
+	
+	reg [7:0] data_req_type;
+	
+	reg data_ready;
+	
+	reg expecting_pipeline_data;
+	reg pipeline_data_req_target;
+	
+	reg returning_data;
+	reg [2:0] readout_n_bytes;
+	reg [2:0] readout_index;
+	reg [4 * 8 -  1 : 0] returned_data;
+	
+	assign spi_byte_out = returning_data ? returned_data[8 * readout_index +: 8] : flags;
 	
 	reg [7:0] in_byte_latched;
 	reg [7:0] command = 0;
 	
-	localparam instr_n_bytes = `BLOCK_INSTR_WIDTH / 8;
-	
 	reg [2:0] state = READY;
 	reg [2:0] state_prev = READY;
-    assign control_state = {4'd0, timeout_blinker, timeout_active, programming, |state};
 	
 	reg wait_one = 0;
 
 	wire ready = (state == READY);
 	
-	localparam block_bytes 		= (n_blocks > 256) ? 2 : 1;
+	localparam block_bytes 		= (n_blocks > 255) ? 2 : 1;
 	localparam data_bytes		= (data_width == 24) ? 3 : 2;
 	localparam instr_bytes   	= 4;
 	localparam delay_addr_bytes = 3;
@@ -139,19 +170,13 @@ module control_unit
     
     reg warmup;
     reg [31:0] warmup_ctr;
-    
-    localparam SPI_RESPONSE_OK 				= 8'd0;
-    localparam SPI_RESPONSE_INITIALISING	= 8'd1;
-    localparam SPI_RESPONSE_PROGRAMMING 	= 8'd2;
-    localparam SPI_RESPONSE_REJECTED		= 8'd3;
-    localparam SPI_RESPONSE_TIMEOUT			= 8'd4;
 
 	always @(posedge clk) begin
 		reg_writes_commit <= 0;
 		wait_one <= 0;
 		
-		next 	<= 0;
-		invalid <= 0;
+		next <= 0;
+		
 		swap_pipelines <= 0;
 		pipeline_reset <= 0;
 		pipeline_full_reset <= 0;
@@ -173,6 +198,8 @@ module control_unit
         health_monitor_reset <= 0;
 		
 		pipeline_enables <= 2'b00;
+		
+		pipeline_data_req <= 0;
 		
 		if (reset) begin
 			state 		<= INITIAL_RESET_WAIT;
@@ -200,7 +227,19 @@ module control_unit
 			timeout_ctr <= 0;
             timeout_max <= `CONTROLLER_TIMEOUT_CYCLES;
             
-            spi_byte_out <= SPI_RESPONSE_INITIALISING;
+			returning_data 	  <= 0;
+			readout_n_bytes <= 0;
+			readout_index 	  <= 0;
+			returned_data[0]  <= 0;
+			returned_data[1]  <= 0;
+			returned_data[2]  <= 0;
+			returned_data[3]  <= 0;
+			
+			initialised_flag 	<= 0;
+			busy_flag 			<= 0;
+			timeout_flag 		<= 0;
+			bad_flag 			<= 0;
+			cmd_err_flag		<= 0;
 		end else if (timeout) begin
 			pipeline_full_reset[back_pipeline] <= 1;
 			programming 	<= 0;
@@ -209,7 +248,7 @@ module control_unit
 			ignore_command  <= 0;
 			state 			<= RESET_WAIT;
             timeout_max 	<= `CONTROLLER_TIMEOUT_CYCLES;
-            spi_byte_out 	<= SPI_RESPONSE_TIMEOUT;
+            timeout_flag	<= 1;
             
             timeout_blinker_ctr <= 32'd112500000;
 		end else begin
@@ -225,8 +264,15 @@ module control_unit
 			if (timeout_blinker_ctr != 0)
 				timeout_blinker_ctr <= timeout_blinker_ctr - 1;
 		
+			if (expecting_pipeline_data && pipeline_data_return_valid[pipeline_data_req_target]) begin
+				returned_data <= pipeline_data_return[pipeline_data_req_target];
+				expecting_pipeline_data <= 0;
+				data_ready <= 1;
+			end
+		
 			case (state)
 				READY: begin
+					busy_flag <= 0;
 					timeout_active <= 0;
 					ignore_command <= 0;
 					
@@ -242,13 +288,12 @@ module control_unit
 
                         total_bytes <= total_bytes + 1;
 						
+						returning_data <= 0;
+						
 						case (in_byte)
 							`COMMAND_BEGIN_PROGRAM: begin
 								programming <= 1;
 								state <= READY;
-								spi_byte_out <= 0;
-								
-								spi_byte_out <= SPI_RESPONSE_PROGRAMMING;
 							end
 						
 							`COMMAND_WRITE_BLOCK_INSTR: begin
@@ -306,6 +351,7 @@ module control_unit
 									warmup_ctr <= 0;
 									
 									state <= SWAP_WARMUP;
+									busy_flag <= 1;
 								end else begin
 									state <= READY;
 								end
@@ -338,6 +384,43 @@ module control_unit
 								filter_coef_commit[front_pipeline] <= 1;
 							end
 							
+							`COMMAND_GET_N_BLOCKS: begin
+								ctrl_data_out[7:0] <= `DATA_REQ_N_BLOCKS;
+								pipeline_data_req[current_pipeline] <= 1;
+								expecting_pipeline_data <= 1;
+								pipeline_data_req_target <= current_pipeline;
+								readout_n_bytes <= 2;
+								state <= READY;
+							end
+							
+							`COMMAND_GET_BLOCK_INSTR: begin
+								bytes_needed <= block_bytes;
+							end
+							
+							`COMMAND_GET_BLOCK_REG: begin
+								bytes_needed <= block_bytes + 1;
+							end
+							
+							`COMMAND_READOUT: begin
+								if (returning_data) begin
+									cmd_err_flag <= 0;
+									if (readout_index == 0) begin
+										data_ready <= 0;
+									end else begin
+										readout_index <= readout_index - 1;
+										returning_data <= 1;
+									end
+								end else begin
+									if (data_ready) begin
+										returning_data <= 1;
+										readout_index <= readout_n_bytes - 1;
+									end else begin
+										cmd_err_flag <= 1;
+									end
+								end
+								state <= READY;
+							end
+							
 							default: begin
 								state <= READY;
 							end
@@ -363,7 +446,7 @@ module control_unit
 				end
 				
 				EXECUTE: begin
-                    control_bus <= bytes_in;
+                    ctrl_data_out <= bytes_in;
 					case (command)
 						`COMMAND_WRITE_BLOCK_INSTR: begin
 							block_target <= instr_write_block;
@@ -459,12 +542,14 @@ module control_unit
 							filter_coef_data_out <= {byte_2_in[1:0], byte_1_in, byte_0_in};
 							filter_coef_write[back_pipeline] <= 1;
 							filter_coef_commit[back_pipeline] <= 1;
+							busy_flag <= 1;
 							
 							if (filter_coef_write[back_pipeline] && filter_ack[back_pipeline]) begin
 								state <= READY;
 								filter_coef_write[back_pipeline] <= 0;
 								filter_coef_commit[back_pipeline] <= 0;
 								wait_one <= 1;
+								busy_flag <= 0;
 							end
 						end
 						
@@ -474,13 +559,33 @@ module control_unit
 							filter_coef_data_out <= {byte_2_in[1:0], byte_1_in, byte_0_in};
 							filter_coef_write[front_pipeline] <= 1;
 							filter_coef_commit[front_pipeline] <= 0;
+							busy_flag <= 1;
 							
 							if (filter_coef_write[front_pipeline] && filter_ack[front_pipeline]) begin
 								state <= READY;
 								filter_coef_write[front_pipeline] <= 0;
 								filter_coef_commit[front_pipeline] <= 0;
 								wait_one <= 1;
+								busy_flag <= 0;
 							end
+						end
+						
+						`COMMAND_GET_BLOCK_INSTR: begin
+							ctrl_data_out <= {bytes_in[`CTRL_DATA_BUS_WIDTH - 8 - 1 : 0], `DATA_REQ_BLOCK_INSTR};
+							pipeline_data_req[current_pipeline] <= 1;
+							expecting_pipeline_data <= 1;
+							pipeline_data_req_target <= current_pipeline;
+							readout_n_bytes <= 4;
+							state <= READY;
+						end
+						
+						`COMMAND_GET_BLOCK_REG: begin
+							ctrl_data_out <= {bytes_in[`CTRL_DATA_BUS_WIDTH - 8 - 1 : 0], `DATA_REQ_BLOCK_REG};
+							pipeline_data_req[current_pipeline] <= 1;
+							expecting_pipeline_data <= 1;
+							pipeline_data_req_target <= current_pipeline;
+							readout_n_bytes <= data_bytes;
+							state <= READY;
 						end
 						
 						default: begin
@@ -498,13 +603,13 @@ module control_unit
 							swap_pipelines <= 1;
 							
 							state <= SWAP_WAIT;
-							spi_byte_out <= SPI_RESPONSE_OK;
 							
 							wait_one <= 1;
 						end else begin
 							pipeline_full_reset[back_pipeline] <= 1;
 							state <= READY;
-							spi_byte_out <= SPI_RESPONSE_REJECTED;
+							
+							bad_flag <= 1;
 						end
 						
 						health_monitor_enable <= 0;
@@ -541,7 +646,7 @@ module control_unit
 						state <= READY;
 						pipeline_enables[front_pipeline] <= 1;
 						
-						spi_byte_out <= SPI_RESPONSE_OK;
+						initialised_flag <= 1;
 					end
 				end
 				

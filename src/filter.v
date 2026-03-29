@@ -23,7 +23,7 @@ module filter_master #(parameter data_width = 16, parameter math_width = 18, par
 		output reg signed [data_width - 1 : 0] data_out,
 		output reg out_valid,
 
-        input wire [6 * 8 - 1 : 0] control_bus
+        input wire [`CTRL_DATA_BUS_WIDTH - 1 : 0] ctrl_data_in
 	);
 
     reg alloc_req_r;
@@ -48,13 +48,13 @@ module filter_master #(parameter data_width = 16, parameter math_width = 18, par
             coef_write_r <= coef_write;
             coef_commit_r <= coef_commit;
             
-            alloc_format_r <= control_bus[2 * data_width + 8 - 1 : 2 * data_width];
-            order_ff_r <= control_bus[2 * data_width - 1 : data_width];
-            order_fb_r <= control_bus[data_width - 1 : 0];
+            alloc_format_r <= ctrl_data_in[2 * data_width + 8 - 1 : 2 * data_width];
+            order_ff_r <= ctrl_data_in[2 * data_width - 1 : data_width];
+            order_fb_r <= ctrl_data_in[data_width - 1 : 0];
 
-            coef_write_handle_r <= control_bus[6 * 8 - 1 : 5 * 8];
-            coef_target_r <= control_bus[24 + 2 * 8 - 1 : 24];
-            coef_data_r <= control_bus[data_width - 1 + 2 : 0];
+            coef_write_handle_r <= ctrl_data_in[6 * 8 - 1 : 5 * 8];
+            coef_target_r <= ctrl_data_in[24 + 2 * 8 - 1 : 24];
+            coef_data_r <= ctrl_data_in[data_width - 1 + 2 : 0];
         end
     end
 

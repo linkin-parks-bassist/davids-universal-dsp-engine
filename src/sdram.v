@@ -77,13 +77,22 @@ module sdram
 );
 
 `ifdef verilator
-reg [data_width - 1 : 0] sim_mem [(1 << 20) : 0];
+reg [31 : 0] sim_mem [(1 << 19) : 0];
 
-reg [data_width - 1 : 0] sim_mem_write_val;
-reg [data_width - 1 : 0] sim_mem_read_val;
-reg [21 : 0] sim_mem_write_addr;
-reg [21 : 0] sim_mem_read_addr;
-reg [21 : 0] sim_addr_latched;
+reg  [31 : 0] sim_mem_write_val;
+wire [15 : 0] sim_mem_write_val_0 = sim_mem_write_val[15: 0];
+wire [15 : 0] sim_mem_write_val_1 = sim_mem_write_val[31:16];
+reg  [31 : 0] sim_mem_read_val;
+wire [15 : 0] sim_mem_read_val_0 = sim_mem_read_val[15: 0];
+wire [15 : 0] sim_mem_read_val_1 = sim_mem_read_val[31:16];
+reg  [20 : 0] sim_mem_write_addr;
+wire [19 : 0] sim_mem_write_addr_ = sim_mem_write_addr[19:0];
+reg  [20 : 0] sim_mem_read_addr;
+wire [19 : 0] sim_mem_read_addr_ = sim_mem_read_addr[19:0];
+reg  [20 : 0] sim_addr_latched;
+wire [19 : 0] sim_addr_latched_ = sim_addr_latched[19:0];
+
+reg  [19 : 0] read_addr;
 
 reg sim_mem_write_enable;
 
@@ -105,7 +114,7 @@ wire [DATA_WIDTH-1:0] dq_in = SDRAM_DQ;     // DQ input
 reg off;          // byte offset
 reg  [data_width - 1 : 0] dout_buf;
 `ifdef verilator
-wire [data_width - 1 : 0] next_dout =  sim_mem_read_val;
+wire [data_width - 1 : 0] next_dout =  off ? sim_mem_read_val_1 : sim_mem_read_val_0;
 `else
 wire [data_width - 1 : 0] next_dout =  off ? dq_in[2 * data_width - 1 : data_width] : dq_in[data_width - 1 : 0];
 `endif
@@ -197,7 +206,9 @@ always @(posedge clk) begin
             state <= rd ? READ : WRITE;
             addr_buf <= addr;
             `ifdef verilator
-            sim_mem_read_addr <= addr;
+            sim_mem_read_addr <= addr >> 1;
+            if (rd)
+				read_addr <= addr[19:0];
             `endif
             if (wr) din_buf <= din;
             cycle <= 4'd1;
@@ -253,14 +264,19 @@ always @(posedge clk) begin
             dq_oen <= 1'b0;                 // DQ output on
             
             `ifdef verilator
-            sim_mem_write_val <= din_buf;
-            sim_mem_write_addr <= addr_buf;
-            sim_mem_write_enable <= 1;
+            sim_mem_read_addr <= addr_buf >> 1;
             `endif
         end
         {WRITE, T_RCD+4'd1}: begin
             dq_oen <= 1'b1;
         end
+        `ifdef verilator
+        {WRITE, T_RCD+4'd2}: begin
+			sim_mem_write_val <= off ? {din_buf, sim_mem_read_val[15:0]} : {sim_mem_read_val[31:0], din_buf};
+			sim_mem_write_addr <= addr_buf >> 1;
+			sim_mem_write_enable <= 1;
+        end
+        `endif
         {WRITE, T_RCD+T_WR+T_RP}: begin  // 2+2+1
             busy <= 0;
             state <= IDLE;

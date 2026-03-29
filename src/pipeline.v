@@ -28,26 +28,15 @@ module dsp_pipeline #(
 		
 		output wire error,
 		
-		input wire [$clog2(n_blocks) - 1 : 0] block_target,
-		input wire reg_target,
-	
-		input wire [`BLOCK_INSTR_WIDTH - 1 : 0] instr_val,
 		input wire instr_write,
 	
 		input wire [data_width - 1 : 0] ctrl_data,
-		input wire [2 * data_width - 1 : 0] delay_size,
-		input wire [2 * data_width - 1 : 0] init_delay,
-		input wire [data_width - 1 : 0] filter_order_ff,
-		input wire [data_width - 1 : 0] filter_order_fb,
-		input wire [7:0] filter_alloc_format,
+		
 		input wire reg_update,
 		input wire reg_write,
 		
 		input wire filter_coef_write,
 		input wire filter_coef_commit,
-		input wire [data_width - 1 : 0] filter_coef_write_handle,
-		input wire [data_width - 1 : 0] filter_coef_target,
-		input wire [17 : 0] filter_coef_data,
 		
 		output wire filter_ack,
 		
@@ -77,8 +66,13 @@ module dsp_pipeline #(
 		output wire [data_width - 1 : 0] sdram_data_out,
 
 		input wire [data_width - 1 : 0] sdram_data_in,
+		
+		input wire data_req,
+		
+		output wire [31:0] data_return,
+		output wire data_return_valid,
 
-        input wire [6 * 8 - 1 : 0] control_bus
+        input wire [`CTRL_DATA_BUS_WIDTH - 1 : 0] ctrl_data_in
 	);
 
     assign byte_probe = core_out;
@@ -108,12 +102,6 @@ module dsp_pipeline #(
 		.command_reg_write(reg_write),
 		.command_instr_write(instr_write),
 		
-		.command_instr_write_val(instr_val),
-		
-		.command_block_target(block_target),
-		.command_reg_target(reg_target),
-		.command_reg_write_val(ctrl_data),
-		
 		.lut_req(lut_req),
 		.lut_handle(lut_req_handle),
 		.lut_arg(lut_req_arg),
@@ -141,7 +129,12 @@ module dsp_pipeline #(
 		.full_reset(full_reset),
 		.resetting(resetting),
 		
-		.out(core_out)
+		.data_req(data_req),
+		
+		.data_return(data_return),
+		.data_return_valid(data_return_valid),
+
+        .ctrl_data_in(ctrl_data_in)
 	);
 	
 	/************************/
@@ -169,6 +162,18 @@ module dsp_pipeline #(
 
     wire [data_width - 1 : 0] delay_read_delay;
     wire any_delay_buffers;
+
+	/*	
+	`COMMAND_ALLOC_DELAY: begin
+		delay_size_out <= {8'd0, byte_5_in, byte_4_in, byte_3_in};
+		init_delay_out <= {8'd0, byte_2_in, byte_1_in, byte_0_in};
+		alloc_delay[back_pipeline] <= 1;
+		state <= READY;
+	end
+	*/
+	
+	wire [2 * data_width - 1 : 0] delay_size = ctrl_data_in[47:24];
+	wire [2 * data_width - 1 : 0] init_delay = ctrl_data_in[23: 0];
 
 	delay_master #(
 		.data_width(data_width), 
@@ -210,7 +215,7 @@ module dsp_pipeline #(
 
         .any_buffers(any_delay_buffers),
 
-        .control_bus(control_bus)
+        .ctrl_data_in(ctrl_data_in)
 	);
 	
 	wire filter_calc_req;
@@ -218,6 +223,14 @@ module dsp_pipeline #(
 	wire signed [data_width - 1 : 0] filter_data_out;
 	wire signed [data_width - 1 : 0] filter_data_in;
 	wire filter_data_valid;
+	
+	wire [data_width - 1 : 0] filter_order_ff = ctrl_data_in[31 : 16];
+	wire [data_width - 1 : 0] filter_order_fb = ctrl_data_in[15 : 0];
+	wire [7:0] filter_alloc_format = ctrl_data_in[39:32];
+
+	wire [data_width - 1 : 0] filter_coef_write_handle = ctrl_data_in[47:40];
+	wire [data_width - 1 : 0] filter_coef_target = ctrl_data_in[39: 24];
+	wire [17 : 0] filter_coef_data = ctrl_data_in[17:0];
 	
 	filter_master #(.data_width(data_width), .n_filters(32), .mem_size(2048)) filters (
 		.clk(clk),
@@ -244,7 +257,7 @@ module dsp_pipeline #(
 		.data_out(filter_data_in),
 		.out_valid(filter_data_valid),
 
-        .control_bus(control_bus)
+        .ctrl_data_in(ctrl_data_in)
 	);
 	
 	/**********/
