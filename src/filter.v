@@ -23,8 +23,22 @@ module filter_master #(parameter data_width = 16, parameter math_width = 18, par
 		output reg signed [data_width - 1 : 0] data_out,
 		output reg out_valid,
 
-        input wire [`CTRL_DATA_BUS_WIDTH - 1 : 0] ctrl_data_in
+        input wire [`CTRL_DATA_BUS_WIDTH - 1 : 0] ctrl_data_in,
+        
+        input wire [3:0] flags_in
 	);
+	
+	localparam handle_width = $clog2(n_filters);
+	localparam addr_width   = $clog2(mem_size);
+	localparam degree_width = data_width;
+	localparam config_width = 
+		   addr_width    // address
+		 + degree_width  // feed-forward degree
+		 + degree_width  // feed-back degree
+		 + 5			 // format
+		 + 1;			 // coef bank
+	
+	reg [3:0] flags_r;
 
     reg alloc_req_r;
     reg coef_write_r;
@@ -54,19 +68,9 @@ module filter_master #(parameter data_width = 16, parameter math_width = 18, par
 
             coef_write_handle_r <= ctrl_data_in[6 * 8 - 1 : 5 * 8];
             coef_target_r <= ctrl_data_in[24 + 2 * 8 - 1 : 24];
-            coef_data_r <= ctrl_data_in[data_width - 1 + 2 : 0];
+            coef_data_r <= ctrl_data_in[data_width - 1 + math_width - data_width : 0];
         end
     end
-
-	localparam handle_width = $clog2(n_filters);
-	localparam addr_width   = $clog2(mem_size);
-	localparam degree_width = data_width;
-	localparam config_width = 
-		   addr_width    // address
-		 + degree_width  // feed-forward degree
-		 + degree_width  // feed-back degree
-		 + 5			 // format
-		 + 1;			 // coef bank
 
 	reg signed [math_width - 1 : 0] coef_mem_a [mem_size  - 1 : 0];
 	reg signed [math_width - 1 : 0] coef_mem_b [mem_size  - 1 : 0];
@@ -135,6 +139,7 @@ module filter_master #(parameter data_width = 16, parameter math_width = 18, par
 	
 	wire signed [2 * math_width - 1 : 0] product = factor_a * factor_b;
 	wire signed [2 * math_width + 8 - 1 : 0] product_sext = {{8{product[2 * math_width - 1]}}, product};
+	wire signed [2 * math_width + 8 - 1 : 0] product_sum = accumulator + product_sext;
 	
 	reg signed [2 * math_width + 8 - 1 : 0] accumulator;
 	
@@ -168,6 +173,8 @@ module filter_master #(parameter data_width = 16, parameter math_width = 18, par
 
 	reg skip_state_write;
 	
+	reg signed [data_width - 1 : 0] data_in_r;
+	
 	always @(posedge clk) begin
 		out_valid <= 0;
 		wait_one <= 0;
@@ -184,8 +191,8 @@ module filter_master #(parameter data_width = 16, parameter math_width = 18, par
 		coef_ack <= 0;
 		
 		calc_cooldown <= 0;
-		coef_write_cooldown <= 0;
-		coef_commit_cooldown <= 0;
+		coef_write_cooldown <= coef_ack;
+		coef_commit_cooldown <= coef_ack;
 	
 		if (reset) begin
 			busy <= 0;
@@ -195,6 +202,7 @@ module filter_master #(parameter data_width = 16, parameter math_width = 18, par
 			
 			state_invalid <= ~0;
 
+			data_out <= 0;
 			
 			current_addr <= 0;
 			current_order_ff <= 0;
@@ -223,6 +231,8 @@ module filter_master #(parameter data_width = 16, parameter math_width = 18, par
 			handle_r <= 0;
 			format <= 0;
 			shift <= 0;
+			
+			flags_r <= 0;
 		end else if (busy) begin
 			if (coef_writing) begin
 				if (!wait_one) begin
@@ -263,7 +273,7 @@ module filter_master #(parameter data_width = 16, parameter math_width = 18, par
 					
 					FIRST_SAMPLE: begin
 						factor_a <= coef_mem_read_val;
-						factor_b <= data_in;
+						factor_b <= data_in_r;
 						
 						coef_mem_read_addr <= coef_mem_read_addr + 1;
 						state_mem_read_addr <= state_mem_read_addr + 1;
@@ -299,7 +309,7 @@ module filter_master #(parameter data_width = 16, parameter math_width = 18, par
 					end
 					
 					FEED_BACK: begin
-						accumulator <= accumulator + product_sext;
+						accumulator <= product_sum;
 						
 						state_mem_write_addr <= state_mem_read_addr_prev;
 						state_mem_write_val  <= factor_b;
@@ -318,7 +328,7 @@ module filter_master #(parameter data_width = 16, parameter math_width = 18, par
 					end
 					
 					DONE: begin
-						accumulator <= accumulator + product_sext;
+						accumulator <= product_sum;
 						run_state <= SHIFT;
 						
 						shift <= 17 - format;
@@ -401,6 +411,8 @@ module filter_master #(parameter data_width = 16, parameter math_width = 18, par
 					wait_one <= 1;
 					invalid_state <= state_invalid[handle_in];
 					handle_r <= handle_in;
+					data_in_r <= flags_in[0] ? data_out : data_in;
+					flags_r <= flags_in;
 				end
 			end
 		end

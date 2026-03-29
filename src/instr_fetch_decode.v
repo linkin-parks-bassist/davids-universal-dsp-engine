@@ -264,7 +264,7 @@ module instr_decode_stage #(parameter data_width = 16, parameter n_blocks = 256)
 
 		output reg [$clog2(`N_MISC_OPS) - 1 : 0] misc_op_out,
 		
-		output wire [3:0] flags_out
+		output reg [3:0] flags_out
 	);
 	
 	assign in_ready = ~out_valid | out_ready;
@@ -388,6 +388,8 @@ module instr_decode_stage #(parameter data_width = 16, parameter n_blocks = 256)
 				writes_external_out <= writes_external;
 				
 				branch_out <= branch;
+				
+				flags_out <= flags;
 
 				misc_op_out <= misc_op;
 				

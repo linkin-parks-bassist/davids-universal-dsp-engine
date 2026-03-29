@@ -122,6 +122,7 @@ module dsp_pipeline #(
 		.filter_data_out(filter_data_out),
 		.filter_data_in(filter_data_in),
 		.filter_data_valid(filter_data_valid),
+		.filter_flags(filter_flags),
 		
 		.reg_writes_commit(reg_writes_commit),
 		.regfile_syncing(regfile_syncing),
@@ -219,6 +220,7 @@ module dsp_pipeline #(
 	);
 	
 	wire filter_calc_req;
+	wire [3:0] filter_flags;
 	wire [7:0] filter_handle_out;
 	wire signed [data_width - 1 : 0] filter_data_out;
 	wire signed [data_width - 1 : 0] filter_data_in;
@@ -257,7 +259,9 @@ module dsp_pipeline #(
 		.data_out(filter_data_in),
 		.out_valid(filter_data_valid),
 
-        .ctrl_data_in(ctrl_data_in)
+        .ctrl_data_in(ctrl_data_in),
+        
+        .flags_in(filter_flags)
 	);
 	
 	/**********/

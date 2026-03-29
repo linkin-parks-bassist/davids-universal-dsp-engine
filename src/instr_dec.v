@@ -102,9 +102,9 @@ module instr_decoder #(parameter data_width = 16)
 		else if (operation == `BLOCK_INSTR_LSH 		  || operation == `BLOCK_INSTR_RSH
 			  || operation == `BLOCK_INSTR_ABS 		  || operation == `BLOCK_INSTR_MIN
 			  || operation == `BLOCK_INSTR_MAX 		  || operation == `BLOCK_INSTR_CLAMP
-			  || operation == `BLOCK_INSTR_MOV_ACC	|| operation == `BLOCK_INSTR_MOV_LACC
+			  || operation == `BLOCK_INSTR_MOV_ACC	  || operation == `BLOCK_INSTR_MOV_LACC
 			  || operation == `BLOCK_INSTR_MOV_UACC)		 									branch = `INSTR_BRANCH_MISC;
-		else if (operation == `BLOCK_INSTR_FILTER)												branch = `INSTR_BRANCH_FILT;
+		else if (operation == `BLOCK_INSTR_FILTER     || operation == `BLOCK_INSTR_FCASC)		branch = `INSTR_BRANCH_FILT;
 		else
 			branch = `INSTR_BRANCH_MADD;
 	end
@@ -119,7 +119,7 @@ module instr_decoder #(parameter data_width = 16)
 	
 	assign misc_op = operation - `MISC_OPCODE_MIN;
 	
-	assign flags[0] = 0;
+	assign flags[0] = operation == `BLOCK_INSTR_FCASC;
 	assign flags[1] = 0;
 	assign flags[2] = 0;
 	assign flags[3] = 0;

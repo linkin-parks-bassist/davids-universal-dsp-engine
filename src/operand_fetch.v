@@ -783,7 +783,10 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 		.channel_write_val(channel_write_val),
 		.channel_write_enable(channel_write_enable),
 		
-		.accumulator_write_enable(accumulator_write_enable)
+		.accumulator_write_enable(accumulator_write_enable),
+		
+		.flags_in(flags_in),
+		.flags_out(flags_1_out)
 	);
 	
 	wire in_ready_2;
@@ -926,7 +929,10 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 		.channel_write_val(channel_write_val),
 		.channel_write_enable(channel_write_enable),
 		
-		.accumulator_write_enable(accumulator_write_enable)
+		.accumulator_write_enable(accumulator_write_enable),
+		
+		.flags_in(flags_1_out),
+		.flags_out(flags_2_out)
 	);
 
 	wire in_ready_3;
@@ -1065,7 +1071,10 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 		.channel_write_val(channel_write_val),
 		.channel_write_enable(channel_write_enable),
 		
-		.accumulator_write_enable(accumulator_write_enable)
+		.accumulator_write_enable(accumulator_write_enable),
+		
+		.flags_in(flags_2_out),
+		.flags_out(flags_3_out)
 	);
 	
 	localparam payload_width = 
@@ -1116,7 +1125,7 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 			commit_id_out,
 			commit_flag_out,
 			branch_out,
-			flags_3_out
+			flags_out
 		} = skid_buffer_payload_out;
 	
 	skid_buffer #(.payload_width(payload_width)) skidder

@@ -58,6 +58,7 @@ module dsp_core #(
 		output wire signed [data_width - 1 : 0] filter_data_out,
 		input  wire signed [data_width - 1 : 0] filter_data_in,
 		input  wire filter_data_valid,
+		output wire [3:0] filter_flags,
 		
 		input wire reg_writes_commit,
 		output wire regfile_syncing,
@@ -912,7 +913,7 @@ module dsp_core #(
 		.commit_id_out(commit_id_final_stages[`INSTR_BRANCH_FILT]),
 		
 		.flags_in(flags_out_router),
-		.flags_out(flags_out_filter)
+		.flags_out(filter_flags)
 	);
 	
 	/*****************/
@@ -1105,7 +1106,6 @@ module dsp_core #(
 	
 	// Filter branch
 	wire in_ready_filt;
-	wire [3:0] flags_out_filter;
 	
 	// Later (when there are more cores) the memory will be moved
 	// outside for shared access & arbitration. For now,
@@ -1122,8 +1122,8 @@ module dsp_core #(
 	wire [`N_INSTR_BRANCHES - 1 : 0] out_valid_commit_stage;
 	wire [$clog2(n_blocks)  - 1 : 0] block_out_final_stages [`N_INSTR_BRANCHES - 1 : 0];
 	wire [$clog2(n_blocks)  - 1 : 0] block_out_commit_stage [`N_INSTR_BRANCHES - 1 : 0];
-	wire [full_width    - 1 : 0] result_final_stages	[`N_INSTR_BRANCHES - 1 : 0];
-	wire [full_width    - 1 : 0] result_commit_stage	[`N_INSTR_BRANCHES - 1 : 0];
+	wire [full_width    - 1 : 0] result_final_stages		[`N_INSTR_BRANCHES - 1 : 0];
+	wire [full_width    - 1 : 0] result_commit_stage		[`N_INSTR_BRANCHES - 1 : 0];
 	wire [3					 	: 0] dest_final_stages		[`N_INSTR_BRANCHES - 1 : 0];
 	wire [3					 	: 0] dest_commit_stage		[`N_INSTR_BRANCHES - 1 : 0];
 	wire [`COMMIT_ID_WIDTH  - 1 : 0] commit_id_final_stages	[`N_INSTR_BRANCHES - 1 : 0];
