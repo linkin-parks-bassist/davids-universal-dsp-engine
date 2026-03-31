@@ -13,6 +13,10 @@
 `define COMMAND_WRITE_FILTER_COEF 	8'd17
 `define COMMAND_UPDATE_FILTER_COEF 	8'd18
 `define COMMAND_COMMIT_FILTER_COEF	8'd19
+`define COMMAND_READOUT				8'd20
+`define COMMAND_GET_N_BLOCKS		8'd21
+`define COMMAND_GET_BLOCK_INSTR		8'd22
+`define COMMAND_GET_BLOCK_REG		8'd23
 
 // If we're in a 'waiting' state, but no new data has
 // appeared for a whole 100ms, then it's likely
@@ -21,3 +25,9 @@
 // In this case, reset the controller, so that
 // the machine doesn't get permanently locked up!
 `define CONTROLLER_TIMEOUT_CYCLES	32'd11250000
+
+`define CTRL_DATA_BUS_WIDTH (6 * 8)
+
+`define DATA_REQ_N_BLOCKS 		8'd0
+`define DATA_REQ_BLOCK_INSTR 	8'd1
+`define DATA_REQ_BLOCK_REG	 	8'd2
