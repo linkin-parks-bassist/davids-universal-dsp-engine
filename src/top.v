@@ -218,8 +218,8 @@ module top #(
 			.CAS(4'd3),     
 			.T_WR(4'd4),
 			.T_MRD(4'd4),
-			.T_RP(4'd2),
-			.T_RCD(4'd2),
+			.T_RP(4'd3),
+			.T_RCD(4'd3),
 			.T_RC(4'd8)
 		)
 		sdram_controller

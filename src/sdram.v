@@ -115,8 +115,13 @@ reg off;          // byte offset
 reg  [data_width - 1 : 0] dout_buf;
 `ifdef verilator
 wire [data_width - 1 : 0] next_dout =  off ? sim_mem_read_val_1 : sim_mem_read_val_0;
+reg [10:0] WRITE_A;
+reg [10:0] READ_A;
+reg [3:0] WRITE_DQM;
+reg [3:0] READ_DQM;
 `else
 wire [data_width - 1 : 0] next_dout =  off ? dq_in[2 * data_width - 1 : data_width] : dq_in[data_width - 1 : 0];
+
 `endif
 assign dout = data_ready ? next_dout : dout_buf;
 assign dout32 = dq_in;
@@ -239,6 +244,10 @@ always @(posedge clk) begin
         end
         {READ, T_RCD+CAS}: begin
             data_ready <= 1'b1;
+            `ifdef verilator
+            READ_A <= SDRAM_A;
+            READ_DQM <= SDRAM_DQM;
+            `endif
         end
         {READ, T_RCD+CAS+4'd1}: begin
             data_ready <= 1'b0;
@@ -269,6 +278,10 @@ always @(posedge clk) begin
         end
         {WRITE, T_RCD+4'd1}: begin
             dq_oen <= 1'b1;
+            `ifdef verilator
+            WRITE_A <= SDRAM_A;
+            WRITE_DQM <= SDRAM_DQM;
+            `endif
         end
         `ifdef verilator
         {WRITE, T_RCD+4'd2}: begin

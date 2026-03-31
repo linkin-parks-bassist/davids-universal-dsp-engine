@@ -311,7 +311,7 @@ module add_stage #(parameter data_width = 16, parameter n_blocks = 256, paramete
 		input wire signedness_in,
 		
 		input wire signed [full_width - 1 : 0] product_in,
-		input wire signed [	data_width - 1 : 0] arg_c_in,
+		input wire signed [data_width - 1 : 0] arg_c_in,
 		
 		output reg signed [full_width - 1 : 0] result_out,
 		
