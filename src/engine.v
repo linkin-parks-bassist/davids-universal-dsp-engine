@@ -72,7 +72,8 @@ module dsp_engine #(
 		.instr_write(pipeline_a_block_instr_write),
 	
 		.ctrl_data(ctrl_data_out),
-		.reg_write(pipeline_a_block_reg_write),
+		.reg_0_write(pipeline_a_block_reg_0_write),
+		.reg_1_write(pipeline_a_block_reg_1_write),
 		.reg_write_ack(reg_write_acks[0]),
 		
 		.reg_writes_commit(pipeline_a_reg_writes_commit),
@@ -126,7 +127,8 @@ module dsp_engine #(
 		.instr_write(pipeline_b_block_instr_write),
 	
 		.ctrl_data(ctrl_data_out),
-		.reg_write(pipeline_b_block_reg_write),
+		.reg_0_write(pipeline_b_block_reg_0_write),
+		.reg_1_write(pipeline_b_block_reg_1_write),
 		
 		.reg_writes_commit(pipeline_b_reg_writes_commit),
 		.regfile_syncing(pipeline_a_regfile_syncing),
@@ -303,7 +305,8 @@ module dsp_engine #(
 		.data_out(ctrl_data_out),
 		
 		.block_instr_write(block_instr_write),
-		.block_reg_write(block_reg_write),
+		.block_reg_0_write(block_reg_0_write),
+		.block_reg_1_write(block_reg_1_write),
 		
 		.reg_writes_commit(reg_writes_commit),
 		
@@ -467,8 +470,8 @@ module dsp_engine #(
 	wire pipelines_swapping;
 
 	wire [1:0] block_instr_write;
-	wire [1:0] block_reg_write;
-	wire [1:0] block_reg_update;
+	wire [1:0] block_reg_0_write;
+	wire [1:0] block_reg_1_write;
 	wire [1:0] reg_writes_commit;
 	wire [1:0] alloc_delay;
 	wire [1:0] pipeline_reset;
@@ -520,8 +523,8 @@ module dsp_engine #(
 	wire [2 * data_width - 1 : 0] delay_init_delay;
 	
 	wire pipeline_a_block_instr_write 	= block_instr_write		[0];
-	wire pipeline_a_block_reg_write 	= block_reg_write  		[0];
-	wire pipeline_a_block_reg_update 	= block_reg_update 		[0];
+	wire pipeline_a_block_reg_0_write 	= block_reg_0_write  	[0];
+	wire pipeline_a_block_reg_1_write 	= block_reg_1_write  	[0];
 	wire pipeline_a_reg_writes_commit 	= reg_writes_commit 	[0];
 	wire pipeline_a_regfile_syncing;
 	wire pipeline_a_alloc_delay 		= alloc_delay 			[0];
@@ -531,8 +534,8 @@ module dsp_engine #(
 	wire pipeline_a_reset	 			= pipeline_reset		[0];
 
 	wire pipeline_b_block_instr_write 	= block_instr_write		[1];
-	wire pipeline_b_block_reg_write 	= block_reg_write  		[1];
-	wire pipeline_b_block_reg_update 	= block_reg_update 		[1];
+	wire pipeline_b_block_reg_0_write 	= block_reg_0_write  	[1];
+	wire pipeline_b_block_reg_1_write 	= block_reg_1_write  	[1];
 	wire pipeline_b_reg_writes_commit 	= reg_writes_commit 	[1];
 	wire pipeline_b_regfile_syncing;
 	wire pipeline_b_alloc_delay 		= alloc_delay 			[1];

@@ -34,7 +34,8 @@ module dsp_core #(
 		
 		output reg ready,
 		
-		input wire command_reg_write,
+		input wire command_reg_0_write,
+		input wire command_reg_1_write,
 		input wire command_instr_write,
 		
 		output reg lut_req,
@@ -82,10 +83,13 @@ module dsp_core #(
 	
 	assign command_instr_write_val = ctrl_data_in[31 : 0];
 	assign command_block_target =  (command_instr_write) ? ctrl_data_in[$clog2(n_blocks) + 32 - 1 : 32]
-														 : ctrl_data_in[$clog2(n_blocks) + data_width + 8 - 1 : data_width + 8];
-		
+														 : ctrl_data_in[$clog2(n_blocks) + data_width - 1 : data_width];
+	
+	wire [7:0] test = ctrl_data_in[data_width + 8 - 1 : data_width - 1];
+	wire [$clog2(n_blocks) - 1 : 0] test2 = ctrl_data_in[$clog2(n_blocks) + data_width + 8 - 1 : data_width + 8];
+	
 	assign command_reg_write_val = ctrl_data_in[data_width - 1 : 0];
-	assign command_reg_target  	 = |ctrl_data_in[data_width + 8 - 1 : data_width - 1];
+	assign command_reg_target  	 = command_reg_1_write;
 	
 	
 	reg enable_req_r;
@@ -190,7 +194,7 @@ module dsp_core #(
 	wire [7 : 0] block_data_req_reg;
 	
 	generate
-		if (n_blocks > 255) begin
+		if (n_blocks > 256) begin
 			assign block_data_req_addr = data_req_ctrl_data_r[23:8];
 			assign block_data_req_reg = data_req_ctrl_data_r[31:24];
 		end else begin
@@ -265,7 +269,7 @@ module dsp_core #(
 		.write_addr(command_block_target),
 		.write_value(command_reg_write_val),
 		.write_select(command_reg_target),
-		.write_enable(command_reg_write & active_regfile == 1),
+		.write_enable((command_reg_0_write | command_reg_1_write) & active_regfile == 1),
 		
 		.registers_packed_out(register_read_packed_a),
 		.register_0_out(register_0_read_a),
@@ -295,7 +299,7 @@ module dsp_core #(
 		.write_addr(command_block_target),
 		.write_value(command_reg_write_val),
 		.write_select(command_reg_target),
-		.write_enable(command_reg_write & active_regfile == 0),
+		.write_enable((command_reg_0_write | command_reg_1_write) & active_regfile == 0),
 		
 		.registers_packed_out(register_read_packed_b),
 		.register_0_out(register_0_read_b),
@@ -309,7 +313,7 @@ module dsp_core #(
 	
 	assign regfile_syncing = regfile_syncing_b | regfile_syncing_a;
 
-	wire [block_addr_w - 1 : 0] reg_read_addr = (command_reg_write) ? command_block_target : block_read_addr;
+	wire [block_addr_w - 1 : 0] reg_read_addr = (command_reg_0_write | command_reg_1_write) ? command_block_target : block_read_addr;
 	
 	wire signed [data_width - 1 : 0] register_0_read_value = (active_regfile) ? register_0_read_b : register_0_read_a;
 	wire signed [data_width - 1 : 0] register_1_read_value = (active_regfile) ? register_1_read_b : register_1_read_a;

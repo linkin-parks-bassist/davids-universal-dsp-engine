@@ -32,7 +32,8 @@ module control_unit
 		output reg [filter_width - 1 : 0] filter_coef_data_out,
 		
 		output reg [1:0] block_instr_write,
-		output reg [1:0] block_reg_write,
+		output reg [1:0] block_reg_0_write,
+		output reg [1:0] block_reg_1_write,
 		output reg [1:0] filter_coef_write,
 		output reg [1:0] filter_coef_commit,
 		output reg [1:0] reg_writes_commit,
@@ -182,7 +183,8 @@ module control_unit
 		pipeline_full_reset <= 0;
 		
 		block_instr_write <= 0;
-		block_reg_write   <= 0;
+		block_reg_0_write <= 0;
+		block_reg_1_write <= 0;
 		
 		alloc_delay <= 0;
 		alloc_filter <= 0;
@@ -460,11 +462,8 @@ module control_unit
 						`COMMAND_WRITE_BLOCK_REG_0: begin
 							timeout_active <= 1;
 							if (!pipelines_swapping && !pipeline_resetting[back_pipeline] && !pipeline_regfiles_syncing[back_pipeline]) begin
-								block_target <= reg_write_block;
-								reg_target <= 0;
-								
 								data_out <= {byte_1_in, byte_0_in};
-								block_reg_write[back_pipeline] <= 1;
+								block_reg_0_write[back_pipeline] <= 1;
 								state <= READY;
 							end
 						end
@@ -472,11 +471,8 @@ module control_unit
 						`COMMAND_WRITE_BLOCK_REG_1: begin
 							timeout_active <= 1;
 							if (!pipelines_swapping && !pipeline_resetting[back_pipeline] && !pipeline_regfiles_syncing[back_pipeline]) begin
-								block_target <= reg_write_block;
-								reg_target <= 1;
-								
 								data_out <= {byte_1_in, byte_0_in};
-								block_reg_write[back_pipeline] <= 1;
+								block_reg_1_write[back_pipeline] <= 1;
 								state <= READY;
 							end
 						end
@@ -493,11 +489,8 @@ module control_unit
 							if (pipelines_swapping) begin
 								state <= READY;
 							end else if (!pipeline_regfiles_syncing[front_pipeline]) begin
-								block_target <= reg_write_block;
-								reg_target <= 0;
-								
 								data_out <= {byte_1_in, byte_0_in};
-								block_reg_write[front_pipeline] <= 1;
+								block_reg_0_write[front_pipeline] <= 1;
 								state <= READY;
 							end
 						end
@@ -507,11 +500,8 @@ module control_unit
 							if (pipelines_swapping) begin
 								state <= READY;
 							end else if (!pipeline_regfiles_syncing[front_pipeline]) begin
-								block_target <= reg_write_block;
-								reg_target <= 1;
-								
 								data_out <= {byte_1_in, byte_0_in};
-								block_reg_write[front_pipeline] <= 1;
+								block_reg_1_write[front_pipeline] <= 1;
 								state <= READY;
 							end
 						end

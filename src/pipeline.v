@@ -32,8 +32,8 @@ module dsp_pipeline #(
 	
 		input wire [data_width - 1 : 0] ctrl_data,
 		
-		input wire reg_update,
-		input wire reg_write,
+		input wire reg_0_write,
+		input wire reg_1_write,
 		
 		input wire filter_coef_write,
 		input wire filter_coef_commit,
@@ -99,7 +99,8 @@ module dsp_pipeline #(
 		
 		.ready(core_ready),
 		
-		.command_reg_write(reg_write),
+		.command_reg_0_write(reg_0_write),
+		.command_reg_1_write(reg_1_write),
 		.command_instr_write(instr_write),
 		
 		.lut_req(lut_req),
