@@ -53,6 +53,9 @@ module delay_master #(parameter data_width  = 16,
 	
 	wire [15:0] data_req_handle = data_req_ctrl_data_r[23:8];
 	
+	reg [addr_width - 1 : 0] buf_last_write_addr [n_buffers - 1 : 0];
+	reg [addr_width - 1 : 0] buf_last_read_addr  [n_buffers - 1 : 0];
+	
 	always @(posedge clk) begin
 		data_return_valid <= 0;
 	
@@ -106,6 +109,15 @@ module delay_master #(parameter data_width  = 16,
 					`DATA_REQ_DELAY_BUF_GAIN: begin
 						if (buf_info_read_handle_prev_prev == data_req_ctrl_data_r[23:8]) begin
 							data_return <= gain;
+							data_return_valid <= 1;
+							data_req_active <= 0;
+						end
+					end
+					
+					
+					`DATA_REQ_DELAY_BUF_LRWA: begin
+						if (buf_info_read_handle_prev_prev == data_req_ctrl_data_r[23:8]) begin
+							data_return <= {buf_last_write_addr[data_req_handle][15:0], buf_last_read_addr[data_req_handle][15:0]};
 							data_return_valid <= 1;
 							data_req_active <= 0;
 						end
@@ -348,6 +360,8 @@ module delay_master #(parameter data_width  = 16,
 					mem_req  <= 1;
                     mem_req_type <= 0;
                     wait_one <= 1;
+                    
+                    buf_last_read_addr[write_handle_r] <= delay_addr;
 					
 					state <= READ_5;
 				end
@@ -396,6 +410,8 @@ module delay_master #(parameter data_width  = 16,
 				end
 				
 				WRITE_4: begin
+					buf_last_write_addr[write_handle_r] <= mem_addr;
+					
 					if (position == size - 1) begin
 						wrapped <= 1;
 						position <= 0;

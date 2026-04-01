@@ -23,6 +23,7 @@
 `define COMMAND_GET_DELAY_BUF_ADDR	8'd27
 `define COMMAND_GET_DELAY_BUF_POS	8'd28
 `define COMMAND_GET_DELAY_BUF_GAIN	8'd29
+`define COMMAND_GET_DELAY_BUF_LRWA	8'd30
 
 // If we're in a 'waiting' state, but no new data has
 // appeared for a whole 100ms, then it's likely
@@ -44,3 +45,4 @@
 `define DATA_REQ_DELAY_BUF_ADDR  8'd6
 `define DATA_REQ_DELAY_BUF_POS   8'd7
 `define DATA_REQ_DELAY_BUF_GAIN  8'd8
+`define DATA_REQ_DELAY_BUF_LRWA  8'd9

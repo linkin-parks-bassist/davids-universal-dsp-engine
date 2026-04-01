@@ -175,7 +175,7 @@ module dsp_pipeline #(
 
 	delay_master #(
 		.data_width(data_width), 
-		.n_buffers(16),
+		.n_buffers(4),
 		.addr_width(sdram_addr_width)
 	) delays (
 		.clk(clk),
@@ -380,6 +380,7 @@ module dsp_pipeline #(
 			`DATA_REQ_DELAY_BUF_ADDR:  data_req_target = DATA_REQ_TARGET_DELAY;
 			`DATA_REQ_DELAY_BUF_POS:   data_req_target = DATA_REQ_TARGET_DELAY;
 			`DATA_REQ_DELAY_BUF_GAIN:  data_req_target = DATA_REQ_TARGET_DELAY;
+			`DATA_REQ_DELAY_BUF_LRWA:  data_req_target = DATA_REQ_TARGET_DELAY;
 			
 			default: data_req_target = DATA_REQ_TARGET_NONE;
 		endcase
