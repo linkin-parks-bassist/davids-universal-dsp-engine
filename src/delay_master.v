@@ -360,7 +360,7 @@ module delay_master #(parameter data_width  = 16,
                     mem_req_type <= 0;
                     wait_one <= 1;
                     
-                    buf_last_read_addr[write_handle_r] <= delay_addr;
+                    buf_last_read_addr[read_handle_r] <= delay_addr;
 					
 					state <= READ_5;
 				end
@@ -402,6 +402,8 @@ module delay_master #(parameter data_width  = 16,
 					mem_data_out  <= write_data_r;
 					mem_addr      <= addr + position;
 					
+					buf_last_write_addr[write_handle_r] <= addr + position;
+					
 					mem_req      <= 1;
                     mem_req_type <= 1;
 					
@@ -409,7 +411,6 @@ module delay_master #(parameter data_width  = 16,
 				end
 				
 				WRITE_4: begin
-					buf_last_write_addr[write_handle_r] <= mem_addr;
 					
 					if (position == size - 1) begin
 						wrapped <= 1;
