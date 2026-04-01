@@ -440,6 +440,17 @@ module control_unit
 								bytes_needed <= 2;
 							end
 							
+							`COMMAND_GET_DELAY_BUF_ADDR: begin
+								bytes_needed <= 2;
+							end
+							
+							`COMMAND_GET_DELAY_BUF_POS: begin
+								bytes_needed <= 2;
+							end
+							
+							`COMMAND_GET_DELAY_BUF_GAIN: begin
+								bytes_needed <= 2;
+							end
 							
 							default: begin
 								state <= READY;
@@ -611,6 +622,33 @@ module control_unit
 							expecting_pipeline_data <= 1;
 							pipeline_data_req_target <= current_pipeline;
 							readout_n_bytes <= 3;
+							state <= READY;
+						end
+						
+						`COMMAND_GET_DELAY_BUF_ADDR: begin
+							ctrl_data_out <= {bytes_in[`CTRL_DATA_BUS_WIDTH - 8 - 1 : 0], `DATA_REQ_DELAY_BUF_ADDR};
+							pipeline_data_req[current_pipeline] <= 1;
+							expecting_pipeline_data <= 1;
+							pipeline_data_req_target <= current_pipeline;
+							readout_n_bytes <= 3;
+							state <= READY;
+						end
+						
+						`COMMAND_GET_DELAY_BUF_POS: begin
+							ctrl_data_out <= {bytes_in[`CTRL_DATA_BUS_WIDTH - 8 - 1 : 0], `DATA_REQ_DELAY_BUF_POS};
+							pipeline_data_req[current_pipeline] <= 1;
+							expecting_pipeline_data <= 1;
+							pipeline_data_req_target <= current_pipeline;
+							readout_n_bytes <= 3;
+							state <= READY;
+						end
+						
+						`COMMAND_GET_DELAY_BUF_GAIN: begin
+							ctrl_data_out <= {bytes_in[`CTRL_DATA_BUS_WIDTH - 8 - 1 : 0], `DATA_REQ_DELAY_BUF_GAIN};
+							pipeline_data_req[current_pipeline] <= 1;
+							expecting_pipeline_data <= 1;
+							pipeline_data_req_target <= current_pipeline;
+							readout_n_bytes <= 2;
 							state <= READY;
 						end
 						

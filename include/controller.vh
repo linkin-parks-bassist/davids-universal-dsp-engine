@@ -20,6 +20,9 @@
 `define COMMAND_GET_N_DELAY_BUF		8'd24
 `define COMMAND_GET_DELAY_BUF_SIZE  8'd25
 `define COMMAND_GET_DELAY_BUF_DELAY 8'd26
+`define COMMAND_GET_DELAY_BUF_ADDR	8'd27
+`define COMMAND_GET_DELAY_BUF_POS	8'd28
+`define COMMAND_GET_DELAY_BUF_GAIN	8'd29
 
 // If we're in a 'waiting' state, but no new data has
 // appeared for a whole 100ms, then it's likely
@@ -38,3 +41,6 @@
 `define DATA_REQ_N_DELAY_BUF	 8'd3
 `define DATA_REQ_DELAY_BUF_SIZE	 8'd4
 `define DATA_REQ_DELAY_BUF_DELAY 8'd5
+`define DATA_REQ_DELAY_BUF_ADDR  8'd6
+`define DATA_REQ_DELAY_BUF_POS   8'd7
+`define DATA_REQ_DELAY_BUF_GAIN  8'd8

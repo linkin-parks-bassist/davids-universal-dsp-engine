@@ -377,6 +377,9 @@ module dsp_pipeline #(
 			`DATA_REQ_N_DELAY_BUF: 	   data_req_target = DATA_REQ_TARGET_DELAY;
 			`DATA_REQ_DELAY_BUF_SIZE:  data_req_target = DATA_REQ_TARGET_DELAY;
 			`DATA_REQ_DELAY_BUF_DELAY: data_req_target = DATA_REQ_TARGET_DELAY;
+			`DATA_REQ_DELAY_BUF_ADDR:  data_req_target = DATA_REQ_TARGET_DELAY;
+			`DATA_REQ_DELAY_BUF_POS:   data_req_target = DATA_REQ_TARGET_DELAY;
+			`DATA_REQ_DELAY_BUF_GAIN:  data_req_target = DATA_REQ_TARGET_DELAY;
 			
 			default: data_req_target = DATA_REQ_TARGET_NONE;
 		endcase

@@ -87,6 +87,30 @@ module delay_master #(parameter data_width  = 16,
 						end
 					end
 					
+					`DATA_REQ_DELAY_BUF_ADDR: begin
+						if (buf_info_read_handle_prev_prev == data_req_ctrl_data_r[23:8]) begin
+							data_return <= addr;
+							data_return_valid <= 1;
+							data_req_active <= 0;
+						end
+					end
+					
+					`DATA_REQ_DELAY_BUF_POS: begin
+						if (buf_info_read_handle_prev_prev == data_req_ctrl_data_r[23:8]) begin
+							data_return <= position;
+							data_return_valid <= 1;
+							data_req_active <= 0;
+						end
+					end
+					
+					`DATA_REQ_DELAY_BUF_GAIN: begin
+						if (buf_info_read_handle_prev_prev == data_req_ctrl_data_r[23:8]) begin
+							data_return <= gain;
+							data_return_valid <= 1;
+							data_req_active <= 0;
+						end
+					end
+					
 					default: begin
 						data_req_active <= 0;
 					end
