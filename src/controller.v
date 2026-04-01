@@ -605,7 +605,7 @@ module control_unit
 							state <= READY;
 						end
 						
-						`COMMAND_GET_BLOCK_REG: begin
+						`COMMAND_GET_DELAY_BUF_DELAY: begin
 							ctrl_data_out <= {bytes_in[`CTRL_DATA_BUS_WIDTH - 8 - 1 : 0], `DATA_REQ_DELAY_BUF_DELAY};
 							pipeline_data_req[current_pipeline] <= 1;
 							expecting_pipeline_data <= 1;
