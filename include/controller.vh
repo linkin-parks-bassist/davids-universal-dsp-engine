@@ -17,6 +17,9 @@
 `define COMMAND_GET_N_BLOCKS		8'd21
 `define COMMAND_GET_BLOCK_INSTR		8'd22
 `define COMMAND_GET_BLOCK_REG		8'd23
+`define COMMAND_GET_N_DELAY_BUF		8'd24
+`define COMMAND_GET_DELAY_BUF_SIZE  8'd25
+`define COMMAND_GET_DELAY_BUF_DELAY 8'd26
 
 // If we're in a 'waiting' state, but no new data has
 // appeared for a whole 100ms, then it's likely
@@ -31,3 +34,7 @@
 `define DATA_REQ_N_BLOCKS 		8'd0
 `define DATA_REQ_BLOCK_INSTR 	8'd1
 `define DATA_REQ_BLOCK_REG	 	8'd2
+
+`define DATA_REQ_N_DELAY_BUF	 8'd3
+`define DATA_REQ_DELAY_BUF_SIZE	 8'd4
+`define DATA_REQ_DELAY_BUF_DELAY 8'd5
