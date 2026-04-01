@@ -437,7 +437,7 @@ module control_unit
 							end
 							
 							`COMMAND_GET_DELAY_BUF_DELAY: begin
-								bytes_needed <= block_bytes + 1;
+								bytes_needed <= 2;
 							end
 							
 							
