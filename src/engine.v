@@ -39,7 +39,10 @@ module dsp_engine #(
 		input  wire [data_width - 1 : 0] data_from_sdram,
 
 		input wire sdram_data_valid,
-		input wire sdram_busy
+		input wire sdram_busy,
+		
+		input wire [63:0] sdram_read_count,
+		input wire [63:0] sdram_write_count
 	);
 
 	assign out = control_state;
@@ -345,7 +348,10 @@ module dsp_engine #(
 		.pipeline_data_return(pipeline_data_return),
 		.pipeline_data_return_valid(pipeline_data_return_valid),
 
-        .ctrl_data_out(ctrl_data)
+        .ctrl_data_out(ctrl_data),
+        
+        .sdram_read_count(sdram_read_count),
+        .sdram_write_count(sdram_write_count)
 	);
 	
 	wire pipeline_a_sdram_reqs;

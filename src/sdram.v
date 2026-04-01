@@ -73,7 +73,10 @@ module sdram
 										// output is buffered until next read request
     output wire [DATA_WIDTH-1:0] dout32, 	// 32-bit data output
     output reg        data_ready,   	// available 6 cycles after wr is set
-    output reg        busy          	// 0: ready for next command
+    output reg        busy,          	// 0: ready for next command
+    
+    output reg [63:0] read_count,
+    output reg [63:0] write_count
 );
 
 `ifdef verilator
@@ -241,6 +244,8 @@ always @(posedge clk) begin
             SDRAM_A[9:0] <= {1'b0, addr_buf[COL_WIDTH - 1 + addr_offs : addr_offs]};  // column address
             SDRAM_DQM <= 4'b0;
             off <= addr_buf[0];
+            
+            read_count <= read_count + 1;
         end
         {READ, T_RCD+CAS}: begin
             data_ready <= 1'b1;
@@ -272,6 +277,7 @@ always @(posedge clk) begin
             dq_out <= {din_buf,din_buf};
             dq_oen <= 1'b0;                 // DQ output on
             
+            write_count <= write_count + 1;
             `ifdef verilator
             sim_mem_read_addr <= addr_buf >> 1;
             `endif
@@ -343,6 +349,9 @@ always @(posedge clk) begin
         rst_cnt  <= 15'd0;
         rst_done <= 1'b0;
         cfg_busy <= 1'b1;
+        
+        read_count <= 0;
+        write_count <= 0;
     end
 end
 

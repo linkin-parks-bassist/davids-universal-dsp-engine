@@ -78,7 +78,10 @@ module top #(
 		.data_from_sdram(data_from_sdram),
 
 		.sdram_data_valid(sdram_data_valid),
-		.sdram_busy(sdram_busy)
+		.sdram_busy(sdram_busy),
+		
+		.sdram_read_count(sdram_read_count),
+		.sdram_write_count(sdram_write_count)
 	);
 	
 	wire [7:0] out;
@@ -237,6 +240,9 @@ module top #(
 	wire sdram_data_valid;
 	wire sdram_busy;
 	
+	wire [63:0] sdram_read_count;
+	wire [63:0] sdram_write_count;
+	
 	sdram  #(
 			.data_width(data_width),
 			
@@ -277,7 +283,10 @@ module top #(
 			.dout(data_from_sdram),
 			.dout32(),
 			.data_ready(sdram_data_valid),
-			.busy(sdram_busy)
+			.busy(sdram_busy),
+			
+			.read_count(sdram_read_count),
+			.write_count(sdram_write_count)
 		);
 endmodule
 

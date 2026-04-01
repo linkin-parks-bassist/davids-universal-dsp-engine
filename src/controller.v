@@ -67,6 +67,9 @@ module control_unit
 		input wire [31:0] pipeline_data_return [1:0],
 		input wire [1 :0] pipeline_data_return_valid,
 
+		input wire [63:0] sdram_read_count,
+		input wire [63:0] sdram_write_count,
+
         output reg [`CTRL_DATA_BUS_WIDTH - 1 : 0] ctrl_data_out
 	);
 	
@@ -98,7 +101,7 @@ module control_unit
 	reg returning_data;
 	reg [2:0] readout_n_bytes;
 	reg [2:0] readout_index;
-	reg [4 * 8 -  1 : 0] returned_data;
+	reg [8 * 8 -  1 : 0] returned_data;
 	
 	assign spi_byte_out = returning_data ? returned_data[8 * readout_index +: 8] : flags;
 	
@@ -230,7 +233,7 @@ module control_unit
             timeout_max <= `CONTROLLER_TIMEOUT_CYCLES;
             
 			returning_data 	  <= 0;
-			readout_n_bytes <= 0;
+			readout_n_bytes   <= 0;
 			readout_index 	  <= 0;
 			returned_data[0]  <= 0;
 			returned_data[1]  <= 0;
@@ -403,6 +406,20 @@ module control_unit
 										cmd_err_flag <= 1;
 									end
 								end
+								state <= READY;
+							end
+							
+							`COMMAND_GET_SDRAM_READ_CNT: begin
+								returned_data[63:0] <= sdram_read_count;
+								readout_n_bytes <= 8;
+								data_ready <= 1;
+								state <= READY;
+							end
+							
+							`COMMAND_GET_SDRAM_WRITE_CNT: begin
+								returned_data[63:0] <= sdram_write_count;
+								readout_n_bytes <= 8;
+								data_ready <= 1;
 								state <= READY;
 							end
 							

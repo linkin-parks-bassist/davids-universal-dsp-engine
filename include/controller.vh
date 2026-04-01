@@ -24,6 +24,8 @@
 `define COMMAND_GET_DELAY_BUF_POS	8'd28
 `define COMMAND_GET_DELAY_BUF_GAIN	8'd29
 `define COMMAND_GET_DELAY_BUF_LRWA	8'd30
+`define COMMAND_GET_SDRAM_READ_CNT	8'd31
+`define COMMAND_GET_SDRAM_WRITE_CNT	8'd32
 
 // If we're in a 'waiting' state, but no new data has
 // appeared for a whole 100ms, then it's likely
