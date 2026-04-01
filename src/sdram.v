@@ -168,6 +168,11 @@ always @(posedge clk) begin
 	sim_mem_write_enable <= 0;
 	`endif
 	
+    if (~resetn) begin
+        read_count <= 0;
+        write_count <= 0;
+    end
+
     cycle <= cycle == 4'd15 ? 4'd15 : cycle + 4'd1;
     // defaults
     {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_NOP; 
@@ -349,9 +354,6 @@ always @(posedge clk) begin
         rst_cnt  <= 15'd0;
         rst_done <= 1'b0;
         cfg_busy <= 1'b1;
-        
-        read_count <= 0;
-        write_count <= 0;
     end
 end
 
