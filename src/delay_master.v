@@ -2,7 +2,7 @@
 
 module delay_master #(parameter data_width  = 16,
 					  parameter n_buffers   = 32,
-					  parameter memory_size = 2097152)
+					  parameter addr_width  = 21)
 	(
 		input wire clk,
 		input wire reset,
@@ -23,9 +23,6 @@ module delay_master #(parameter data_width  = 16,
 		input wire signed [data_width - 1 : 0] write_data,
 		input wire signed [data_width - 1 : 0] read_delay,
 		
-		input wire [	addr_width - 1 : 0] alloc_size,
-		input wire [2 * data_width - 1 : 0] alloc_delay,
-		
 		output reg mem_req,
 		output reg mem_req_type,
 		
@@ -41,9 +38,62 @@ module delay_master #(parameter data_width  = 16,
 		output reg invalid_alloc,
 		
 		output wire any_buffers,
+		
+		input wire data_req,
+		output reg [31:0] data_return,
+		output reg data_return_valid,
 
         input wire [`CTRL_DATA_BUS_WIDTH - 1 : 0] ctrl_data_in
 	);
+	
+	reg data_req_active;
+	
+	reg  [`CTRL_DATA_BUS_WIDTH - 1 : 0] data_req_ctrl_data_r;
+	wire [7:0] data_req_type = data_req_ctrl_data_r[7:0];
+	
+	wire [15:0] data_req_handle = data_req_ctrl_data_r[23:8];
+	
+	always @(posedge clk) begin
+		data_return_valid <= 0;
+	
+		if (reset) begin
+			data_return_valid <= 0;
+			data_req_active <= 0;
+		end else begin
+			if (data_req) begin
+				data_req_ctrl_data_r <= ctrl_data_in;
+				data_req_active <= 1;
+			end else if (data_req_active) begin
+				case (data_req_type)
+					`DATA_REQ_N_DELAY_BUF: begin
+						data_return <= n_buffers_allocd;
+						data_return_valid <= 1;
+						data_req_active <= 0;
+					end
+					
+					`DATA_REQ_DELAY_BUF_SIZE: begin
+						if (buf_info_read_handle_prev_prev == data_req_ctrl_data_r[23:8]) begin
+							data_return <= size;
+							data_return_valid <= 1;
+							data_req_active <= 0;
+						end
+					end
+					
+					`DATA_REQ_DELAY_BUF_DELAY: begin
+						if (buf_info_read_handle_prev_prev == data_req_ctrl_data_r[23:8]) begin
+							data_return <= delay;
+							data_return_valid <= 1;
+							data_req_active <= 0;
+						end
+					end
+					
+					default: begin
+						data_req_active <= 0;
+					end
+				endcase
+			end
+		end
+	end
 	
     reg alloc_req_r;
     reg [addr_width - 1 : 0] alloc_size_r;
@@ -59,7 +109,7 @@ module delay_master #(parameter data_width  = 16,
         end
     end
 
-	localparam addr_width   = $clog2(memory_size);
+	localparam memory_size  = (1 << addr_width);
 	localparam delay_width  = addr_width;
 	localparam handle_width = $clog2(n_buffers);
 	
@@ -99,9 +149,14 @@ module delay_master #(parameter data_width  = 16,
 	reg [buf_info_width - 1 : 0] buf_info_cuck_data;
 	reg [handle_width   - 1 : 0] buf_info_write_handle;
 	reg [handle_width   - 1 : 0] buf_info_read_handle;
+	reg [handle_width   - 1 : 0] buf_info_read_handle_prev;
+	reg [handle_width   - 1 : 0] buf_info_read_handle_prev_prev;
 	reg  buf_info_write_enable;
 	
 	always @(posedge clk) begin
+		buf_info_read_handle_prev <= buf_info_read_handle;
+		buf_info_read_handle_prev_prev <= buf_info_read_handle_prev;
+		
 		if (buf_info_write_enable)
 			buf_info[buf_info_write_handle] <= buf_info_write_data;
 		

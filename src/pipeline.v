@@ -1,3 +1,4 @@
+`include "controller.vh"
 `include "instr_dec.vh"
 `include "core.vh"
 `include "lut.vh"
@@ -69,13 +70,11 @@ module dsp_pipeline #(
 		
 		input wire data_req,
 		
-		output wire [31:0] data_return,
-		output wire data_return_valid,
+		output reg [31:0] data_return,
+		output reg data_return_valid,
 
         input wire [`CTRL_DATA_BUS_WIDTH - 1 : 0] ctrl_data_in
 	);
-
-    assign byte_probe = core_out;
 	
 	/*******************/
 	/* Processing core */
@@ -131,10 +130,10 @@ module dsp_pipeline #(
 		.full_reset(full_reset),
 		.resetting(resetting),
 		
-		.data_req(data_req),
+		.data_req(data_req_core),
 		
-		.data_return(data_return),
-		.data_return_valid(data_return_valid),
+		.data_return(data_return_core),
+		.data_return_valid(data_return_valid_core),
 
         .ctrl_data_in(ctrl_data_in)
 	);
@@ -173,14 +172,11 @@ module dsp_pipeline #(
 		state <= READY;
 	end
 	*/
-	
-	wire [2 * data_width - 1 : 0] delay_size = ctrl_data_in[47:24];
-	wire [2 * data_width - 1 : 0] init_delay = ctrl_data_in[23: 0];
 
 	delay_master #(
 		.data_width(data_width), 
 		.n_buffers(16),
-		.memory_size(delay_mem_size)
+		.addr_width(sdram_addr_width)
 	) delays (
 		.clk(clk),
 		.reset(reset | full_reset),
@@ -188,8 +184,6 @@ module dsp_pipeline #(
 		.enable(1'b1),
 		
 		.alloc_req  (alloc_delay),
-		.alloc_size (delay_size[delay_mem_addr_width-1:0]),
-		.alloc_delay(init_delay),
 		
 		.read_req (delay_read_req),
 		.write_req(delay_write_req),
@@ -217,7 +211,11 @@ module dsp_pipeline #(
 
         .any_buffers(any_delay_buffers),
 
-        .ctrl_data_in(ctrl_data_in)
+        .ctrl_data_in(ctrl_data_in),
+        
+        .data_req(data_req_delay),
+        .data_return(data_return_delay),
+        .data_return_valid(data_return_valid_delay)
 	);
 	
 	wire filter_calc_req;
@@ -348,6 +346,75 @@ module dsp_pipeline #(
 					state 	<= `PIPELINE_INVALID;
 				end
 			endcase
+		end
+	end
+	
+	reg data_req_active;
+	
+	localparam DATA_REQ_TARGET_NONE  = 4'd0;
+	localparam DATA_REQ_TARGET_CORE  = 4'd1;
+	localparam DATA_REQ_TARGET_DELAY = 4'd2;
+	
+	logic [3:0] data_req_target;
+	wire data_req_core;
+	wire data_req_delay;
+	
+	reg  [3:0] data_req_target_r;
+	
+	wire [31:0] data_return_core;
+	wire [31:0] data_return_delay;
+	wire data_return_valid_core;
+	wire data_return_valid_delay;
+
+	reg [`CTRL_DATA_BUS_WIDTH - 1 : 0] data_req_ctrl_data_r;
+	
+	always @(*) begin
+		case (ctrl_data_in[7:0])
+			`DATA_REQ_N_BLOCKS:    data_req_target = DATA_REQ_TARGET_CORE;
+			`DATA_REQ_BLOCK_INSTR: data_req_target = DATA_REQ_TARGET_CORE;
+			`DATA_REQ_BLOCK_REG:   data_req_target = DATA_REQ_TARGET_CORE;
+			
+			`DATA_REQ_N_DELAY_BUF: 	   data_req_target = DATA_REQ_TARGET_DELAY;
+			`DATA_REQ_DELAY_BUF_SIZE:  data_req_target = DATA_REQ_TARGET_DELAY;
+			`DATA_REQ_DELAY_BUF_DELAY: data_req_target = DATA_REQ_TARGET_DELAY;
+			
+			default: data_req_target = DATA_REQ_TARGET_NONE;
+		endcase
+	end
+	
+	assign data_req_core  = data_req & (data_req_target == DATA_REQ_TARGET_CORE);
+	assign data_req_delay = data_req & (data_req_target == DATA_REQ_TARGET_DELAY);
+	
+	always @(posedge clk) begin
+		data_return_valid <= 0;
+	
+		if (reset | resetting) begin
+			data_return_valid <= 0;
+			data_req_active <= 0;
+		end else begin
+			if (data_req) begin
+				data_req_ctrl_data_r <= ctrl_data_in;
+				data_req_active <= data_req_target != DATA_REQ_TARGET_NONE;
+				data_req_target_r <= data_req_target;
+			end else if (data_req_active) begin
+				case (data_req_target_r)
+					DATA_REQ_TARGET_CORE: begin
+						if (data_return_valid_core) begin
+							data_return <= data_return_core;
+							data_return_valid <= 1;
+							data_req_active <= 0;
+						end
+					end
+					
+					DATA_REQ_TARGET_DELAY: begin
+						if (data_return_valid_delay) begin
+							data_return <= data_return_delay;
+							data_return_valid <= 1;
+							data_req_active <= 0;
+						end
+					end
+				endcase
+			end
 		end
 	end
 endmodule

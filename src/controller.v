@@ -386,23 +386,6 @@ module control_unit
 								filter_coef_commit[front_pipeline] <= 1;
 							end
 							
-							`COMMAND_GET_N_BLOCKS: begin
-								ctrl_data_out[7:0] <= `DATA_REQ_N_BLOCKS;
-								pipeline_data_req[current_pipeline] <= 1;
-								expecting_pipeline_data <= 1;
-								pipeline_data_req_target <= current_pipeline;
-								readout_n_bytes <= 2;
-								state <= READY;
-							end
-							
-							`COMMAND_GET_BLOCK_INSTR: begin
-								bytes_needed <= block_bytes;
-							end
-							
-							`COMMAND_GET_BLOCK_REG: begin
-								bytes_needed <= block_bytes + 1;
-							end
-							
 							`COMMAND_READOUT: begin
 								if (returning_data) begin
 									cmd_err_flag <= 0;
@@ -422,6 +405,41 @@ module control_unit
 								end
 								state <= READY;
 							end
+							
+							`COMMAND_GET_N_BLOCKS: begin
+								ctrl_data_out[7:0] <= `DATA_REQ_N_BLOCKS;
+								pipeline_data_req[current_pipeline] <= 1;
+								expecting_pipeline_data <= 1;
+								pipeline_data_req_target <= current_pipeline;
+								readout_n_bytes <= 2;
+								state <= READY;
+							end
+							
+							`COMMAND_GET_BLOCK_INSTR: begin
+								bytes_needed <= block_bytes;
+							end
+							
+							`COMMAND_GET_BLOCK_REG: begin
+								bytes_needed <= block_bytes + 1;
+							end
+							
+							`COMMAND_GET_N_DELAY_BUF: begin
+								ctrl_data_out[7:0] <= `DATA_REQ_N_DELAY_BUF;
+								pipeline_data_req[current_pipeline] <= 1;
+								expecting_pipeline_data <= 1;
+								pipeline_data_req_target <= current_pipeline;
+								readout_n_bytes <= 2;
+								state <= READY;
+							end
+							
+							`COMMAND_GET_DELAY_BUF_SIZE: begin
+								bytes_needed <= 2;
+							end
+							
+							`COMMAND_GET_DELAY_BUF_DELAY: begin
+								bytes_needed <= block_bytes + 1;
+							end
+							
 							
 							default: begin
 								state <= READY;
@@ -575,6 +593,24 @@ module control_unit
 							expecting_pipeline_data <= 1;
 							pipeline_data_req_target <= current_pipeline;
 							readout_n_bytes <= data_bytes;
+							state <= READY;
+						end
+						
+						`COMMAND_GET_DELAY_BUF_SIZE: begin
+							ctrl_data_out <= {bytes_in[`CTRL_DATA_BUS_WIDTH - 8 - 1 : 0], `DATA_REQ_DELAY_BUF_SIZE};
+							pipeline_data_req[current_pipeline] <= 1;
+							expecting_pipeline_data <= 1;
+							pipeline_data_req_target <= current_pipeline;
+							readout_n_bytes <= 3;
+							state <= READY;
+						end
+						
+						`COMMAND_GET_BLOCK_REG: begin
+							ctrl_data_out <= {bytes_in[`CTRL_DATA_BUS_WIDTH - 8 - 1 : 0], `DATA_REQ_DELAY_BUF_DELAY};
+							pipeline_data_req[current_pipeline] <= 1;
+							expecting_pipeline_data <= 1;
+							pipeline_data_req_target <= current_pipeline;
+							readout_n_bytes <= 3;
 							state <= READY;
 						end
 						
