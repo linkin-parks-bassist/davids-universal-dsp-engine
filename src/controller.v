@@ -99,7 +99,7 @@ module control_unit
 	reg pipeline_data_req_target;
 	
 	reg returning_data;
-	reg [2:0] readout_n_bytes;
+	reg [3:0] readout_n_bytes;
 	reg [2:0] readout_index;
 	reg [8 * 8 -  1 : 0] returned_data;
 	
@@ -110,6 +110,19 @@ module control_unit
 	
 	reg [2:0] state = READY;
 	reg [2:0] state_prev = READY;
+	
+	reg [8 * 8 -  1 : 0] command_log;
+	
+	reg push_command_log;
+	
+	integer k;
+	always @(posedge clk) begin
+		if (reset) begin
+			command_log <= 0;
+		end else if (push_command_log) begin
+			command_log <= {command_log[7 * 8 - 1 : 0], command};
+		end
+	end
 	
 	reg wait_one = 0;
 
@@ -206,6 +219,8 @@ module control_unit
 		
 		pipeline_data_req <= 0;
 		
+		push_command_log <= 0;
+		
 		if (reset) begin
 			state 		<= INITIAL_RESET_WAIT;
             state_prev  <= INITIAL_RESET_WAIT;
@@ -283,6 +298,8 @@ module control_unit
 					
 					if (!wait_one && in_valid) begin
 						command <= in_byte;
+						push_command_log <= 1;
+						
 						wait_one <= 1;
 						next <= 1;
 						
@@ -407,6 +424,7 @@ module control_unit
 									end
 								end
 								state <= READY;
+								push_command_log <= 0;
 							end
 							
 							`COMMAND_GET_SDRAM_READ_CNT: begin
@@ -471,6 +489,14 @@ module control_unit
 							
 							`COMMAND_GET_DELAY_BUF_LRWA: begin
 								bytes_needed <= 2;
+							end
+							
+							`COMMAND_READ_COMMAND_LOG: begin
+								returned_data <= command_log;
+								readout_n_bytes <= 8;
+								data_ready <= 1;
+								state <= READY;
+								push_command_log <= 0;
 							end
 							
 							default: begin

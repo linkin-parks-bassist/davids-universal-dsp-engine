@@ -79,7 +79,9 @@ module sdram
     output reg [63:0] write_count
 );
 
-`ifdef verilator
+`define crusty_sim
+
+`ifdef crusty_sim
 reg [31 : 0] sim_mem [(1 << 19) : 0];
 
 reg  [31 : 0] sim_mem_write_val;
@@ -108,6 +110,7 @@ always @(posedge clk) begin
 end
 `endif
 
+
 // Tri-state DQ input/output
 reg dq_oen;         // 0 means output
 reg [DATA_WIDTH-1:0] dq_out;
@@ -116,7 +119,7 @@ wire [DATA_WIDTH-1:0] dq_in = SDRAM_DQ;     // DQ input
 
 reg off;          // byte offset
 reg  [data_width - 1 : 0] dout_buf;
-`ifdef verilator
+`ifdef crusty_sim
 wire [data_width - 1 : 0] next_dout =  off ? sim_mem_read_val_1 : sim_mem_read_val_0;
 reg [10:0] WRITE_A;
 reg [10:0] READ_A;
@@ -164,7 +167,7 @@ reg [21:0] addr_buf;
 // SDRAM state machine
 //
 always @(posedge clk) begin
-	`ifdef verilator
+	`ifdef crusty_sim
 	sim_mem_write_enable <= 0;
 	`endif
 	
@@ -218,7 +221,7 @@ always @(posedge clk) begin
             SDRAM_A <= addr[ROW_WIDTH + COL_WIDTH - 1 + addr_offs : COL_WIDTH + addr_offs];      // 12-bit row address
             state <= rd ? READ : WRITE;
             addr_buf <= addr;
-            `ifdef verilator
+            `ifdef crusty_sim
             sim_mem_read_addr <= addr >> 1;
             if (rd)
 				read_addr <= addr[19:0];
@@ -254,7 +257,7 @@ always @(posedge clk) begin
         end
         {READ, T_RCD+CAS}: begin
             data_ready <= 1'b1;
-            `ifdef verilator
+            `ifdef crusty_sim
             READ_A <= SDRAM_A;
             READ_DQM <= SDRAM_DQM;
             `endif
@@ -283,18 +286,18 @@ always @(posedge clk) begin
             dq_oen <= 1'b0;                 // DQ output on
             
             write_count <= write_count + 1;
-            `ifdef verilator
+            `ifdef crusty_sim
             sim_mem_read_addr <= addr_buf >> 1;
             `endif
         end
         {WRITE, T_RCD+4'd1}: begin
             dq_oen <= 1'b1;
-            `ifdef verilator
+            `ifdef crusty_sim
             WRITE_A <= SDRAM_A;
             WRITE_DQM <= SDRAM_DQM;
             `endif
         end
-        `ifdef verilator
+        `ifdef crusty_sim
         {WRITE, T_RCD+4'd2}: begin
 			sim_mem_write_val <= off ? {din_buf, sim_mem_read_val[15:0]} : {sim_mem_read_val[31:16], din_buf};
 			sim_mem_write_addr <= addr_buf >> 1;
@@ -324,7 +327,7 @@ always @(posedge clk) begin
         SDRAM_DQM <= 4'b0;
         state <= INIT;
         
-        `ifdef verilator
+        `ifdef crusty_sim
         sim_mem_write_enable <= 0;
         `endif
     end

@@ -243,6 +243,19 @@ module top #(
 	wire [63:0] sdram_read_count;
 	wire [63:0] sdram_write_count;
 	
+	localparam tAC  =   5.5;
+    localparam tHZ  =   5.5;
+    localparam tOH  =   2.5;
+    localparam tMRD =   2.0;     // 2 Clk Cycles
+    localparam tRAS =  42.0;
+    localparam tRC  =  60.0;
+    localparam tRCD =  18.0;
+    localparam tRFC =  60.0;
+    localparam tRP  =  18.0;
+    localparam tRRD =  12.0;
+    localparam tWRa =   6.0;     // A2 Version - Auto precharge mode (1 Clk + 7 ns)
+    localparam tWRm =  12.0;
+	
 	sdram  #(
 			.data_width(data_width),
 			

@@ -1,6 +1,6 @@
 `default_nettype none
 
-module commit_stage #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8)
+module commit_stage #(parameter data_width = 16, parameter n_blocks = 256, parameter n_channels = 16, parameter full_width = 2 * data_width + 8)
 	(
 		input wire clk,
 		input wire reset,
@@ -19,8 +19,8 @@ module commit_stage #(parameter data_width = 16, parameter n_blocks = 256, param
 		input  wire signed [full_width - 1 : 0] result_in,
 		output wire signed [full_width - 1 : 0] result_out,
 		
-		input  wire [3:0] dest_in,
-		output wire [3:0] dest_out,
+		input  wire [ch_addr_w - 1 : 0] dest_in,
+		output wire [ch_addr_w - 1 : 0] dest_out,
 		
 		input  wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
 		output wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out,
@@ -29,7 +29,9 @@ module commit_stage #(parameter data_width = 16, parameter n_blocks = 256, param
 		output wire commit_flag_out
 	);
 	
-	localparam payload_width = $clog2(n_blocks) + full_width + 4 + `COMMIT_ID_WIDTH + 1;
+	localparam ch_addr_w = $clog2(n_channels);
+	
+	localparam payload_width = $clog2(n_blocks) + full_width + ch_addr_w + `COMMIT_ID_WIDTH + 1;
 
 	wire [payload_width - 1 : 0] skid_payload_in = 
 		{block_in, result_in, dest_in, commit_id_in, commit_flag_in};

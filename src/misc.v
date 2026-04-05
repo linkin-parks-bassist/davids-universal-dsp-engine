@@ -2,7 +2,7 @@
 
 `default_nettype none
 
-module misc_branch_stage_1 #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8)
+module misc_branch_stage_1 #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8, parameter n_channels = 16)
 	(
 		input wire clk,
 		input wire reset,
@@ -58,8 +58,8 @@ module misc_branch_stage_1 #(parameter data_width = 16, parameter n_blocks = 256
 		input wire [4 : 0] shift_in,
 		output reg [4 : 0] shift_out,
 		
-		input wire [3 : 0] dest_in,
-		output reg [3 : 0] dest_out,
+		input wire [ch_addr_w - 1 : 0] dest_in,
+		output reg [ch_addr_w - 1 : 0] dest_out,
 		
 		input wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
 		output reg [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out,
@@ -67,6 +67,8 @@ module misc_branch_stage_1 #(parameter data_width = 16, parameter n_blocks = 256
 		input wire commit_flag_in,
 		output reg commit_flag_out
 	);
+	
+	localparam ch_addr_w = $clog2(n_channels);
 
 	assign in_ready = ~out_valid | out_ready;
 	
@@ -149,7 +151,7 @@ module misc_branch_stage_1 #(parameter data_width = 16, parameter n_blocks = 256
 	end
 endmodule
 
-module misc_branch_stage_2 #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8)
+module misc_branch_stage_2 #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8, parameter n_channels = 16)
 	(
 		input wire clk,
 		input wire reset,
@@ -214,8 +216,8 @@ module misc_branch_stage_2 #(parameter data_width = 16, parameter n_blocks = 256
 		input wire [4 : 0] shift_in,
 		output reg [4 : 0] shift_out,
 		
-		input wire [3 : 0] dest_in,
-		output reg [3 : 0] dest_out,
+		input wire [ch_addr_w - 1 : 0] dest_in,
+		output reg [ch_addr_w - 1 : 0] dest_out,
 		
 		input wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
 		output reg [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out,
@@ -224,6 +226,8 @@ module misc_branch_stage_2 #(parameter data_width = 16, parameter n_blocks = 256
 		output reg commit_flag_out
 	);
 
+	localparam ch_addr_w = $clog2(n_channels);
+	
 	assign in_ready = ~out_valid | out_ready;
 	
 	wire take_in  = in_ready & in_valid;
@@ -298,7 +302,7 @@ module misc_branch_stage_2 #(parameter data_width = 16, parameter n_blocks = 256
 endmodule
 
 
-module misc_branch_stage_3 #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8)
+module misc_branch_stage_3 #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8, parameter n_channels = 16)
 	(
 		input wire clk,
 		input wire reset,
@@ -342,8 +346,8 @@ module misc_branch_stage_3 #(parameter data_width = 16, parameter n_blocks = 256
 		input wire saturate_disable_in,
 		input wire [4 : 0] shift_in,
 		
-		input wire [3 : 0] dest_in,
-		output reg [3 : 0] dest_out,
+		input wire [ch_addr_w - 1 : 0] dest_in,
+		output reg [ch_addr_w - 1 : 0] dest_out,
 		
 		input wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
 		output reg [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out,
@@ -351,6 +355,8 @@ module misc_branch_stage_3 #(parameter data_width = 16, parameter n_blocks = 256
 		input wire commit_flag_in,
 		output reg commit_flag_out
 	);
+	
+	localparam ch_addr_w = $clog2(n_channels);
 	
 	localparam signed [full_width - 1 : 0] sat_max = ( 1 << (data_width - 1)) - 1;
 	localparam signed [full_width - 1 : 0] sat_min = (-1 << (data_width - 1));
@@ -407,7 +413,7 @@ module misc_branch_stage_3 #(parameter data_width = 16, parameter n_blocks = 256
 
 endmodule
 
-module misc_branch #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8)
+module misc_branch #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8, parameter n_channels = 16)
 	(
 		input wire clk,
 		input wire reset,
@@ -436,8 +442,8 @@ module misc_branch #(parameter data_width = 16, parameter n_blocks = 256, parame
 		input wire saturate_disable_in,
 		input wire [4 : 0] shift_in,
 		
-		input  wire [3 : 0] dest_in,
-		output wire [3 : 0] dest_out,
+		input  wire [ch_addr_w - 1 : 0] dest_in,
+		output wire [ch_addr_w - 1 : 0] dest_out,
 		
 		output wire signed [full_width - 1 : 0] result_out,
 		
@@ -447,6 +453,8 @@ module misc_branch #(parameter data_width = 16, parameter n_blocks = 256, parame
 		input  wire commit_flag_in,
 		output wire commit_flag_out
 	);
+	
+	localparam ch_addr_w = $clog2(n_channels);
 	
 	assign in_ready = ~out_valid_1 | in_ready_1;
 	
@@ -477,12 +485,12 @@ module misc_branch #(parameter data_width = 16, parameter n_blocks = 256, parame
 	wire saturate_disable_1_out;
 	wire shift_disable_1_out;
 	wire [4 : 0] shift_1_out;
-	wire [3 : 0] dest_1_out;
+	wire [ch_addr_w - 1 : 0] dest_1_out;
 	wire signed [full_width - 1 : 0] result_1_out;
 	wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_1_out;
 	wire commit_flag_1_out;
 	
-	misc_branch_stage_1 #(.data_width(data_width), .n_blocks(n_blocks), .full_width(full_width)) stage_1
+	misc_branch_stage_1 #(.data_width(data_width), .n_blocks(n_blocks), .full_width(full_width), .n_channels(n_channels)) stage_1
 	(
 		.clk(clk),
 		.reset(reset),
@@ -561,13 +569,13 @@ module misc_branch #(parameter data_width = 16, parameter n_blocks = 256, parame
 	wire saturate_disable_2_out;
 	wire shift_disable_2_out;
 	wire [4 : 0] shift_2_out;
-	wire [3 : 0] dest_2_out;
+	wire [ch_addr_w - 1 : 0] dest_2_out;
 	wire signed [full_width - 1 : 0] result_2_out;
 	wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_2_out;
 	wire commit_flag_2_out;
 	
 
-	misc_branch_stage_2 #(.data_width(data_width), .n_blocks(n_blocks), .full_width(full_width)) stage_2
+	misc_branch_stage_2 #(.data_width(data_width), .n_blocks(n_blocks), .full_width(full_width), .n_channels(n_channels)) stage_2
 	(
 		.clk(clk),
 		.reset(reset),
@@ -642,12 +650,12 @@ module misc_branch #(parameter data_width = 16, parameter n_blocks = 256, parame
 	wire [4 : 0] operation_3_out;
 	wire saturate_disable_3_out;
 	wire [4 : 0] shift_3_out;
-	wire [3 : 0] dest_3_out;
+	wire [ch_addr_w - 1 : 0] dest_3_out;
 	wire signed [full_width - 1 : 0] result_3_out;
 	wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_3_out;
 	wire commit_flag_3_out;
 	
-	misc_branch_stage_3 #(.data_width(data_width), .n_blocks(n_blocks), .full_width(full_width)) stage_3
+	misc_branch_stage_3 #(.data_width(data_width), .n_blocks(n_blocks), .full_width(full_width), .n_channels(n_channels)) stage_3
 	(
 		.clk(clk),
 		.reset(reset),

@@ -4,7 +4,7 @@
 
 `default_nettype none
 
-module commit_master #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8)
+module commit_master #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8, parameter n_channels = 16)
 	(
 		input wire clk,
 		input wire reset,
@@ -20,11 +20,11 @@ module commit_master #(parameter data_width = 16, parameter n_blocks = 256, para
 		
 		input wire [$clog2(n_blocks)  - 1 : 0] block_in		[`N_INSTR_BRANCHES - 1 : 0],
 		input wire [full_width	 	  - 1 : 0] result		[`N_INSTR_BRANCHES - 1 : 0],
-		input wire [3 					  : 0] dest			[`N_INSTR_BRANCHES - 1 : 0],
+		input wire [ch_addr_w - 1 : 0] dest			[`N_INSTR_BRANCHES - 1 : 0],
 		input wire [`COMMIT_ID_WIDTH  - 1 : 0] commit_id	[`N_INSTR_BRANCHES - 1 : 0],
 		input wire [`N_INSTR_BRANCHES - 1 : 0] commit_flag,
 		
-		output reg [3 : 0] channel_write_addr,
+		output reg [ch_addr_w - 1 : 0] channel_write_addr,
 		output reg signed [data_width - 1 : 0] channel_write_val,
 		output reg channel_write_enable,
 		
@@ -37,6 +37,8 @@ module commit_master #(parameter data_width = 16, parameter n_blocks = 256, para
 		output reg [7 : 0] byte_probe
 	);
 	
+	localparam ch_addr_w = $clog2(n_channels);
+	
 	genvar i;
 	generate
 		for (i = 0; i < `N_INSTR_BRANCHES; i = i + 1) begin : one_hot
@@ -47,7 +49,7 @@ module commit_master #(parameter data_width = 16, parameter n_blocks = 256, para
 	reg [`N_INSTR_BRANCHES - 1 : 0] in_ready_prev;
 	reg acc_overwrite_prev;
 	reg [full_width	- 1 : 0] result_prev [`N_INSTR_BRANCHES - 1 : 0];
-	reg [3 		        : 0] dest_prev	 [`N_INSTR_BRANCHES - 1 : 0];
+	reg [ch_addr_w - 1 : 0] dest_prev	 [`N_INSTR_BRANCHES - 1 : 0];
 
 	integer j;
 	integer k;

@@ -5,7 +5,7 @@
 
 `default_nettype none
 
-module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 256, parameter bit last = 0)
+module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 256, parameter bit last = 0, parameter n_channels = 16)
 	(
 		input wire clk,
 		input wire reset,
@@ -36,38 +36,38 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 		input wire [$clog2(`N_MISC_OPS) - 1 : 0] misc_op_in,
 		output reg [$clog2(`N_MISC_OPS) - 1 : 0] misc_op_out,
 		
-		input wire [3 : 0] dest_in,
-		output reg [3 : 0] dest_out,
+		input wire [ch_addr_w - 1 : 0] dest_in,
+		output reg [ch_addr_w - 1 : 0] dest_out,
 		
 		input wire arg_needed,
-		input wire [3 : 0] src,
+		input wire [ch_addr_w - 1 : 0] src,
 		input wire src_reg,
 		output reg signed [data_width - 1 : 0] fetched_out,		
 		
 		input wire arg_a_needed_in,
-		input wire [3 : 0] src_a_in,
+		input wire [ch_addr_w - 1 : 0] src_a_in,
 		input wire src_a_reg_in,
 		input wire signed [data_width - 1 : 0] arg_a_in,
 		output reg arg_a_needed_out,
-		output reg [3 : 0] src_a_out,
+		output reg [ch_addr_w - 1 : 0] src_a_out,
 		output reg src_a_reg_out,
 		output reg signed [data_width - 1 : 0] arg_a_out,
 		
 		input wire arg_b_needed_in,
-		input wire [3 : 0] src_b_in,
+		input wire [ch_addr_w - 1 : 0] src_b_in,
 		input wire src_b_reg_in,
 		input wire signed [data_width - 1 : 0] arg_b_in,
 		output reg arg_b_needed_out,
-		output reg [3 : 0] src_b_out,
+		output reg [ch_addr_w - 1 : 0] src_b_out,
 		output reg src_b_reg_out,
 		output reg signed [data_width - 1 : 0] arg_b_out,
 		
 		input wire arg_c_needed_in,
-		input wire [3 : 0] src_c_in,
+		input wire [ch_addr_w - 1 : 0] src_c_in,
 		input wire src_c_reg_in,
 		input wire signed [data_width - 1 : 0] arg_c_in,
 		output reg arg_c_needed_out,
-		output reg [3 : 0] src_c_out,
+		output reg [ch_addr_w - 1 : 0] src_c_out,
 		output reg src_c_reg_out,
 		output reg signed [data_width - 1 : 0] arg_c_out,
 		
@@ -104,7 +104,7 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 		input wire [$clog2(`N_INSTR_BRANCHES) - 1 : 0] branch_in,
 		output reg [$clog2(`N_INSTR_BRANCHES) - 1 : 0] branch_out,
 		
-		input wire [3 : 0] channel_write_addr,
+		input wire [ch_addr_w : 0] channel_write_addr,
 		input wire signed [data_width - 1 : 0] channel_write_val,
 		input wire channel_write_enable,
 		
@@ -114,7 +114,9 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 		output reg [3:0] flags_out
 	);
 	
-	reg [data_width - 1 : 0] channels [15 : 0];
+	localparam ch_addr_w = $clog2(n_channels);
+	
+	reg [data_width - 1 : 0] channels [n_channels - 1 : 0];
 	
 	wire take_in = in_ready & in_valid;
 	wire [data_width - 1 : 0] channel_read_val = channels[src_live];
@@ -122,7 +124,7 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 	integer j;
 	always @(posedge clk) begin
 		if (reset) begin
-			for (j = 0; j < 16; j = j + 1) begin
+			for (j = 0; j < n_channels; j = j + 1) begin
 				channels[j] <= 0;
 			end
 		end else begin
@@ -131,22 +133,22 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 		end
 	end
 	
-	reg [3 : 0] channels_scoreboard [15 : 0];
+	reg [3 : 0] channels_scoreboard [n_channels - 1 : 0];
 	reg [3 : 0] accumulator_pending_writes;
 	
-	reg [15 : 0] busy_bits;
+	reg [n_channels - 1 : 0] busy_bits;
 	reg accumulator_busy;
 
 	integer i;
 	always @(posedge clk) begin
-		for (i = 0; i < 16; i = i + 1)
+		for (i = 0; i < n_channels; i = i + 1)
 			channels_scoreboard[i] <= channels_scoreboard[i];
 	
 		if (reset) begin
 			busy_bits <= 0;
 			accumulator_busy <= 0;
 			
-			for (i = 0; i < 16; i = i + 1)
+			for (i = 0; i < n_channels; i = i + 1)
 				channels_scoreboard[i] <= 0;
 			
 			accumulator_pending_writes <= 0;
@@ -189,7 +191,7 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 				end
 			endcase
 		
-			for (i = 1; i < 16; i = i + 1) begin
+			for (i = 1; i < n_channels; i = i + 1) begin
 				case ({(add_pending_write && dest_live == i && !writes_accumulator_live),
 						channel_write_enable && channel_write_addr == i})
 					2'b10: begin
@@ -245,39 +247,39 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 	
 	reg [4 : 0] operation_latched;
 	
-	reg [3 : 0] dest_latched;
+	reg [ch_addr_w - 1 : 0] dest_latched;
 	reg writes_channel_latched;
 	reg accumulator_needed_latched;
 	reg writes_accumulator_latched;
 
-	reg [3 : 0] src_latched;
+	reg [ch_addr_w - 1 : 0] src_latched;
 	reg arg_needed_latched;
 	reg src_reg_latched;
 	reg arg_valid;
 	
 	reg arg_a_needed_latched;
-	reg [3 : 0] src_a_latched;
+	reg [ch_addr_w - 1 : 0] src_a_latched;
 	reg src_a_reg_latched;
 	reg signed [data_width - 1 : 0] arg_a_latched;
 
 	reg arg_b_needed_latched;
-	reg [3 : 0] src_b_latched;
+	reg [ch_addr_w - 1 : 0] src_b_latched;
 	reg src_b_reg_latched;
 	reg signed [data_width - 1 : 0] arg_b_latched;
 
 	reg arg_c_needed_latched;
-	reg [3 : 0] src_c_latched;
+	reg [ch_addr_w - 1 : 0] src_c_latched;
 	reg src_c_reg_latched;
 	reg signed [data_width - 1 : 0] arg_c_latched;
 	
 	wire [$clog2(n_blocks) - 1 : 0] block_live = busy ? block_latched : block_in;
 	
-	wire [3 : 0] dest_live = (busy) ? dest_latched : dest_in;
+	wire [ch_addr_w - 1 : 0] dest_live = (busy) ? dest_latched : dest_in;
 	wire writes_channel_live = (busy) ? writes_channel_latched : writes_channel_in;
 	wire accumulator_needed_live = (busy) ? accumulator_needed_latched : accumulator_needed_in;
 	wire writes_accumulator_live = (busy) ? writes_accumulator_latched : writes_accumulator_in;
 
-	wire [3 : 0] src_live = (busy) ? src_latched : src;
+	wire [ch_addr_w - 1 : 0] src_live = (busy) ? src_latched : src;
 	wire arg_needed_live = (busy) ? arg_needed_latched : arg_needed;
 	wire src_reg_live = (busy) ? src_reg_latched : src_reg;
 	
@@ -550,7 +552,7 @@ module operand_fetch_substage #(parameter data_width = 16, parameter n_blocks = 
 	end
 endmodule
 
-module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256)
+module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256, parameter n_channels = 16)
 	(
 		input  wire clk,
 		input  wire reset,
@@ -581,12 +583,12 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 		input  wire [$clog2(`N_MISC_OPS) - 1 : 0] misc_op_in,
 		output wire [$clog2(`N_MISC_OPS) - 1 : 0] misc_op_out,
 		
-		input  wire [3 : 0] dest_in,
-		output wire [3 : 0] dest_out,
+		input  wire [ch_addr_w - 1 : 0] dest_in,
+		output wire [ch_addr_w - 1 : 0] dest_out,
 
-		input  wire signed [3 : 0] src_a_in,
-		input  wire signed [3 : 0] src_b_in,
-		input  wire signed [3 : 0] src_c_in,
+		input  wire signed [ch_addr_w - 1 : 0] src_a_in,
+		input  wire signed [ch_addr_w - 1 : 0] src_b_in,
+		input  wire signed [ch_addr_w - 1 : 0] src_c_in,
 
 		input  wire src_a_reg_in,
 		input  wire src_b_reg_in,
@@ -632,7 +634,7 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 		input  wire [`N_INSTR_BRANCHES - 1 : 0] branch_in,
 		output wire [`N_INSTR_BRANCHES - 1 : 0] branch_out,
 		
-		input  wire [3 : 0] channel_write_addr,
+		input  wire [ch_addr_w - 1 : 0] channel_write_addr,
 		input  wire signed [data_width - 1 : 0] channel_write_val,
 		input  wire channel_write_enable,
 		
@@ -644,17 +646,19 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 		output wire [3:0] flags_out
 	);
 	
+	localparam ch_addr_w = $clog2(n_channels);
+	
 	wire out_valid_1;
 	wire  [$clog2(n_blocks) - 1 : 0] block_1_out;
 	wire signed [data_width - 1 : 0] register_0_1_out;
 	wire signed [data_width - 1 : 0] register_1_1_out;
 	wire [4 : 0] operation_1_out;
 	wire [$clog2(`N_MISC_OPS) - 1 : 0] misc_op_1_out;
-	wire [3 : 0] dest_1_out;
+	wire [ch_addr_w - 1 : 0] dest_1_out;
 	
-	wire [3 : 0] src_a_1_out;
-	wire [3 : 0] src_b_1_out;
-	wire [3 : 0] src_c_1_out;
+	wire [ch_addr_w - 1 : 0] src_a_1_out;
+	wire [ch_addr_w - 1 : 0] src_b_1_out;
+	wire [ch_addr_w - 1 : 0] src_c_1_out;
 	
 	wire src_a_reg_1_out;
 	wire src_b_reg_1_out;
@@ -682,7 +686,7 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 	wire [`N_INSTR_BRANCHES - 1 : 0] branch_1_out;
 	wire [3:0] flags_1_out;
 	
-	operand_fetch_substage #(.data_width(data_width), .n_blocks(n_blocks), .last(0)) fetch_1
+	operand_fetch_substage #(.data_width(data_width), .n_blocks(n_blocks), .last(0), .n_channels(n_channels)) fetch_1
 	(
 		.clk(clk),
 		.reset(reset),
@@ -796,11 +800,11 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 	wire signed [data_width - 1 : 0] register_1_2_out;
 	wire [4 : 0] operation_2_out;
 	wire [$clog2(`N_MISC_OPS) - 1 : 0] misc_op_2_out;
-	wire [3 : 0] dest_2_out;
+	wire [ch_addr_w - 1 : 0] dest_2_out;
 	
-	wire [3 : 0] src_a_2_out;
-	wire [3 : 0] src_b_2_out;
-	wire [3 : 0] src_c_2_out;
+	wire [ch_addr_w - 1 : 0] src_a_2_out;
+	wire [ch_addr_w - 1 : 0] src_b_2_out;
+	wire [ch_addr_w - 1 : 0] src_c_2_out;
 	
 	wire src_a_reg_2_out;
 	wire src_b_reg_2_out;
@@ -828,7 +832,7 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 	wire [`N_INSTR_BRANCHES - 1 : 0] branch_2_out;
 	wire [3:0] flags_2_out;
 	
-	operand_fetch_substage #(.data_width(data_width), .n_blocks(n_blocks), .last(0)) fetch_2
+	operand_fetch_substage #(.data_width(data_width), .n_blocks(n_blocks), .last(0), .n_channels(n_channels)) fetch_2
 	(
 		.clk(clk),
 		.reset(reset),
@@ -944,10 +948,10 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 	wire signed [data_width - 1 : 0] register_1_3_out;
 	wire [4 : 0] operation_3_out;
 	wire [$clog2(`N_MISC_OPS) - 1 : 0] misc_op_3_out;
-	wire [3 : 0] dest_3_out;
-	wire [3 : 0] src_a_3_out;
-	wire [3 : 0] src_b_3_out;
-	wire [3 : 0] src_c_3_out;
+	wire [ch_addr_w - 1 : 0] dest_3_out;
+	wire [ch_addr_w - 1 : 0] src_a_3_out;
+	wire [ch_addr_w - 1 : 0] src_b_3_out;
+	wire [ch_addr_w - 1 : 0] src_c_3_out;
 	wire src_a_reg_3_out;
 	wire src_b_reg_3_out;
 	wire src_c_reg_3_out;
@@ -971,7 +975,7 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 	wire [`N_INSTR_BRANCHES - 1 : 0] branch_3_out;
 	wire [3:0] flags_3_out;
 
-	operand_fetch_substage #(.data_width(data_width), .n_blocks(n_blocks), .last(1)) fetch_3
+	operand_fetch_substage #(.data_width(data_width), .n_blocks(n_blocks), .last(1), .n_channels(n_channels)) fetch_3
 	(
 		.clk(clk),
 		.reset(reset),
@@ -1078,7 +1082,7 @@ module operand_fetch_stage #(parameter data_width = 16, parameter n_blocks = 256
 	);
 	
 	localparam payload_width = 
-		$clog2(n_blocks)+data_width+data_width+5+$clog2(`N_MISC_OPS)+4+data_width+data_width+data_width+1+1+5+1+8+1+1+1+$clog2(`N_INSTR_BRANCHES)+6+3;
+		$clog2(n_blocks)+data_width+data_width+5+$clog2(`N_MISC_OPS)+ch_addr_w+data_width+data_width+data_width+1+1+5+1+8+1+1+1+$clog2(`N_INSTR_BRANCHES)+6+3;
 	
 	wire in_ready_skid;
 	

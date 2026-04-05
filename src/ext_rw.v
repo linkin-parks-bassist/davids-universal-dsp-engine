@@ -4,7 +4,7 @@
 
 `default_nettype none
 
-module resource_branch #(parameter data_width = 16, parameter handle_width = 8, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8) (
+module resource_branch #(parameter data_width = 16, parameter handle_width = 8, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8, parameter n_channels = 16) (
 		input wire clk,
 		input wire reset,
 		
@@ -38,8 +38,8 @@ module resource_branch #(parameter data_width = 16, parameter handle_width = 8, 
 		input wire read_valid,
 		input wire write_ack,
 		
-		input wire [3:0] dest_in,
-		output reg [3:0] dest_out,
+		input wire [ch_addr_w - 1 : 0] dest_in,
+		output reg [ch_addr_w - 1 : 0] dest_out,
 		
 		output reg signed [full_width - 1 : 0] result_out,
 		
@@ -49,6 +49,8 @@ module resource_branch #(parameter data_width = 16, parameter handle_width = 8, 
 		input wire [3:0] flags_in,
 		output reg [3:0] flags_out
 	);
+	
+	localparam ch_addr_w = $clog2(n_channels);
 	
 	localparam IDLE = 2'd0;
 	localparam REQ  = 2'd1;
@@ -62,7 +64,7 @@ module resource_branch #(parameter data_width = 16, parameter handle_width = 8, 
 	
 	reg [$clog2(n_blocks) - 1 : 0] block_latched;
 	reg [`COMMIT_ID_WIDTH - 1 : 0] commit_id_latched;
-	reg [3:0] dest_latched;
+	reg [ch_addr_w - 1 : 0] dest_latched;
 	reg write_latched;
 	reg [1:0] state;
 	

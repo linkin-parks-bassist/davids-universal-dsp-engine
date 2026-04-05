@@ -2,7 +2,7 @@
 
 `default_nettype none
 
-module multiply_stage #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8)
+module multiply_stage #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8, parameter n_channels = 16)
 	(
 		input wire clk,
 		input wire reset,
@@ -34,8 +34,8 @@ module multiply_stage #(parameter data_width = 16, parameter n_blocks = 256, par
 		input wire signed [data_width - 1 : 0] arg_c_in,
 		output reg signed [data_width - 1 : 0] arg_c_out,
 		
-		input wire [3:0] dest_in,
-		output reg [3:0] dest_out,
+		input wire [ch_addr_w - 1 : 0] dest_in,
+		output reg [ch_addr_w - 1 : 0] dest_out,
 		
 		input wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
 		output reg [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out,
@@ -43,6 +43,8 @@ module multiply_stage #(parameter data_width = 16, parameter n_blocks = 256, par
 		input wire commit_flag_in,
 		output reg commit_flag_out
 	);
+	
+	localparam ch_addr_w = $clog2(n_channels);
 	
 	assign in_ready = ~out_valid | out_ready;
 	
@@ -93,7 +95,7 @@ module multiply_stage #(parameter data_width = 16, parameter n_blocks = 256, par
 	end
 endmodule
 
-module shift_stage_1 #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8, parameter bit shift_type = `SHIFT_TYPE_ARSH)
+module shift_stage_1 #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8, parameter n_channels = 16, parameter bit shift_type = `SHIFT_TYPE_ARSH)
 	(
 		input wire clk,
 		input wire reset,
@@ -127,8 +129,8 @@ module shift_stage_1 #(parameter data_width = 16, parameter n_blocks = 256, para
 		input wire signed [data_width - 1 : 0] arg_c_in,
 		output reg signed [data_width - 1 : 0] arg_c_out,
 		
-		input wire [3:0] dest_in,
-		output reg [3:0] dest_out,
+		input wire [ch_addr_w - 1 : 0] dest_in,
+		output reg [ch_addr_w - 1 : 0] dest_out,
 		
 		input wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
 		output reg [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out,
@@ -136,6 +138,8 @@ module shift_stage_1 #(parameter data_width = 16, parameter n_blocks = 256, para
 		input wire commit_flag_in,
 		output reg commit_flag_out
 	);
+	
+	localparam ch_addr_w = $clog2(n_channels);
 	
 	assign in_ready = ~out_valid | out_ready;
 	
@@ -200,7 +204,7 @@ module shift_stage_1 #(parameter data_width = 16, parameter n_blocks = 256, para
 	end
 endmodule
 
-module shift_stage_2 #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8, parameter bit shift_type = `SHIFT_TYPE_ARSH)
+module shift_stage_2 #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8, parameter n_channels = 16, parameter bit shift_type = `SHIFT_TYPE_ARSH)
 	(
 		input wire clk,
 		input wire reset,
@@ -232,8 +236,8 @@ module shift_stage_2 #(parameter data_width = 16, parameter n_blocks = 256, para
 		input wire signed [data_width - 1 : 0] arg_c_in,
 		output reg signed [data_width - 1 : 0] arg_c_out,
 		
-		input wire [3:0] dest_in,
-		output reg [3:0] dest_out,
+		input wire [ch_addr_w - 1 : 0] dest_in,
+		output reg [ch_addr_w - 1 : 0] dest_out,
 		
 		input wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
 		output reg [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out,
@@ -241,6 +245,8 @@ module shift_stage_2 #(parameter data_width = 16, parameter n_blocks = 256, para
 		input wire commit_flag_in,
 		output reg commit_flag_out
 	);
+	
+	localparam ch_addr_w = $clog2(n_channels);
 	
 	assign in_ready = ~out_valid | out_ready;
 	
@@ -289,7 +295,7 @@ module shift_stage_2 #(parameter data_width = 16, parameter n_blocks = 256, para
 	end
 endmodule
 
-module add_stage #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8)
+module add_stage #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8, parameter n_channels = 16)
 	(
 		input wire clk,
 		input wire reset,
@@ -315,8 +321,8 @@ module add_stage #(parameter data_width = 16, parameter n_blocks = 256, paramete
 		
 		output reg signed [full_width - 1 : 0] result_out,
 		
-		input wire [3:0] dest_in,
-		output reg [3:0] dest_out,
+		input wire [ch_addr_w - 1 : 0] dest_in,
+		output reg [ch_addr_w - 1 : 0] dest_out,
 		
 		input wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
 		output reg [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out,
@@ -324,6 +330,8 @@ module add_stage #(parameter data_width = 16, parameter n_blocks = 256, paramete
 		input wire commit_flag_in,
 		output reg commit_flag_out
 	);
+	
+	localparam ch_addr_w = $clog2(n_channels);
 	
 	assign in_ready = ~out_valid | out_ready;
 	
@@ -356,7 +364,7 @@ module add_stage #(parameter data_width = 16, parameter n_blocks = 256, paramete
 	end
 endmodule
 
-module saturate_stage #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8)
+module saturate_stage #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8, parameter n_channels = 16)
 	(
 		input wire clk,
 		input wire reset,
@@ -374,8 +382,8 @@ module saturate_stage #(parameter data_width = 16, parameter n_blocks = 256, par
 		input wire signed [full_width - 1 : 0] result_in,
 		output reg signed [full_width - 1 : 0] result_out,
 		
-		input wire [3:0] dest_in,
-		output reg [3:0] dest_out,
+		input wire [ch_addr_w - 1 : 0] dest_in,
+		output reg [ch_addr_w - 1 : 0] dest_out,
 		
 		output reg out_valid,
 		input wire out_ready,
@@ -386,6 +394,8 @@ module saturate_stage #(parameter data_width = 16, parameter n_blocks = 256, par
 		input wire commit_flag_in,
 		output reg commit_flag_out
 	);
+	
+	localparam ch_addr_w = $clog2(n_channels);
 	
 	assign in_ready = ~out_valid | out_ready;
 	
@@ -426,7 +436,7 @@ module saturate_stage #(parameter data_width = 16, parameter n_blocks = 256, par
 	end
 endmodule
 
-module mac_pipeline #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8, parameter bit shift_type = `SHIFT_TYPE_ARSH)
+module mac_pipeline #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8, parameter n_channels = 16, parameter bit shift_type = `SHIFT_TYPE_ARSH)
 	(
 		input wire clk,
 		input wire reset,
@@ -456,8 +466,8 @@ module mac_pipeline #(parameter data_width = 16, parameter n_blocks = 256, param
 		
 		output wire signed [full_width - 1 : 0] result_out,
 		
-		input  wire [3:0] dest_in,
-		output wire [3:0] dest_out,
+		input  wire [ch_addr_w - 1 : 0] dest_in,
+		output wire [ch_addr_w - 1 : 0] dest_out,
 		
 		input  wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
 		output wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out,
@@ -465,6 +475,8 @@ module mac_pipeline #(parameter data_width = 16, parameter n_blocks = 256, param
 		input  wire commit_flag_in,
 		output wire commit_flag_out
 	);
+	
+	localparam ch_addr_w = $clog2(n_channels);
 	
 	wire out_valid_muls;
 	wire [$clog2(n_blocks) - 1 : 0] block_out_muls;
@@ -479,12 +491,12 @@ module mac_pipeline #(parameter data_width = 16, parameter n_blocks = 256, param
 	wire signed [data_width - 1 : 0] arg_c_out_muls;
 	wire signed [full_width - 1 : 0] product_out_muls;
 	wire signed [full_width - 1 : 0] accumulator_out_muls;
-	wire [3:0] dest_out_muls;
+	wire [ch_addr_w - 1 : 0] dest_out_muls;
 	wire writes_accumulator_out_muls;
 	wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out_muls;
 	wire commit_flag_out_muls;
 	
-	multiply_stage #(.data_width(data_width), .n_blocks(n_blocks), .full_width(full_width)) multiply_stage
+	multiply_stage #(.data_width(data_width), .n_blocks(n_blocks), .full_width(full_width), .n_channels(n_channels)) multiply_stage
 		(
 			.clk(clk),
 			.reset(reset),
@@ -543,7 +555,7 @@ module mac_pipeline #(parameter data_width = 16, parameter n_blocks = 256, param
 	wire signed [data_width - 1 : 0] arg_c_out_sh1;
 	wire signed [full_width - 1 : 0] result_out_sh1;
 	wire signed [full_width - 1 : 0] accumulator_out_sh1;
-	wire [3:0] dest_out_sh1;
+	wire [ch_addr_w - 1 : 0] dest_out_sh1;
 	wire writes_accumulator_out_sh1;
 	wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out_sh1;
 	wire commit_flag_out_sh1;
@@ -641,7 +653,7 @@ module mac_pipeline #(parameter data_width = 16, parameter n_blocks = 256, param
 	
 endmodule
 
-module madd_pipeline #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8)
+module madd_pipeline #(parameter data_width = 16, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8, parameter n_channels = 16)
 	(
 		input wire clk,
 		input wire reset,
@@ -668,8 +680,8 @@ module madd_pipeline #(parameter data_width = 16, parameter n_blocks = 256, para
 		
 		output wire signed [full_width - 1 : 0] result_out,
 		
-		input  wire [3:0] dest_in,
-		output wire [3:0] dest_out,
+		input  wire [ch_addr_w - 1 : 0] dest_in,
+		output wire [ch_addr_w - 1 : 0] dest_out,
 		
 		input  wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
 		output wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out,
@@ -677,6 +689,8 @@ module madd_pipeline #(parameter data_width = 16, parameter n_blocks = 256, para
 		input wire commit_flag_in,
 		output wire commit_flag_out
 	);
+	
+	localparam ch_addr_w = $clog2(n_channels);
 
 	wire [$clog2(n_blocks) - 1 : 0] block_out_mac;
 	wire in_ready_mac;
@@ -687,10 +701,10 @@ module madd_pipeline #(parameter data_width = 16, parameter n_blocks = 256, para
 	wire signed [full_width - 1 : 0] accumulator_out_mac;
 	wire signed [full_width - 1 : 0] result_out_mac;
 	wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out_mac;
-	wire [3:0] dest_out_mac;
+	wire [ch_addr_w - 1 : 0] dest_out_mac;
 	wire commit_flag_out_mac;
 
-	mac_pipeline #(.data_width(data_width), .n_blocks(n_blocks), .full_width(full_width)) madd_main
+	mac_pipeline #(.data_width(data_width), .n_blocks(n_blocks), .full_width(full_width), .n_channels(n_channels)) madd_main
 	(
 		.clk(clk),
 		.reset(reset),
@@ -736,11 +750,11 @@ module madd_pipeline #(parameter data_width = 16, parameter n_blocks = 256, para
 	wire in_ready_add;
 	wire out_valid_add;
 	wire [full_width - 1 : 0] result_out_add;
-	wire [3:0] dest_out_add;
+	wire [ch_addr_w - 1 : 0] dest_out_add;
 	wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out_add;
 	wire commit_flag_out_add;
 
-	add_stage #(.data_width(data_width), .n_blocks(n_blocks), .full_width(full_width)) add_stage
+	add_stage #(.data_width(data_width), .n_blocks(n_blocks), .full_width(full_width), .n_channels(n_channels)) add_stage
 		(
 			.clk(clk),
 			.reset(reset),
@@ -777,7 +791,7 @@ module madd_pipeline #(parameter data_width = 16, parameter n_blocks = 256, para
 
 	wire in_ready_sats;
 
-	saturate_stage #(.data_width(data_width), .n_blocks(n_blocks), .full_width(full_width)) saturate_stage
+	saturate_stage #(.data_width(data_width), .n_blocks(n_blocks), .full_width(full_width), .n_channels(n_channels)) saturate_stage
 		(
 			.clk(clk),
 			.reset(reset),

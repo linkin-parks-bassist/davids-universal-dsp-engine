@@ -21,7 +21,8 @@
 module dsp_core #(
 		parameter integer data_width 	= 16,
 		parameter integer n_blocks		= 256,
-		parameter integer memory_size	= 1024
+		parameter integer memory_size	= 1024,
+		parameter integer n_channels	= 16
 	) (
 		input wire clk,
 		input wire reset,
@@ -111,7 +112,7 @@ module dsp_core #(
 
 	localparam block_addr_w 	= $clog2(n_blocks);
 	localparam mem_addr_w 		= $clog2(memory_size);
-	localparam ch_addr_w 		= $clog2(16);
+	localparam ch_addr_w 		= $clog2(n_channels);
 	localparam reg_addr_w		= $clog2(n_blocks) + 1;
 	localparam full_width		= 2 * data_width + 8;
 	
@@ -132,7 +133,7 @@ module dsp_core #(
 	
 	wire instr_write_enable = (resetting) ? 1 : command_instr_write;
 	
-	reg signed [data_width - 1 : 0] channels [16 - 1 : 0];
+	reg signed [data_width - 1 : 0] channels [n_channels - 1 : 0];
 	
 	wire [ch_addr_w  - 1 : 0] channel_read_addr;
 	wire [ch_addr_w  - 1 : 0] channel_write_addr;
@@ -176,7 +177,7 @@ module dsp_core #(
 	integer i;
 	always @(posedge clk) begin
 		if (reset | resetting) begin
-			for (i = 0; i < 16; i = i + 1) begin
+			for (i = 0; i < n_channels; i = i + 1) begin
 				channels[i] = 0;
 			end
 		end else begin
@@ -438,7 +439,7 @@ module dsp_core #(
 	/* Operand Fetch Stage */
 	/***********************/
 	
-	operand_fetch_stage #(.data_width(data_width), .n_blocks(n_blocks)) operand_fetch_stage (
+	operand_fetch_stage #(.data_width(data_width), .n_blocks(n_blocks), .n_channels(n_channels)) operand_fetch_stage (
 		.clk(clk),
 		.reset(reset | resetting),
 		
@@ -531,7 +532,7 @@ module dsp_core #(
 	/* Branch Router */
 	/*****************/
 	
-	branch_router #(.data_width(data_width), .n_blocks(n_blocks), .full_width(full_width)) router (
+	branch_router #(.data_width(data_width), .n_blocks(n_blocks), .full_width(full_width), .n_channels(n_channels)) router (
 		.clk(clk),
 		.reset(reset | resetting),
 		
@@ -603,7 +604,7 @@ module dsp_core #(
 	/**************************/
 	/* Main arithmetic branch */
 	/**************************/
-	madd_pipeline #(.data_width(data_width), .n_blocks(n_blocks), .full_width(full_width)) madd_branch (
+	madd_pipeline #(.data_width(data_width), .n_blocks(n_blocks), .full_width(full_width), .n_channels(n_channels)) madd_branch (
 		.clk(clk),
 		.reset(reset | resetting),
 		
@@ -681,7 +682,7 @@ module dsp_core #(
 	/************************************************/
 	/* Misc branch; other operations, data movement */
 	/************************************************/
-	misc_branch #(.data_width(data_width), .n_blocks(n_blocks), .full_width(full_width)) misc (
+	misc_branch #(.data_width(data_width), .n_blocks(n_blocks), .full_width(full_width), .n_channels(n_channels)) misc (
 		.clk(clk),
 		.reset(reset | resetting),
 		
@@ -727,7 +728,7 @@ module dsp_core #(
 	/**********/
 	/* Delays */
 	/**********/
-	resource_branch #(.data_width(data_width), .handle_width(8), .n_blocks(n_blocks), .full_width(full_width)) delay_stage (
+	resource_branch #(.data_width(data_width), .handle_width(8), .n_blocks(n_blocks), .full_width(full_width), .n_channels(n_channels)) delay_stage (
 		.clk(clk),
 		.reset(reset | resetting),
 		
@@ -775,7 +776,7 @@ module dsp_core #(
 	/********/
 	/* LUTs */
 	/********/
-	resource_branch #(.data_width(data_width), .handle_width(8), .full_width(full_width)) lut_stage (
+	resource_branch #(.data_width(data_width), .handle_width(8), .full_width(full_width), .n_channels(n_channels)) lut_stage (
 		.clk(clk),
 		.reset(reset | resetting),
 		
@@ -823,7 +824,7 @@ module dsp_core #(
 	/**********/
 	/* Memory */
 	/**********/
-	resource_branch #(.data_width(data_width), .handle_width(8), .full_width(full_width)) mem_stage (
+	resource_branch #(.data_width(data_width), .handle_width(8), .full_width(full_width), .n_channels(n_channels)) mem_stage (
 		.clk(clk),
 		.reset(reset | resetting),
 		
@@ -873,7 +874,7 @@ module dsp_core #(
 	/**********/
 	/* Filter */
 	/**********/
-	resource_branch #(.data_width(data_width), .handle_width(8), .full_width(full_width)) filter_branch (
+	resource_branch #(.data_width(data_width), .handle_width(8), .full_width(full_width), .n_channels(n_channels)) filter_branch (
 		.clk(clk),
 		.reset(reset | resetting),
 		
@@ -943,7 +944,7 @@ module dsp_core #(
 	/*****************/
 	/* Commit master */
 	/*****************/
-	commit_master #(.data_width(data_width), .n_blocks(n_blocks), .full_width(full_width)) commit_master (
+	commit_master #(.data_width(data_width), .n_blocks(n_blocks), .full_width(full_width), .n_channels(n_channels)) commit_master (
 		.clk(clk),
 		.reset(reset | resetting),
 		
@@ -995,10 +996,10 @@ module dsp_core #(
 	wire [data_width - 1 : 0] register_1_out_bfds;
 	wire [4 : 0] operation_out_bfds;
 	wire [$clog2(`N_MISC_OPS) - 1 : 0] misc_op_out_bfds;
-	wire [3 : 0] src_a_out_bfds;
-	wire [3 : 0] src_b_out_bfds;
-	wire [3 : 0] src_c_out_bfds;
-	wire [3 : 0] dest_out_bfds;
+	wire [ch_addr_w - 1 : 0] src_a_out_bfds;
+	wire [ch_addr_w - 1 : 0] src_b_out_bfds;
+	wire [ch_addr_w - 1 : 0] src_c_out_bfds;
+	wire [ch_addr_w - 1 : 0] dest_out_bfds;
 	wire src_a_reg_out_bfds;
 	wire src_b_reg_out_bfds;
 	wire src_c_reg_out_bfds;
@@ -1024,7 +1025,7 @@ module dsp_core #(
 	wire [$clog2(n_blocks) - 1 : 0] block_out_ofs;
 	wire [4 : 0] operation_out_ofs;
 	wire [$clog2(`N_MISC_OPS) - 1 : 0] misc_op_out_ofs;
-	wire [3 : 0] dest_out_ofs;
+	wire [ch_addr_w - 1 : 0] dest_out_ofs;
 	wire signed [data_width - 1 : 0] register_0_out_ofs;
 	wire signed [data_width - 1 : 0] register_1_out_ofs;
 	wire signed [data_width - 1 : 0] arg_a_out_ofs;
@@ -1049,7 +1050,7 @@ module dsp_core #(
 	wire [$clog2(n_blocks)  - 1 : 0] block_out_router;
 	wire [4 : 0] operation_out_router;
 	wire [$clog2(`N_MISC_OPS) - 1 : 0] misc_op_out_router;
-	wire [3 : 0] dest_out_router;
+	wire [ch_addr_w - 1 : 0] dest_out_router;
 	wire signed [data_width - 1 : 0] arg_a_out_router;
 	wire signed [data_width - 1 : 0] arg_b_out_router;
 	wire signed [data_width - 1 : 0] arg_c_out_router;
@@ -1128,8 +1129,8 @@ module dsp_core #(
 	wire [$clog2(n_blocks)  - 1 : 0] block_out_commit_stage [`N_INSTR_BRANCHES - 1 : 0];
 	wire [full_width    - 1 : 0] result_final_stages		[`N_INSTR_BRANCHES - 1 : 0];
 	wire [full_width    - 1 : 0] result_commit_stage		[`N_INSTR_BRANCHES - 1 : 0];
-	wire [3					 	: 0] dest_final_stages		[`N_INSTR_BRANCHES - 1 : 0];
-	wire [3					 	: 0] dest_commit_stage		[`N_INSTR_BRANCHES - 1 : 0];
+	wire [ch_addr_w - 1 : 0] dest_final_stages		[`N_INSTR_BRANCHES - 1 : 0];
+	wire [ch_addr_w - 1 : 0] dest_commit_stage		[`N_INSTR_BRANCHES - 1 : 0];
 	wire [`COMMIT_ID_WIDTH  - 1 : 0] commit_id_final_stages	[`N_INSTR_BRANCHES - 1 : 0];
 	wire [`COMMIT_ID_WIDTH  - 1 : 0] commit_id_commit_stage	[`N_INSTR_BRANCHES - 1 : 0];
 	wire [`N_INSTR_BRANCHES - 1 : 0] commit_flag_final_stages;
