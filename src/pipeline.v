@@ -84,7 +84,8 @@ module dsp_pipeline #(
 
 	dsp_core #(
 		.data_width(data_width),
-		.n_blocks(n_blocks)
+		.n_blocks(n_blocks),
+		.n_channels(8)
 	) core (
 		.clk(clk),
 		.reset(reset),
