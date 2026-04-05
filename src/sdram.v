@@ -79,7 +79,9 @@ module sdram
     output reg [63:0] write_count
 );
 
+`ifdef verilator
 `define crusty_sim
+`endif
 
 `ifdef crusty_sim
 reg [31 : 0] sim_mem [(1 << 19) : 0];
