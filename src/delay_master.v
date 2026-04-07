@@ -116,7 +116,8 @@ module delay_master #(parameter data_width  = 16,
 					
 					`DATA_REQ_DELAY_BUF_LRWA: begin
 						if (buf_info_read_handle_prev_prev == data_req_ctrl_data_r[23:8]) begin
-							data_return <= {buf_last_write_addr[data_req_handle][15:0], buf_last_read_addr[data_req_handle][15:0]};
+							data_return[15: 0] <= buf_last_read_addr[data_req_handle];
+							data_return[31:16] <= buf_last_write_addr[data_req_handle];
 							data_return_valid <= 1;
 							data_req_active <= 0;
 						end
