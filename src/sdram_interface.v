@@ -66,7 +66,8 @@ module sdram_interface #(parameter data_width = 16, parameter addr_width = 21)
 		
 		req_prev <= req;
 		
-		req_posedge_latched <= {req_posedge[1] | req_posedge_latched[1], req_posedge[0] | req_posedge_latched[0]};
+		req_posedge_latched[0] <= req_posedge[0] | req_posedge_latched[0];
+		req_posedge_latched[1] <= req_posedge[1] | req_posedge_latched[1];
 		
 		req_type_latched[0] <= req[0] ? req_type[0] : req_type_latched[0];
 		req_type_latched[1] <= req[1] ? req_type[1] : req_type_latched[1];
@@ -124,7 +125,6 @@ module sdram_interface #(parameter data_width = 16, parameter addr_width = 21)
 					
 					next_priority <= ~next_priority;
 					write_wait <= 1;
-					wait_one <= 1;
 				end else begin //read
 					controller_read <= 1;
 					client <= next_priority;
@@ -145,7 +145,6 @@ module sdram_interface #(parameter data_width = 16, parameter addr_width = 21)
 					addr_to_controller <= {~next_priority, addr_in[~next_priority]};
 					
 					write_wait <= 1;
-					wait_one <= 1;
 				end else begin //read
 					controller_read <= 1;
 					client <= ~next_priority;

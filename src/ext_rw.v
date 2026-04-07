@@ -195,7 +195,6 @@ module resource_branch_pulsed #(parameter data_width = 16, parameter handle_widt
 			read_req <= 0;
 			write_req <= 0;
 		end else if (enable) begin
-			
 			case (state)
 				IDLE: begin
 					if (in_valid && in_ready) begin

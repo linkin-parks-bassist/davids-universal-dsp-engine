@@ -400,6 +400,15 @@ module dsp_pipeline #(
 				data_req_ctrl_data_r <= ctrl_data_in;
 				data_req_active <= data_req_target != DATA_REQ_TARGET_NONE;
 				data_req_target_r <= data_req_target;
+				
+				if (data_req_target == DATA_REQ_TARGET_NONE) begin
+					case (ctrl_data_in[7:0])
+						`DATA_REQ_SAMPLE_COUNT: begin
+							data_return <= sample_ctr;
+							data_return_valid <= 1;
+						end
+					endcase
+				end
 			end else if (data_req_active) begin
 				case (data_req_target_r)
 					DATA_REQ_TARGET_CORE: begin

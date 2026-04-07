@@ -499,6 +499,15 @@ module control_unit
 								push_command_log <= 0;
 							end
 							
+							`COMMAND_GET_SAMPLE_COUNT: begin
+								ctrl_data_out <= `DATA_REQ_SAMPLE_COUNT;
+								pipeline_data_req[current_pipeline] <= 1;
+								expecting_pipeline_data <= 1;
+								pipeline_data_req_target <= current_pipeline;
+								readout_n_bytes <= 4;
+								state <= READY;
+							end
+							
 							default: begin
 								state <= READY;
 							end

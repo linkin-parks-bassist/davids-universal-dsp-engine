@@ -177,6 +177,7 @@ module delay_master #(parameter data_width  = 16,
 	reg signed [delay_width - 1 : 0] req_delay_offset;
 	reg  [addr_width  - 1 : 0] position;
 	wire [addr_width  - 1 : 0] next_position = (position + 1 == size) ? 0 : position + 1;
+	wire [addr_width  - 1 : 0] next_gain	 = (wrapped && gain < gain < 16'b0100000000000000) ? gain + 16'b0000000001000000 : gain;
 	reg signed [data_width - 1 : 0] gain;
 	reg wrapped;
 	
@@ -430,26 +431,16 @@ module delay_master #(parameter data_width  = 16,
 					
 					mem_req      <= 1;
                     mem_req_type <= 1;
-                    
-					if (position == size - 1) begin
-						wrapped <= 1;
-						position <= 0;
-					end else begin
-						position <= position + 1;
-					end
 					
-					if (wrapped && gain < 16'b0100000000000000)
-						gain <= gain + 16'b0000000001000000;
+					buf_info_write_data <= {addr, size, delay, next_position, next_gain, wrapped | position == (size - 1)};
+					buf_info_write_handle <= write_handle_r;
+					buf_info_write_enable  <= 1;
 					
-					state <= WRITE_5;
+					state <= WRITE_4;
 				end
 				
-				WRITE_5: begin
+				WRITE_4: begin
 					if (mem_write_ack) begin
-						buf_info_write_data <= {addr, size, delay, position, gain, wrapped};
-						buf_info_write_handle <= write_handle_r;
-						buf_info_write_enable  <= 1;
-						
 						state <= IDLE;
 						write_wait_one <= 1;
 						write_ack <= 1;
