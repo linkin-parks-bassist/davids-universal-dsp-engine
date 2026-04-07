@@ -32,9 +32,7 @@ module commit_master #(parameter data_width = 16, parameter n_blocks = 256, para
 		output reg accumulator_write_enable,
 		output reg accumulator_add_enable,
 		
-		output reg [`COMMIT_ID_WIDTH - 1 : 0] next_commit_id,
-		
-		output reg [7 : 0] byte_probe
+		output reg [`COMMIT_ID_WIDTH - 1 : 0] next_commit_id
 	);
 	
 	localparam ch_addr_w = $clog2(n_channels);

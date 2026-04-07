@@ -55,7 +55,6 @@ module dsp_pipeline #(
 
 		output wire [$clog2(n_blocks) - 1 : 0] n_blocks_running,
 		output wire [31:0] commits_accepted,
-		output wire [ 7:0] byte_probe,
 		
 		output wire sdram_req,
 		output wire sdram_req_type,
@@ -63,7 +62,7 @@ module dsp_pipeline #(
 		input wire sdram_write_ack,
 		input wire sdram_read_valid,
 
-		output wire [sdram_addr_width - 2 : 0] sdram_addr,
+		output wire [sdram_addr_width - 1 : 0] sdram_addr,
 		output wire [data_width - 1 : 0] sdram_data_out,
 
 		input wire [data_width - 1 : 0] sdram_data_in,

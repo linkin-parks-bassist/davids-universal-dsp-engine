@@ -972,9 +972,7 @@ module dsp_core #(
 		
 		.accumulator_write_val(accumulator_write_val),
 		.accumulator_add_enable(accumulator_add_enable),
-		.accumulator_write_enable(accumulator_write_enable),
-		
-		.byte_probe()
+		.accumulator_write_enable(accumulator_write_enable)
 	);
 
 	/*---------------------------*/
@@ -1089,7 +1087,6 @@ module dsp_core #(
 	wire [full_width - 1 : 0] result_out_delay;
 	wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out_delay;
 	wire [3:0] flags_out_delay;
-	
 	
 	// LUT Branch
 	wire in_ready_lut;

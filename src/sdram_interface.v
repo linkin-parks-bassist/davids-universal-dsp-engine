@@ -29,8 +29,6 @@ module sdram_interface #(parameter data_width = 16, parameter addr_width = 21)
 	reg write_wait;
 
 	reg wait_one;
-
-	reg [3:0] cooldowns;
 	
 	reg client;
 	reg next_priority;
@@ -41,11 +39,19 @@ module sdram_interface #(parameter data_width = 16, parameter addr_width = 21)
 	localparam ref_ctr_width = $clog2(refresh_cycles);
 	
 	reg [ref_ctr_width - 1 : 0] refresh_ctr;
+	
+	reg  [1:0] req_prev;
+	wire [1:0] req_posedge = {req[1] & ~req_prev[1], req[0] & ~req_prev[0]};
+	reg  [1:0] req_posedge_latched;
+	wire [1:0] req_pending = {req[1] |  req_posedge_latched[1], req[0] | req_posedge_latched[0]};
+
+	reg  [1:0] req_type_latched;
+	wire [1:0] req_type_current = {req[1] ? req_type[1] : req_type_latched[1],
+								   req[0] ? req_type[0] : req_type_latched[0]};
 
 	always @(posedge clk) begin
 		read_valid <= 0;
 		write_ack <= 0;
-		cooldowns <= 0;
 		
 		wait_one <= 0;
 		
@@ -57,6 +63,13 @@ module sdram_interface #(parameter data_width = 16, parameter addr_width = 21)
 			refresh_ctr <= refresh_ctr + 1;
 		else
 			refresh_needed <= 1;
+		
+		req_prev <= req;
+		
+		req_posedge_latched <= {req_posedge[1] | req_posedge_latched[1], req_posedge[0] | req_posedge_latched[0]};
+		
+		req_type_latched[0] <= req[0] ? req_type[0] : req_type_latched[0];
+		req_type_latched[1] <= req[1] ? req_type[1] : req_type_latched[1];
 		
 		if (reset) begin
 			client <= 0;
@@ -76,6 +89,10 @@ module sdram_interface #(parameter data_width = 16, parameter addr_width = 21)
 			
 			addr_to_controller <= 0;
 			data_to_controller <= 0;
+			
+			req_prev <= 0;
+			req_posedge_latched <= 0;
+			req_type_latched <= 0;
 		end else if (ref_wait) begin
 			ref_wait <= 0;
 		end else if (read_wait) begin
@@ -84,13 +101,10 @@ module sdram_interface #(parameter data_width = 16, parameter addr_width = 21)
 					data_out <= data_from_controller;
 					read_valid[client] <= 1;
 					read_wait <= 0;
-					
-					cooldowns[{client, 0}] <= 1;
 				end
 			end
 		end else if (write_wait) begin
 			write_wait <= 0;
-			cooldowns[{client, 1}] <= 1;
 		end else if (!controller_busy) begin
 			if (refresh_needed) begin
 				refresh <= 1;
@@ -99,8 +113,8 @@ module sdram_interface #(parameter data_width = 16, parameter addr_width = 21)
 				refresh_needed <= 0;
 				
 				ref_wait <= 1;
-			end else if (req[next_priority]) begin
-				if (req_type[next_priority] && !cooldowns[{next_priority, 1}]) begin // write
+			end else if (req_pending[next_priority]) begin
+				if (req_type_current[next_priority]) begin // write
 					data_to_controller <= data_in[next_priority];
 					controller_write <= 1;
 					write_ack[next_priority] <= 1;
@@ -111,7 +125,7 @@ module sdram_interface #(parameter data_width = 16, parameter addr_width = 21)
 					next_priority <= ~next_priority;
 					write_wait <= 1;
 					wait_one <= 1;
-				end else if (!cooldowns[{next_priority, 0}]) begin //read
+				end else begin //read
 					controller_read <= 1;
 					client <= next_priority;
 					addr_to_controller <= {next_priority, addr_in[next_priority]};
@@ -119,8 +133,10 @@ module sdram_interface #(parameter data_width = 16, parameter addr_width = 21)
 					wait_one <= 1;
 					next_priority <= ~next_priority;
 				end
-			end else if (req[~next_priority]) begin
-				if (req_type[~next_priority] && !cooldowns[{~next_priority, 1}]) begin // write
+				
+				req_posedge_latched[next_priority] <= 0;
+			end else if (req_pending[~next_priority]) begin
+				if (req_type_current[~next_priority]) begin // write
 					data_to_controller <= data_in[~next_priority];
 					controller_write <= 1;
 					write_ack[~next_priority] <= 1;
@@ -130,13 +146,15 @@ module sdram_interface #(parameter data_width = 16, parameter addr_width = 21)
 					
 					write_wait <= 1;
 					wait_one <= 1;
-				end else if (!cooldowns[{~next_priority, 0}]) begin //read
+				end else begin //read
 					controller_read <= 1;
 					client <= ~next_priority;
 					addr_to_controller <= {~next_priority, addr_in[~next_priority]};
 					read_wait <= 1;
 					wait_one <= 1;
 				end
+				
+				req_posedge_latched[~next_priority] <= 0;
 			end
 		end
 	end

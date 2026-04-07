@@ -277,7 +277,9 @@ module top #(
 			.busy(sdram_busy),
 
 			.read_count(sdram_read_count),
-			.write_count(sdram_write_count)
+			.write_count(sdram_write_count),
+			
+			.refresh(sdram_refresh)
 		);
 	
 	`else
@@ -344,7 +346,9 @@ module bram_standin #(parameter data_width = 16, parameter mem_size = 8192, para
 	output wire busy,
 	
 	output reg [63:0] read_count,
-	output reg [63:0] write_count
+	output reg [63:0] write_count,
+	
+	input wire refresh
 );
 	
 	reg [data_width - 1 : 0] mem [mem_size - 1 : 0];
@@ -364,6 +368,7 @@ module bram_standin #(parameter data_width = 16, parameter mem_size = 8192, para
 	
 	localparam IDLE = 3'd0;
 	localparam READ = 3'd1;
+	localparam REF 	= 3'd2;
 	
 	reg [2:0] state;
 	
@@ -372,12 +377,16 @@ module bram_standin #(parameter data_width = 16, parameter mem_size = 8192, para
 	reg read_wait;
 	wire addr_valid = addr < mem_size;
 	
+	reg [2:0] sim_ref_ctr;
+	
 	always @(posedge clk) begin
 		read_valid <= 0;
 		read_wait <= 0;
 		
 		if (reset) begin
 			state <= IDLE;
+			read_count <= 0;
+			write_count <= 0;
 		end else begin
 			case (state)
 				IDLE: begin
@@ -385,10 +394,15 @@ module bram_standin #(parameter data_width = 16, parameter mem_size = 8192, para
 						mem_read_addr <= addr;
 						read_wait <= 1;
 						state <= READ;
+						read_count <= read_count + 1;
 					end else if (write && addr_valid) begin
 						mem_write_val <= data_in;
 						mem_write_addr <= addr;
 						mem_write_enable <= 1;
+						write_count <= write_count + 1;
+					end else if (refresh) begin
+						sim_ref_ctr <= 3;
+						state <= REF;
 					end
 				end
 				
@@ -399,9 +413,13 @@ module bram_standin #(parameter data_width = 16, parameter mem_size = 8192, para
 						state <= IDLE;
 					end
 				end
+			
+				REF: begin
+					if (sim_ref_ctr == 1)
+						state <= IDLE;
+					sim_ref_ctr <= sim_ref_ctr - 1;
+				end
 			endcase
-			
-			
 		end
 	end
 

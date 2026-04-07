@@ -141,7 +141,7 @@ module delay_master #(parameter data_width  = 16,
         end else begin
             alloc_req_r <= alloc_req;
             alloc_size_r <= ctrl_data_in[24 + addr_width - 1 : 24];
-            alloc_delay_r <= ctrl_data_in[addr_width : 0];
+            alloc_delay_r <= ctrl_data_in[addr_width - 1 : 0];
         end
     end
 
@@ -267,6 +267,7 @@ module delay_master #(parameter data_width  = 16,
 		write_req_prev <= write_req;
 		write_req_posedge_latched <= write_req_posedge | write_req_posedge_latched;
 		
+		mem_req <= 0;
 		if (reset) begin
 			state <= IDLE;
 			buf_data_invalid <= 0;
@@ -274,11 +275,9 @@ module delay_master #(parameter data_width  = 16,
 			buffer_initd <= 0;
 			alloc_addr <= 0;
 			read_wait <= 0;
-			mem_req <= 0;
 			data_out <= 0;
 			read_valid <= 0;
 			write_ack <= 0;
-			mem_req <= 0;
 			mem_req_type <= 0;
 			mem_addr <= 0;
 			mem_data_out <= 0;
@@ -395,7 +394,6 @@ module delay_master #(parameter data_width  = 16,
 				READ_5: begin
 					if (~wait_one & mem_read_valid) begin
                         mul_a           <= mem_data_in;
-						mem_req 	    <= 0;
 						state 			<= READ_6;
                         wait_one        <= 1;
 					end
@@ -432,12 +430,7 @@ module delay_master #(parameter data_width  = 16,
 					
 					mem_req      <= 1;
                     mem_req_type <= 1;
-					
-					state <= WRITE_4;
-				end
-				
-				WRITE_4: begin
-					
+                    
 					if (position == size - 1) begin
 						wrapped <= 1;
 						position <= 0;
@@ -447,13 +440,12 @@ module delay_master #(parameter data_width  = 16,
 					
 					if (wrapped && gain < 16'b0100000000000000)
 						gain <= gain + 16'b0000000001000000;
-				
+					
 					state <= WRITE_5;
 				end
 				
 				WRITE_5: begin
 					if (mem_write_ack) begin
-						mem_req <= 0;
 						buf_info_write_data <= {addr, size, delay, position, gain, wrapped};
 						buf_info_write_handle <= write_handle_r;
 						buf_info_write_enable  <= 1;

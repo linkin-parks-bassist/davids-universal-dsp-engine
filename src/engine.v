@@ -7,7 +7,7 @@ module dsp_engine #(
 		parameter n_blocks 			= 255,
 		parameter data_width 		= 16,
 		parameter spi_fifo_length	= 32,
-		parameter sdram_addr_width  = 21
+		parameter sdram_addr_width
 	) (
 		input wire clk,
 		input wire reset,
@@ -34,7 +34,7 @@ module dsp_engine #(
 		output wire sdram_read,
 		output wire sdram_write,
 		output wire sdram_refresh,
-		output wire [21 : 0] addr_to_sdram,
+		output wire [sdram_addr_width - 1 : 0] addr_to_sdram,
 		output wire [data_width - 1 : 0] data_to_sdram,
 		input  wire [data_width - 1 : 0] data_from_sdram,
 
@@ -56,10 +56,6 @@ module dsp_engine #(
 	/***************************************************************************/
 	/* Dual DSP piplines for atomic, artifact-free runtime DSP reconfiguration */
 	/***************************************************************************/
-	
-    wire [7:0] byte_probe = current_pipeline ? byte_probe_b : byte_probe_a;
-	wire [7:0] byte_probe_a;
-	wire [7:0] byte_probe_b;
 	
 	dsp_pipeline #(.data_width(data_width), .n_blocks(n_blocks), .sdram_addr_width(sdram_addr_width - 1)) pipeline_a (
 		.clk(clk),
@@ -94,9 +90,7 @@ module dsp_engine #(
 		.enable(pipeline_a_enable),
 		
 		.resetting(pipeline_a_resetting),
-		
-		.byte_probe(byte_probe_a),
-		
+
 		.sdram_req(pipeline_sdram_reqs[0]),
 		.sdram_req_type(pipeline_sdram_req_types[0]),
 		
@@ -148,8 +142,6 @@ module dsp_engine #(
 		.enable(pipeline_b_enable),
 		
 		.resetting(pipeline_b_resetting),
-		
-		.byte_probe(byte_probe_b),
 		
 		.sdram_req(pipeline_sdram_reqs[1]),
 		.sdram_req_type(pipeline_sdram_req_types[1]),
