@@ -23,10 +23,12 @@ module i2s_trx #(parameter sample_size = 16)
 
 	always @(posedge sys_clk) begin
 		bclk_prev <= bclk;
+		rx_valid <= 0;
 
 		if (reset) begin
 			ctr <= 0;
 			rx_sr <= 0;
+			rx_valid <= 0;
 			tx_r_latched <= 0;
 			tx_l_latched <= 0;
 			lrclk_prev <= 0;
@@ -34,7 +36,6 @@ module i2s_trx #(parameter sample_size = 16)
 		end else if (enable) begin
 			if (bclk & ~bclk_prev) begin
 				lrclk_prev <= lrclk;
-				rx_valid <= 0;
 				
 				if (lrclk != lrclk_prev) begin
 					

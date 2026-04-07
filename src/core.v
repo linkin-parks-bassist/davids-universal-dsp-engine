@@ -1157,6 +1157,7 @@ module dsp_core #(
 			ready <= 1;
 			resetting <= 0;
 		end else if (full_reset) begin
+			ready <= 0;
 			resetting <= 1;
 			blk_reset_ctr <= 0;
 			mem_reset_ctr <= 0;
@@ -1176,7 +1177,10 @@ module dsp_core #(
 				ready		<= 1;
 			end
 		end else if (enable_core) begin
-			
+			if (tick)
+				ready <= 0;
+			else if (n_blocks_running == 0 || block_read_addr == n_blocks_running - 1)
+				ready <= 1;
 		end
 	end
 endmodule
