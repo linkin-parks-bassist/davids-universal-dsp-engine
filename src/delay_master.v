@@ -318,6 +318,9 @@ module delay_master #(parameter data_width  = 16,
 			
 			read_req_prev <= 0;
 			read_req_posedge_latched <= 0;
+			
+			write_req_prev <= 0;
+			write_req_posedge_latched <= 0;
 		end else if (alloc_req_r) begin
 			if (alloc_too_big || buffers_exhausted) begin
 				invalid_alloc <= 1;
