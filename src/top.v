@@ -123,13 +123,23 @@ module top #(
 		end
 	end
 	
+    reg [31:0] life_blinker_ctr;
+    wire life_blinker = life_blinker_ctr[20];
+
+    always @(posedge sys_clk) begin
+        if (reset)
+            life_blinker_ctr <= 0;
+        else
+            life_blinker_ctr <= life_blinker_ctr + 1;
+    end
+
 	/***********/
 	/*   I/O   */
 	/***********/
 
 	// Useful LED indicators (active low)
-	assign led0 = ~current_pipeline;
-	assign led1 = ~out[0];
+	assign led0 = ~life_blinker;
+	assign led1 = ~current_pipeline;
 	assign led3 = ~out[1];
 	assign led4 = ~out[2];
 	assign led5 = ~out[3];
