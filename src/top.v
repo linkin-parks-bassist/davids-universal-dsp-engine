@@ -101,7 +101,39 @@ module top #(
 	reg pll_lock_r;
 	reg pll_lock_sync;
 	
+	reg [63:0] cycle_ctr = 0;
+	reg [15:0] sample_mclk_cycle_ctr = 0;
+	reg [15:0] sample_bclk_cycle_ctr = 0;
+	reg [15:0] sample_cycle_ctr = 0;
+	
+	reg mclk_prev;
+	reg bclk_prev;
+	reg lrclk_prev;
+	
+	wire mclk_posedge = mclk & ~mclk_prev;
+	wire bclk_posedge = bclk & ~bclk_prev;
+	wire lrclk_posedge   = lrclk & ~lrclk_prev;
+	
 	always @(posedge sys_clk) begin
+		mclk_prev <= mclk;
+		bclk_prev <= bclk;
+		lrclk_prev <= lrclk;
+		
+		cycle_ctr <= cycle_ctr + 1;
+		if (sample_valid) begin
+			sample_cycle_ctr <= 0;
+			sample_mclk_cycle_ctr <= 0;
+			sample_bclk_cycle_ctr <= 0;
+		end else begin
+			sample_cycle_ctr <= sample_cycle_ctr + 1;
+			
+			if (mclk_posedge)
+				sample_mclk_cycle_ctr <= sample_mclk_cycle_ctr + 1;
+				
+			if (bclk_posedge)
+				sample_bclk_cycle_ctr <= sample_bclk_cycle_ctr + 1;
+		end
+		
 		pll_lock_r <= pll_lock;
 		pll_lock_sync <= pll_lock_r;
 	
@@ -124,14 +156,63 @@ module top #(
 		end
 	end
 	
-    reg [31:0] life_blinker_ctr;
-    wire life_blinker = life_blinker_ctr[20];
+	localparam MAIN_FREQ  = 112500000;
+	localparam MCLK_FREQ  = 11250000;
+	localparam BCLK_FREQ  = 2812500;
+	localparam LRCLK_FREQ = 44100;
+	
+	reg [$clog2(MAIN_FREQ  / 2) - 1 : 0] sys_clk_blinker_ctr;
+	reg [$clog2(MCLK_FREQ  / 2) - 1 : 0] mclk_blinker_ctr;
+	reg [$clog2(BCLK_FREQ  / 2) - 1 : 0] bclk_blinker_ctr;
+	reg [$clog2(LRCLK_FREQ / 2) - 1 : 0] lrclk_blinker_ctr;
+
+	reg sys_clk_blinker;
+	reg mclk_blinker;
+	reg bclk_blinker;
+	reg lrclk_blinker;
 
     always @(posedge sys_clk) begin
-        if (reset)
-            life_blinker_ctr <= 0;
-        else
-            life_blinker_ctr <= life_blinker_ctr + 1;
+        if (reset) begin
+            sys_clk_blinker_ctr <= 0;
+            lrclk_blinker_ctr <= 0;
+            mclk_blinker_ctr <= 0;
+            bclk_blinker_ctr <= 0;
+            sys_clk_blinker <= 0;
+            lrclk_blinker <= 0;
+            mclk_blinker <= 0;
+            bclk_blinker <= 0;
+        end else begin
+			sys_clk_blinker_ctr <= sys_clk_blinker_ctr + 1;
+			
+			if (lrclk_posedge)
+				lrclk_blinker_ctr <= lrclk_blinker_ctr + 1;
+				
+			if (mclk_posedge)
+				mclk_blinker_ctr <= mclk_blinker_ctr + 1;
+			
+			if (bclk_posedge)
+				bclk_blinker_ctr <= bclk_blinker_ctr + 1;
+        
+            if (sys_clk_blinker_ctr == (MAIN_FREQ / 2) - 1) begin
+				sys_clk_blinker <= ~sys_clk_blinker;
+				sys_clk_blinker_ctr <= 0;
+            end
+        
+            if (mclk_blinker_ctr == (MCLK_FREQ / 2) - 1) begin
+				mclk_blinker <= ~mclk_blinker;
+				mclk_blinker_ctr <= 0;
+            end
+        
+            if (bclk_blinker_ctr == (BCLK_FREQ / 2) - 1) begin
+				bclk_blinker <= ~bclk_blinker;
+				bclk_blinker_ctr <= 0;
+            end
+        
+            if (lrclk_blinker_ctr == (LRCLK_FREQ / 2) - 1) begin
+				lrclk_blinker <= ~lrclk_blinker;
+				lrclk_blinker_ctr <= 0;
+            end
+        end
     end
 
 	/***********/
@@ -139,11 +220,11 @@ module top #(
 	/***********/
 
 	// Useful LED indicators (active low)
-	assign led0 = ~life_blinker;
+	assign led0 = ~sys_clk_blinker;
 	assign led1 = ~current_pipeline;
-	assign led3 = ~out[1];
-	assign led4 = ~out[2];
-	assign led5 = ~out[3];
+	assign led3 = ~mclk_blinker;
+	assign led4 = ~bclk_blinker;
+	assign led5 = ~lrclk_blinker;
 
 	// I2S
 	wire sample_valid;
@@ -227,7 +308,7 @@ module top #(
 				mclk_ctr <= 0;
 
 				bclk_counter <= bclk_counter + 1'b1;
-				if (bclk_counter == 1) begin
+				if (bclk_counter == 2) begin
 					bclk <= ~bclk;
 					bclk_counter <= 0;
 

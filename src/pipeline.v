@@ -84,7 +84,8 @@ module dsp_pipeline #(
 	dsp_core #(
 		.data_width(data_width),
 		.n_blocks(n_blocks),
-		.n_channels(8)
+		.n_channels(8),
+		.sdram_addr_width(sdram_addr_width)
 	) core (
 		.clk(clk),
 		.reset(reset),
@@ -329,8 +330,8 @@ module dsp_pipeline #(
 			
 				`PIPELINE_PROCESSING: begin
 					if (!wait_one) begin
-						ready <= core_ready;
-						if (ready) begin
+						if (core_ready) begin
+							ready <= 1;
 							state <= `PIPELINE_READY;
 						end
 					end
