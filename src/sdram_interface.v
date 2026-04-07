@@ -1,4 +1,4 @@
-module sdram_interface #(parameter data_width = 16, parameter addr_width = 21)
+module sdram_interface #(parameter data_width = 16, parameter addr_width = 21, parameter sdram_size = (1 << addr_width))
 	(
 		input wire clk,
 		input wire reset,
@@ -48,6 +48,11 @@ module sdram_interface #(parameter data_width = 16, parameter addr_width = 21)
 	reg  [1:0] req_type_latched;
 	wire [1:0] req_type_current = {req[1] ? req_type[1] : req_type_latched[1],
 								   req[0] ? req_type[0] : req_type_latched[0]};
+
+	wire [addr_width - 1 : 0] base_addr [1:0];
+	
+	assign base_addr[0] = 0;
+	assign base_addr[1] = sdram_size / 2;
 
 	always @(posedge clk) begin
 		read_valid <= 0;
@@ -121,14 +126,14 @@ module sdram_interface #(parameter data_width = 16, parameter addr_width = 21)
 					write_ack[next_priority] <= 1;
 					
 					client <= next_priority;
-					addr_to_controller <= {next_priority, addr_in[next_priority]};
+					addr_to_controller <= addr_in[next_priority] + base_addr[next_priority];
 					
 					next_priority <= ~next_priority;
 					write_wait <= 1;
 				end else begin //read
 					controller_read <= 1;
 					client <= next_priority;
-					addr_to_controller <= {next_priority, addr_in[next_priority]};
+					addr_to_controller <= addr_in[next_priority] + base_addr[next_priority];
 					read_wait <= 1;
 					wait_one <= 1;
 					next_priority <= ~next_priority;
@@ -142,13 +147,13 @@ module sdram_interface #(parameter data_width = 16, parameter addr_width = 21)
 					write_ack[~next_priority] <= 1;
 					
 					client <= ~next_priority;
-					addr_to_controller <= {~next_priority, addr_in[~next_priority]};
+					addr_to_controller <= addr_in[~next_priority] + base_addr[~next_priority];
 					
 					write_wait <= 1;
 				end else begin //read
 					controller_read <= 1;
 					client <= ~next_priority;
-					addr_to_controller <= {~next_priority, addr_in[~next_priority]};
+					addr_to_controller <= addr_in[~next_priority] + base_addr[~next_priority];
 					read_wait <= 1;
 					wait_one <= 1;
 				end

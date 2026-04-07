@@ -7,7 +7,8 @@ module dsp_engine #(
 		parameter n_blocks 			= 255,
 		parameter data_width 		= 16,
 		parameter spi_fifo_length	= 32,
-		parameter sdram_addr_width
+		parameter sdram_addr_width,
+		parameter sdram_size
 	) (
 		input wire clk,
 		input wire reset,
@@ -372,7 +373,7 @@ module dsp_engine #(
 	
 	wire [data_width - 1 : 0] sdram_data_in;
 	
-	sdram_interface #(.data_width(data_width), .addr_width(sdram_addr_width)) sdram_int
+	sdram_interface #(.data_width(data_width), .addr_width(sdram_addr_width), .sdram_size(sdram_size)) sdram_int
 		(
 			.clk(clk),
 			.reset(reset),

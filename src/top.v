@@ -53,7 +53,8 @@ module top #(
 		.n_blocks(n_blocks),
 		.data_width(data_width),
 		.spi_fifo_length(spi_fifo_length),
-		.sdram_addr_width(sdram_addr_width)
+		.sdram_addr_width(sdram_addr_width),
+		.sdram_size(sdram_size)
 	) engine (
 		.clk(sys_clk),
 		.reset(reset),
