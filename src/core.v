@@ -729,7 +729,7 @@ module dsp_core #(
 	/**********/
 	/* Delays */
 	/**********/
-	resource_branch #(.data_width(data_width), .handle_width(8), .n_blocks(n_blocks), .full_width(full_width), .n_channels(n_channels)) delay_stage (
+	resource_branch_pulsed #(.data_width(data_width), .handle_width(8), .n_blocks(n_blocks), .full_width(full_width), .n_channels(n_channels)) delay_stage (
 		.clk(clk),
 		.reset(reset | resetting),
 		

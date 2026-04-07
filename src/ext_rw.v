@@ -122,4 +122,129 @@ module resource_branch #(parameter data_width = 16, parameter handle_width = 8, 
 	end
 endmodule
 
+module resource_branch_pulsed #(parameter data_width = 16, parameter handle_width = 8, parameter n_blocks = 256, parameter full_width = 2 * data_width + 8, parameter n_channels = 16) (
+		input wire clk,
+		input wire reset,
+		
+		input wire enable,
+		
+		input  wire in_valid,
+		output wire in_ready,
+		
+		output wire out_valid,
+		input  wire out_ready,
+		
+		input wire [$clog2(n_blocks) - 1 : 0] block_in,
+		output reg [$clog2(n_blocks) - 1 : 0] block_out,
+		
+		output reg [data_width - 1 : 0] req_id_out,
+		
+		input wire write,
+		
+		input wire [handle_width - 1 : 0] handle_in,
+		input wire [data_width   - 1 : 0] arg_a_in,
+		input wire [data_width   - 1 : 0] arg_b_in,
+		
+		output reg read_req,
+		output reg write_req,
+		
+		output reg 		[handle_width - 1 : 0] handle_out,
+		output reg signed [data_width - 1 : 0] arg_a_out,
+		output reg signed [data_width - 1 : 0] arg_b_out,
+		input wire signed [data_width - 1 : 0] data_in,
+		
+		input wire read_valid,
+		input wire write_ack,
+		
+		input wire [ch_addr_w - 1 : 0] dest_in,
+		output reg [ch_addr_w - 1 : 0] dest_out,
+		
+		output reg signed [full_width - 1 : 0] result_out,
+		
+		input wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
+		output reg [`COMMIT_ID_WIDTH - 1 : 0] commit_id_out,
+		
+		input wire [3:0] flags_in,
+		output reg [3:0] flags_out
+	);
+	
+	localparam ch_addr_w = $clog2(n_channels);
+	
+	localparam IDLE = 2'd0;
+	localparam REQ  = 2'd1;
+	localparam DONE = 2'd2;
+	
+	assign in_ready  = (state == IDLE);
+	assign out_valid = (state == DONE);
+	
+	reg [$clog2(n_blocks) - 1 : 0] block_latched;
+	reg [`COMMIT_ID_WIDTH - 1 : 0] commit_id_latched;
+	reg [ch_addr_w - 1 : 0] dest_latched;
+	reg write_latched;
+	reg [1:0] state;
+	
+	reg [3:0] flags_latched;
+	
+	always @(posedge clk) begin
+		read_req <= 0;
+		write_req <= 0;
+		
+		if (reset) begin
+			state <= 0;
+			commit_id_out <= 0;
+			read_req <= 0;
+			write_req <= 0;
+		end else if (enable) begin
+			
+			case (state)
+				IDLE: begin
+					if (in_valid && in_ready) begin
+						handle_out <= handle_in;
+						
+						arg_a_out <= arg_a_in;
+						arg_b_out <= arg_b_in;
+						
+						dest_latched <= dest_in;
+						
+						write_latched <= write;
+						
+						commit_id_latched <= commit_id_in;
+						block_latched <= block_in;
+						
+						req_id_out <= block_in;
+						flags_out <= flags_in;
+						
+						state <= REQ;
+						
+						if (write)
+							write_req <= 1;
+						else
+							read_req <= 1;
+					end
+				end
+				
+				REQ: begin
+					if (write_latched && write_ack) begin
+						state <= IDLE;
+					end else if (!write_latched && read_valid) begin
+						result_out <= {{(data_width){data_in[data_width-1]}}, data_in};
+						
+						commit_id_out <= commit_id_latched;
+						block_out <= block_latched;
+						dest_out <= dest_latched;
+						
+						state <= DONE;
+					end
+				end
+				
+				DONE: begin
+					if (out_ready) begin
+						state <= IDLE;
+					end
+				end
+			endcase
+		end
+	end
+endmodule
+
 `default_nettype wire

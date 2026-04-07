@@ -237,6 +237,16 @@ module delay_master #(parameter data_width  = 16,
 	reg write_wait_one;
     reg allocing;
 	
+	reg  read_req_prev;
+	wire read_req_posedge = read_req & ~read_req_prev;
+	reg  read_req_posedge_latched;
+	wire read_req_pending = read_req | read_req_posedge_latched;
+	
+	reg  write_req_prev;
+	wire write_req_posedge = write_req & ~write_req_prev;
+	reg  write_req_posedge_latched;
+	wire write_req_pending = write_req | write_req_posedge_latched;
+	
 	always @(posedge clk) begin
 		write_ack <= 0;
 		read_valid <= 0;
@@ -250,7 +260,13 @@ module delay_master #(parameter data_width  = 16,
         wait_one <= 0;
 		read_wait_one <= 0;
 		write_wait_one <= 0;
-	
+		
+		read_req_prev <= read_req;
+		read_req_posedge_latched <= read_req_posedge | read_req_posedge_latched;
+		
+		write_req_prev <= write_req;
+		write_req_posedge_latched <= write_req_posedge | write_req_posedge_latched;
+		
 		if (reset) begin
 			state <= IDLE;
 			buf_data_invalid <= 0;
@@ -299,6 +315,9 @@ module delay_master #(parameter data_width  = 16,
 			read_wait_one <= 0;
 			write_wait_one <= 0;
 			allocing <= 0;
+			
+			read_req_prev <= 0;
+			read_req_posedge_latched <= 0;
 		end else if (alloc_req_r) begin
 			if (alloc_too_big || buffers_exhausted) begin
 				invalid_alloc <= 1;
@@ -318,17 +337,21 @@ module delay_master #(parameter data_width  = 16,
 		end else if (enable) begin
 			case (state)
 				IDLE: begin
-					if (~read_wait_one & read_req) begin
+					if (read_req_pending) begin
 						read_handle_r <= read_handle;
 						buf_info_read_handle <= read_handle;
 						invalid_read <= !buffer_initd[read_handle];
 						req_delay_offset <= read_delay;
 						
+						read_req_posedge_latched <= 0;
+						
 						state <= buffer_initd[read_handle] ? READ_1 : IDLE;
-					end else if (~write_wait_one & write_req) begin
+					end else if (write_req_pending) begin
 						write_data_r <= write_data;
 						write_handle_r <= write_handle;
 						buf_info_read_handle <= write_handle;
+						
+						write_req_posedge_latched <= 0;
 						
 						invalid_write <= !buffer_initd[write_handle];
 						
@@ -387,7 +410,6 @@ module delay_master #(parameter data_width  = 16,
 					data_out 	<= product_r >>> (data_width - 2);
 					read_valid  <= 1;
 					state 		<= IDLE;
-					read_wait_one <= 1;
 				end
 				
 				WRITE_1: begin
