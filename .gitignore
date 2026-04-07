@@ -26,3 +26,15 @@ dude.gprj.user
 /verilator/test/**/*.vcd
 /verilator/test/**/core
 /verilator/test/**/core.*
+impl/temp/rtl_parser.result
+impl/dude_process_config.json
+impl/gwsynthesis/dude.log
+impl/gwsynthesis/dude.prj
+impl/gwsynthesis/dude.vg
+impl/pnr/cmd.do
+impl/pnr/device.cfg
+impl/pnr/dude.bin
+impl/pnr/dude.binx
+impl/pnr/dude.db
+impl/pnr/dude.fs
+impl/pnr/dude.log
