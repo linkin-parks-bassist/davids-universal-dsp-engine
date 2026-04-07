@@ -2,7 +2,7 @@
 
 module delay_master #(parameter data_width  = 16,
 					  parameter n_buffers   = 32,
-					  parameter addr_width  = 21)
+					  parameter addr_width  = 20)
 	(
 		input wire clk,
 		input wire reset,

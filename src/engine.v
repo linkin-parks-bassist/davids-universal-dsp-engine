@@ -7,7 +7,7 @@ module dsp_engine #(
 		parameter n_blocks 			= 255,
 		parameter data_width 		= 16,
 		parameter spi_fifo_length	= 32,
-		parameter sdram_addr_width  = 22
+		parameter sdram_addr_width  = 21
 	) (
 		input wire clk,
 		input wire reset,
@@ -61,7 +61,7 @@ module dsp_engine #(
 	wire [7:0] byte_probe_a;
 	wire [7:0] byte_probe_b;
 	
-	dsp_pipeline #(.data_width(data_width), .n_blocks(n_blocks), .sdram_addr_width(sdram_addr_width)) pipeline_a (
+	dsp_pipeline #(.data_width(data_width), .n_blocks(n_blocks), .sdram_addr_width(sdram_addr_width - 1)) pipeline_a (
 		.clk(clk),
 		.reset(reset | pipeline_a_reset),
 		
@@ -116,7 +116,7 @@ module dsp_engine #(
         .ctrl_data_in(ctrl_data)
 	);
 	
-	dsp_pipeline #(.data_width(data_width), .n_blocks(n_blocks), .sdram_addr_width(sdram_addr_width)) pipeline_b (
+	dsp_pipeline #(.data_width(data_width), .n_blocks(n_blocks), .sdram_addr_width(sdram_addr_width - 1)) pipeline_b (
 		.clk(clk),
 		.reset(reset | pipeline_b_reset),
 		

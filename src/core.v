@@ -19,10 +19,11 @@
  */
 
 module dsp_core #(
-		parameter integer data_width 	= 16,
-		parameter integer n_blocks		= 256,
-		parameter integer memory_size	= 1024,
-		parameter integer n_channels	= 16
+		parameter integer data_width 		= 16,
+		parameter integer n_blocks			= 256,
+		parameter integer sdram_addr_width 	= 20,
+		parameter integer memory_size		= 1024,
+		parameter integer n_channels		= 16
 	) (
 		input wire clk,
 		input wire reset,

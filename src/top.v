@@ -52,7 +52,8 @@ module top #(
 	dsp_engine #(
 		.n_blocks(n_blocks),
 		.data_width(data_width),
-		.spi_fifo_length(spi_fifo_length)
+		.spi_fifo_length(spi_fifo_length),
+		.sdram_addr_width(sdram_addr_width)
 	) engine (
 		.clk(sys_clk),
 		.reset(reset),
@@ -228,12 +229,21 @@ module top #(
 		end   
 	end
 	
+	`define USE_BRAM_INSTEAD
+	`ifdef USE_BRAM_INSTEAD
+	localparam sdram_size = (1024 * 14);
+	localparam sdram_addr_width = $clog2(sdram_size);
+	`else
+	localparam sdram_addr_width = 21;
+	localparam sdram_size = (1 << sdram_addr_width);
+	`endif
+	
 	wire clk_sdram;
 	
 	wire sdram_read;
 	wire sdram_write;
 	wire sdram_refresh;
-	wire [21 : 0] addr_to_sdram;
+	wire [sdram_addr_width - 1 : 0] addr_to_sdram;
 	wire [data_width - 1 : 0] data_to_sdram;
 	wire [data_width - 1 : 0] data_from_sdram;
 
@@ -243,19 +253,24 @@ module top #(
 	wire [63:0] sdram_read_count;
 	wire [63:0] sdram_write_count;
 	
-	localparam tAC  =   5.5;
-    localparam tHZ  =   5.5;
-    localparam tOH  =   2.5;
-    localparam tMRD =   2.0;     // 2 Clk Cycles
-    localparam tRAS =  42.0;
-    localparam tRC  =  60.0;
-    localparam tRCD =  18.0;
-    localparam tRFC =  60.0;
-    localparam tRP  =  18.0;
-    localparam tRRD =  12.0;
-    localparam tWRa =   6.0;     // A2 Version - Auto precharge mode (1 Clk + 7 ns)
-    localparam tWRm =  12.0;
+	`ifdef USE_BRAM_INSTEAD
+	bram_standin #(.data_width(data_width), .mem_size(sdram_size), .addr_width(sdram_addr_width)) fake_sdram (
+			.clk(sys_clk),
+			.read(sdram_read),
+			.write(sdram_write),
+
+			.addr(addr_to_sdram),
+			.data_in(data_to_sdram),
+
+			.data_out(data_from_sdram),
+			.read_valid(sdram_data_valid),
+			.busy(sdram_busy),
+
+			.read_count(sdram_read_count),
+			.write_count(sdram_write_count)
+		);
 	
+	`else
 	sdram  #(
 			.data_width(data_width),
 			
@@ -301,6 +316,85 @@ module top #(
 			.read_count(sdram_read_count),
 			.write_count(sdram_write_count)
 		);
+	`endif
+endmodule
+
+module bram_standin #(parameter data_width = 16, parameter mem_size = 8192, parameter addr_width = $clog2(mem_size)) (
+	input wire clk,
+	input wire reset,
+	
+	input wire read,
+	input wire write,
+	
+	input wire [addr_width - 1 : 0] addr,
+	input wire [data_width - 1 : 0] data_in,
+	
+	output reg [data_width - 1 : 0] data_out,
+	output reg read_valid,
+	output wire busy,
+	
+	output reg [63:0] read_count,
+	output reg [63:0] write_count
+);
+	
+	reg [data_width - 1 : 0] mem [mem_size - 1 : 0];
+	
+	reg [data_width - 1 : 0] mem_read_val;
+	reg [data_width - 1 : 0] mem_write_val;
+	reg [addr_width - 1 : 0] mem_read_addr;
+	reg [addr_width - 1 : 0] mem_write_addr;
+	reg mem_write_enable;
+	
+	always @(posedge clk) begin
+		mem_read_val <= mem[mem_read_addr];
+		
+		if (mem_write_enable)
+			mem[mem_write_addr] <= mem_write_val;
+	end
+	
+	localparam IDLE = 3'd0;
+	localparam READ = 3'd1;
+	
+	reg [2:0] state;
+	
+	assign busy = (state != IDLE);
+	
+	reg read_wait;
+	wire addr_valid = addr < mem_size;
+	
+	always @(posedge clk) begin
+		read_valid <= 0;
+		read_wait <= 0;
+		
+		if (reset) begin
+			state <= IDLE;
+		end else begin
+			case (state)
+				IDLE: begin
+					if (read && addr_valid) begin
+						mem_read_addr <= addr;
+						read_wait <= 1;
+						state <= READ;
+					end else if (write && addr_valid) begin
+						mem_write_val <= data_in;
+						mem_write_addr <= addr;
+						mem_write_enable <= 1;
+					end
+				end
+				
+				READ: begin
+					if (!read_wait) begin
+						data_out <= mem_read_val;
+						read_valid <= 1;
+						state <= IDLE;
+					end
+				end
+			endcase
+			
+			
+		end
+	end
+
 endmodule
 
 `default_nettype wire
