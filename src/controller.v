@@ -215,8 +215,6 @@ module control_unit
         
         health_monitor_reset <= 0;
 		
-		pipeline_enables <= 2'b00;
-		
 		pipeline_data_req <= 0;
 		
 		push_command_log <= 0;

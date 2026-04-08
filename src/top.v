@@ -221,10 +221,9 @@ module top #(
 
 	// Useful LED indicators (active low)
 	assign led0 = ~sys_clk_blinker;
-	assign led1 = ~current_pipeline;
+	assign led1 = ~lrclk_blinker;
 	assign led3 = ~mclk_blinker;
 	assign led4 = ~bclk_blinker;
-	assign led5 = ~lrclk_blinker;
 
 	// I2S
 	wire sample_valid;
@@ -348,6 +347,8 @@ module top #(
 	`ifdef USE_BRAM_INSTEAD
 	bram_standin #(.data_width(data_width), .mem_size(sdram_size), .addr_width(sdram_addr_width)) fake_sdram (
 			.clk(sys_clk),
+			.reset(reset),
+			
 			.read(sdram_read),
 			.write(sdram_write),
 

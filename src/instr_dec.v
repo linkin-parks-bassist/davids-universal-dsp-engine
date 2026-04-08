@@ -73,7 +73,8 @@ module instr_decoder #(parameter data_width = 16)
 						|| operation == `BLOCK_INSTR_DELAY_READ
 						|| operation == `BLOCK_INSTR_DELAY_WRITE
 						|| operation == `BLOCK_INSTR_MEM_WRITE
-						|| operation == `BLOCK_INSTR_FILTER);
+						|| operation == `BLOCK_INSTR_FILTER
+						|| operation == `BLOCK_INSTR_SVF);
 	
 	assign arg_b_needed = (operation == `BLOCK_INSTR_MADD
 						|| operation == `BLOCK_INSTR_MIN
@@ -83,9 +84,10 @@ module instr_decoder #(parameter data_width = 16)
 						|| operation == `BLOCK_INSTR_MAC
 						|| operation == `BLOCK_INSTR_UMACZ
 						|| operation == `BLOCK_INSTR_UMAC
-						|| operation == `BLOCK_INSTR_DELAY_WRITE);
+						|| operation == `BLOCK_INSTR_DELAY_WRITE
+						|| operation == `BLOCK_INSTR_SVF);
 	
-	assign arg_c_needed = (operation == `BLOCK_INSTR_MADD || operation == `BLOCK_INSTR_CLAMP);
+	assign arg_c_needed = (operation == `BLOCK_INSTR_MADD || operation == `BLOCK_INSTR_CLAMP || operation == `BLOCK_INSTR_SVF);
 	
 	assign accumulator_needed = (operation == `BLOCK_INSTR_MOV_ACC
 					  || operation == `BLOCK_INSTR_MOV_LACC
@@ -104,7 +106,9 @@ module instr_decoder #(parameter data_width = 16)
 			  || operation == `BLOCK_INSTR_MAX 		  || operation == `BLOCK_INSTR_CLAMP
 			  || operation == `BLOCK_INSTR_MOV_ACC	  || operation == `BLOCK_INSTR_MOV_LACC
 			  || operation == `BLOCK_INSTR_MOV_UACC)		 									branch = `INSTR_BRANCH_MISC;
-		else if (operation == `BLOCK_INSTR_FILTER     || operation == `BLOCK_INSTR_FCASC)		branch = `INSTR_BRANCH_FILT;
+		else if (operation == `BLOCK_INSTR_FILTER     || operation == `BLOCK_INSTR_FCASC
+			  || operation == `BLOCK_INSTR_SVF		  || operation == `BLOCK_INSTR_SVF_LOW
+			  || operation == `BLOCK_INSTR_SVF_HIGH	  || operation == `BLOCK_INSTR_SVF_BAND)	branch = `INSTR_BRANCH_FILT;
 		else
 			branch = `INSTR_BRANCH_MADD;
 	end
@@ -115,14 +119,21 @@ module instr_decoder #(parameter data_width = 16)
 	
 	assign commit_flag = (operation == `BLOCK_INSTR_MACZ || operation == `BLOCK_INSTR_UMACZ);
 	
-	assign writes_external = (operation == `BLOCK_INSTR_DELAY_WRITE || operation == `BLOCK_INSTR_MEM_WRITE);
+	assign writes_external = (operation == `BLOCK_INSTR_DELAY_WRITE || operation == `BLOCK_INSTR_MEM_WRITE || operation == `BLOCK_INSTR_SVF);
 	
 	assign misc_op = operation - `MISC_OPCODE_MIN;
 	
-	assign flags[0] = operation == `BLOCK_INSTR_FCASC;
-	assign flags[1] = 0;
-	assign flags[2] = 0;
-	assign flags[3] = 0;
+	always_comb begin
+		case (operation)
+			`BLOCK_INSTR_FCASC: 	flags = 4'b0001;
+			`BLOCK_INSTR_SVF: 		flags = 4'b0001;
+			`BLOCK_INSTR_SVF_LOW: 	flags = 4'b0010;
+			`BLOCK_INSTR_SVF_HIGH: 	flags = 4'b0011;
+			`BLOCK_INSTR_SVF_BAND: 	flags = 4'b0100;
+			
+			default:				flags = 4'b0000;
+		endcase
+	end
 	
 endmodule
 

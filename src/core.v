@@ -74,7 +74,22 @@ module dsp_core #(
 		output reg [31:0] data_return,
 		output reg data_return_valid,
 		
-        input wire [`CTRL_DATA_BUS_WIDTH - 1 : 0] ctrl_data_in
+        input wire [`CTRL_DATA_BUS_WIDTH - 1 : 0] ctrl_data_in,
+        
+		output wire signed [data_width - 1 : 0] svf_data_out,
+		output wire [data_width - 1 : 0] svf_cutoff_out,
+		output wire [data_width - 1 : 0] svf_q_out,
+	
+		output wire [block_addr_w - 1 : 0] svf_block_out,
+		
+		input wire signed [data_width - 1 : 0] svf_low_in,
+		input wire signed [data_width - 1 : 0] svf_band_in,
+		input wire signed [data_width - 1 : 0] svf_high_in,
+	
+		input wire svf_data_valid,
+		
+		output wire svf_req,
+		input wire svf_ack
 	);
 	
 	wire [$clog2(n_blocks) - 1 : 0] command_block_target;
@@ -875,7 +890,10 @@ module dsp_core #(
 	/**********/
 	/* Filter */
 	/**********/
-	resource_branch #(.data_width(data_width), .handle_width(8), .full_width(full_width), .n_channels(n_channels)) filter_branch (
+	
+	assign svf_data_out = filter_data_out;
+	
+	resource_branch_filter #(.data_width(data_width), .handle_width(8), .full_width(full_width), .n_channels(n_channels)) filter_branch (
 		.clk(clk),
 		.reset(reset | resetting),
 		
@@ -898,20 +916,34 @@ module dsp_core #(
 		.arg_a_out(filter_data_out),
 		
 		.arg_b_in(arg_b_out_router),
-		.arg_b_out(),
+		.arg_b_out(svf_cutoff_out),
+		
+		.arg_c_in(arg_c_out_router),
+		.arg_c_out(svf_q_out),
 		
 		.dest_in(dest_out_router),
 		.dest_out(dest_final_stages[`INSTR_BRANCH_FILT]),
+		
+		.svf_low_in(svf_low_in),
+		.svf_high_in(svf_high_in),
+		.svf_band_in(svf_band_in),
 		
 		.handle_out(filter_handle_out),
 		
 		.read_req(filter_calc_req),
 		.write_req(),
 		
+		.req_id_out(svf_block_out),
+		
 		.data_in(filter_data_in),
 		.read_valid(filter_data_valid),
 		
 		.write_ack(1'b0),
+		
+		.svf_req(svf_req),
+		.svf_ack(svf_ack),
+		
+		.svf_valid(svf_data_valid),
 		
 		.result_out(result_final_stages[`INSTR_BRANCH_FILT]),
 		

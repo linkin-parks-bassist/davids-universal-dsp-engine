@@ -136,7 +136,21 @@ module dsp_pipeline #(
 		.data_return(data_return_core),
 		.data_return_valid(data_return_valid_core),
 
-        .ctrl_data_in(ctrl_data_in)
+        .ctrl_data_in(ctrl_data_in),
+        
+        .svf_data_out(svf_data_in),
+		.svf_cutoff_out(svf_cutoff_in),
+		.svf_q_out(svf_q_in),
+		
+		.svf_low_in(svf_low_out),
+		.svf_band_in(svf_band_out),
+		.svf_high_in(svf_high_out),
+	
+		.svf_data_valid(svf_data_valid),
+		
+		.svf_req(svf_req),
+		.svf_ack(svf_ack),
+		.svf_block_out(svf_block_in)
 	);
 	
 	/************************/
@@ -262,6 +276,48 @@ module dsp_pipeline #(
         .ctrl_data_in(ctrl_data_in),
         
         .flags_in(filter_flags)
+	);
+	
+	wire signed [data_width - 1 : 0] svf_data_in;
+	wire [data_width - 1 : 0] svf_cutoff_in;
+	wire [data_width - 1 : 0] svf_q_in;
+	
+	wire signed [data_width - 1 : 0] svf_low_out;
+	wire signed [data_width - 1 : 0] svf_band_out;
+	wire signed [data_width - 1 : 0] svf_high_out;
+	
+	wire svf_data_valid;
+	
+	wire svf_req;
+	wire [$clog2(n_blocks) - 1 : 0] svf_block_in;
+	
+	wire svf_ack;
+	
+	wire svf_slot_alloc_fail;
+	
+	svf_master #(.data_width(data_width), .math_width(18), .block_addr_width($clog2(n_blocks)), .n_slots(32)) svf
+	(
+		.clk(clk),
+		.reset(reset | resetting),
+		
+		.enable(enable),
+		
+		.data_in(svf_data_in),
+		.cutoff_in(svf_cutoff_in),
+		.q_in(svf_q_in),
+		
+		.low_out(svf_low_out),
+		.band_out(svf_band_out),
+		.high_out(svf_high_out),
+		
+		.data_valid(svf_data_valid),
+		
+		.req(svf_req),
+		.block_in(svf_block_in),
+		
+		.ack(svf_ack),
+		
+		.slot_alloc_fail(svf_slot_alloc_fail)
 	);
 	
 	/**********/
