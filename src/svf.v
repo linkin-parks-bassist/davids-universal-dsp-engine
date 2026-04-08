@@ -194,6 +194,10 @@ module svf_master #(parameter data_width, parameter math_width, parameter block_
 					band <= band_plus_product_r;
 					high_out <= high >>> (math_width - data_width);
 					low_out  <= low  >>> (math_width - data_width);
+					
+					factor_a <= band_plus_product_r;
+					factor_b <= q_in_r;
+					
 					band_out <= band_plus_product_r >>> (math_width - data_width);
 					
 					state_mem_write_val <= {low, band_plus_product_r};

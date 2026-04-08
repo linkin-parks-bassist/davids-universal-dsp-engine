@@ -402,6 +402,7 @@ module dsp_engine #(
 	/*******/
 	/* FSM */
 	/*******/
+	
 	always @(posedge clk) begin
 		pipeline_tick 		<= 0;
 		

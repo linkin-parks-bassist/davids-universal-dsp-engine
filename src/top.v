@@ -300,6 +300,14 @@ module top #(
 	assign bclk_out  = bclk;
 	assign lrclk_out = lrclk;
 	
+	wire toggle_bclk;
+	
+	`ifdef verilator
+	assign toggle_bclk = 1; // Run the sim at 4x speed so it's faster
+	`else
+	assign toggle_bclk = (bclk_counter == 3);
+	`endif
+	
 	always @(posedge sys_clk) begin
 		if (pll_lock) begin
 			if (mclk_ctr == 4) begin
@@ -307,7 +315,7 @@ module top #(
 				mclk_ctr <= 0;
 
 				bclk_counter <= bclk_counter + 1'b1;
-				if (bclk_counter == 2) begin
+				if (toggle_bclk) begin
 					bclk <= ~bclk;
 					bclk_counter <= 0;
 
