@@ -292,6 +292,9 @@ module resource_branch_filter #(parameter data_width = 16, parameter handle_widt
 		input wire [ch_addr_w - 1 : 0] dest_in,
 		output reg [ch_addr_w - 1 : 0] dest_out,
 		
+		input wire [4 : 0] shift_in,
+		output reg [4 : 0] shift_out,
+		
 		output reg signed [full_width - 1 : 0] result_out,
 		
 		input wire [`COMMIT_ID_WIDTH - 1 : 0] commit_id_in,
@@ -344,6 +347,7 @@ module resource_branch_filter #(parameter data_width = 16, parameter handle_widt
 						arg_b_out <= arg_b_in;
 						arg_c_out <= arg_c_in;
 						dest_latched <= dest_in;
+						shift_out <= shift_in;
 						
 						block_latched <= block_in;
 						

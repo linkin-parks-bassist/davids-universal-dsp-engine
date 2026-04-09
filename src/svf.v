@@ -7,7 +7,9 @@ module svf_master #(parameter data_width, parameter math_width, parameter block_
 		
 		input wire signed [data_width - 1 : 0] data_in,
 		input wire [data_width - 1 : 0] cutoff_in,
-		input wire [data_width - 1 : 0] q_in,
+		input wire [data_width - 1 : 0] d_in,
+		
+		input wire [4 : 0] shift_in,
 		
 		output reg signed [data_width - 1 : 0] low_out,
 		output reg signed [data_width - 1 : 0] band_out,
@@ -48,9 +50,10 @@ module svf_master #(parameter data_width, parameter math_width, parameter block_
 	wire req_pending = req | req_posedge_latched;
 	
 	
-	reg signed [data_width - 1 : 0] data_in_r;
-	reg signed [data_width - 1 : 0] cutoff_in_r;
-	reg signed [data_width - 1 : 0] q_in_r;
+	reg signed [math_width - 1 : 0] data_in_r;
+	reg signed [math_width - 1 : 0] cutoff_in_r;
+	reg signed [math_width - 1 : 0] d_in_r;
+	reg [4 : 0] shift_in_r;
 	
 	reg signed [math_width - 1 : 0] low;
 	reg signed [math_width - 1 : 0] band;
@@ -66,10 +69,11 @@ module svf_master #(parameter data_width, parameter math_width, parameter block_
 	wire signed [2 * math_width - 1 : 0] product = factor_a * factor_b;
 	reg  signed [2 * math_width - 1 : 0] product_r;
 	
-	wire signed [math_width - 1 : 0] product_r_plus_low  = low  + (product_r >>> (math_width - 1));
-	wire signed [math_width - 1 : 0] band_plus_product_r = band + (product_r >>> (math_width - 1));
+	wire signed [math_width - 1 : 0] product_r_plus_low  = low  + (product_r >>> (data_width - 1));
+	wire signed [math_width - 1 : 0] band_plus_product_r = band + (product_r >>> (data_width - 1));
 	
-	wire signed [math_width - 1 : 0] x_minus_low_minus_product_r = data_in_r - low - (product_r >>> (math_width - 2));
+	wire signed [math_width - 1 : 0] x_minus_low_minus_product_r = data_in_r - low - (product_r >>> (data_width - 1 - shift_in_r));
+	
 	
 	wire blocks_wrapped = (block_in <= prev_block);
 	wire new_slot_needed = ~|n_slots_used | ((prev_slot == (n_slots_used - 1)) & ~blocks_wrapped);
@@ -84,8 +88,20 @@ module svf_master #(parameter data_width, parameter math_width, parameter block_
 	localparam CALC_4 			= 4'd6;
 	localparam CALC_5 			= 4'd7;
 	localparam CALC_6 			= 4'd8;
+	localparam CALC_7 			= 4'd9;
+	localparam CALC_8 			= 4'd10;
 	
 	reg [3:0] state;
+	
+	localparam signed [math_width - 1 : 0] sat_max = ( 1 << (data_width - 1)) - 1;
+	localparam signed [math_width - 1 : 0] sat_min = (-1 << (data_width - 1));
+	
+	wire signed [data_width - 1 : 0] low_sat  = low  > sat_max ? sat_min : ((low  < sat_min) ? sat_min : low);
+	wire signed [data_width - 1 : 0] high_sat = high > sat_max ? sat_min : ((high < sat_min) ? sat_min : high);
+	
+	wire signed [2 * math_width - 1 : 0] band_normalised 	= d_in_r * band;
+	wire signed [math_width - 1 : 0] band_normalised_sh 	= band_normalised >> (data_width - 1 - shift_in_r);
+	wire signed [data_width - 1 : 0] band_normalised_sh_sat	= band_normalised_sh > sat_max ? sat_min : ((band_normalised_sh < sat_min) ? sat_min : band_normalised_sh);
 	
 	always @(posedge clk) begin
 		if (reset) begin
@@ -138,8 +154,9 @@ module svf_master #(parameter data_width, parameter math_width, parameter block_
 						if (req_valid) begin
 							data_in_r 	<= data_in;
 							cutoff_in_r <= cutoff_in;
-							q_in_r 		<= q_in;
+							d_in_r 		<= d_in;
 							data_valid  <= 0;
+							shift_in_r  <= shift_in[2:0];
 						end
 						
 						prev_block <= block_in;
@@ -167,7 +184,7 @@ module svf_master #(parameter data_width, parameter math_width, parameter block_
 				
 				CALC_2: begin
 					// product_r <= product (automatic)
-					factor_a <= q_in_r;
+					factor_a <= d_in_r;
 					factor_b <= band;
 					
 					state <= CALC_3;
@@ -192,22 +209,31 @@ module svf_master #(parameter data_width, parameter math_width, parameter block_
 				
 				CALC_6: begin
 					band <= band_plus_product_r;
-					high_out <= high >>> (math_width - data_width);
-					low_out  <= low  >>> (math_width - data_width);
+					
+					high_out <= high;
+					low_out  <= low;
 					
 					factor_a <= band_plus_product_r;
-					factor_b <= q_in_r;
-					
-					band_out <= band_plus_product_r >>> (math_width - data_width);
+					factor_b <= d_in_r;
 					
 					state_mem_write_val <= {low, band_plus_product_r};
 					state_mem_write_addr <= current_slot;
 					state_mem_write_enable <= 1;
 					
+					state <= CALC_7;
+				end
+				
+				CALC_7: begin
+					band_out <= band_normalised_sh_sat;
+					
 					data_valid <= 1;
 					prev_slot <= current_slot;
 					
 					state <= IDLE;
+				end
+				
+				CALC_8: begin
+					
 				end
 			endcase
 		end

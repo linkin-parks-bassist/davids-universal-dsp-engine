@@ -78,7 +78,8 @@ module dsp_core #(
         
 		output wire signed [data_width - 1 : 0] svf_data_out,
 		output wire [data_width - 1 : 0] svf_cutoff_out,
-		output wire [data_width - 1 : 0] svf_q_out,
+		output wire [data_width - 1 : 0] svf_d_out,
+		output wire [4 : 0] svf_shift_out,
 	
 		output wire [block_addr_w - 1 : 0] svf_block_out,
 		
@@ -919,10 +920,13 @@ module dsp_core #(
 		.arg_b_out(svf_cutoff_out),
 		
 		.arg_c_in(arg_c_out_router),
-		.arg_c_out(svf_q_out),
+		.arg_c_out(svf_d_out),
 		
 		.dest_in(dest_out_router),
 		.dest_out(dest_final_stages[`INSTR_BRANCH_FILT]),
+		
+		.shift_in(shift_out_router),
+		.shift_out(svf_shift_out),
 		
 		.svf_low_in(svf_low_in),
 		.svf_high_in(svf_high_in),

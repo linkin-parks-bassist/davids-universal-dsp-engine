@@ -140,7 +140,9 @@ module dsp_pipeline #(
         
         .svf_data_out(svf_data_in),
 		.svf_cutoff_out(svf_cutoff_in),
-		.svf_q_out(svf_q_in),
+		.svf_d_out(svf_d_in),
+		
+		.svf_shift_out(svf_shift_in),
 		
 		.svf_low_in(svf_low_out),
 		.svf_band_in(svf_band_out),
@@ -280,7 +282,7 @@ module dsp_pipeline #(
 	
 	wire signed [data_width - 1 : 0] svf_data_in;
 	wire [data_width - 1 : 0] svf_cutoff_in;
-	wire [data_width - 1 : 0] svf_q_in;
+	wire [data_width - 1 : 0] svf_d_in;
 	
 	wire signed [data_width - 1 : 0] svf_low_out;
 	wire signed [data_width - 1 : 0] svf_band_out;
@@ -295,6 +297,8 @@ module dsp_pipeline #(
 	
 	wire svf_slot_alloc_fail;
 	
+	wire [4 : 0] svf_shift_in;
+	
 	svf_master #(.data_width(data_width), .math_width(18), .block_addr_width($clog2(n_blocks)), .n_slots(32)) svf
 	(
 		.clk(clk),
@@ -304,7 +308,9 @@ module dsp_pipeline #(
 		
 		.data_in(svf_data_in),
 		.cutoff_in(svf_cutoff_in),
-		.q_in(svf_q_in),
+		.d_in(svf_d_in),
+		
+		.shift_in(svf_shift_in),
 		
 		.low_out(svf_low_out),
 		.band_out(svf_band_out),
