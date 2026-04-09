@@ -1,7 +1,7 @@
 `default_nettype none
 
 module top #(
-		parameter n_blocks 			= 255,
+		parameter n_blocks 			= 256,
 		parameter data_width 		= 16,
 		parameter spi_fifo_length	= 16
 	) (

@@ -4,7 +4,7 @@
 `default_nettype none
 
 module dsp_engine #(
-		parameter n_blocks 			= 255,
+		parameter n_blocks 			= 256,
 		parameter data_width 		= 16,
 		parameter spi_fifo_length	= 32,
 		parameter sdram_addr_width,

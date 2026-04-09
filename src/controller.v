@@ -128,7 +128,7 @@ module control_unit
 
 	wire ready = (state == READY);
 	
-	localparam block_bytes 		= (n_blocks > 255) ? 2 : 1;
+	localparam block_bytes 		= (n_blocks > 256) ? 2 : 1;
 	localparam data_bytes		= (data_width == 24) ? 3 : 2;
 	localparam instr_bytes   	= 4;
 	localparam delay_addr_bytes = 3;
@@ -214,6 +214,8 @@ module control_unit
         state_prev <= state;
         
         health_monitor_reset <= 0;
+		
+		pipeline_enables <= 2'b00;
 		
 		pipeline_data_req <= 0;
 		
@@ -502,7 +504,7 @@ module control_unit
 								pipeline_data_req[current_pipeline] <= 1;
 								expecting_pipeline_data <= 1;
 								pipeline_data_req_target <= current_pipeline;
-								readout_n_bytes <= 8;
+								readout_n_bytes <= 4;
 								state <= READY;
 							end
 							
