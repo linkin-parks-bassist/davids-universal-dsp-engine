@@ -72,7 +72,7 @@ module resource_branch #(parameter data_width = 16, parameter handle_width = 8, 
 	
 	always @(posedge clk) begin
 		if (reset) begin
-			state <= 0;
+			state <= IDLE;
 			commit_id_out <= 0;
 		end else if (enable) begin
 			
@@ -190,7 +190,7 @@ module resource_branch_pulsed #(parameter data_width = 16, parameter handle_widt
 		write_req <= 0;
 		
 		if (reset) begin
-			state <= 0;
+			state <= IDLE;
 			commit_id_out <= 0;
 			read_req <= 0;
 			write_req <= 0;

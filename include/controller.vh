@@ -28,6 +28,8 @@
 `define COMMAND_GET_SDRAM_WRITE_CNT	8'd32
 `define COMMAND_READ_COMMAND_LOG	8'd33
 `define COMMAND_GET_SAMPLE_COUNT	8'd34
+`define COMMAND_CLEAR_TIMEOUT_FLAG	8'd35
+`define COMMAND_CLEAR_BAD_FLAG		8'd36
 
 // If we're in a 'waiting' state, but no new data has
 // appeared for a whole 100ms, then it's likely

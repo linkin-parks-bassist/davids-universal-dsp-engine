@@ -265,6 +265,7 @@ module control_unit
 			programming 	<= 0;
 			timeout_active 	<= 0;
 			timeout_ctr 	<= 0;
+			timeout 		<= 0;
 			ignore_command  <= 0;
 			state 			<= RESET_WAIT;
             timeout_max 	<= `CONTROLLER_TIMEOUT_CYCLES;
@@ -505,6 +506,16 @@ module control_unit
 								expecting_pipeline_data <= 1;
 								pipeline_data_req_target <= current_pipeline;
 								readout_n_bytes <= 4;
+								state <= READY;
+							end
+							
+							`COMMAND_CLEAR_TIMEOUT_FLAG: begin
+								timeout_flag <= 0;
+								state <= READY;
+							end
+							
+							`COMMAND_CLEAR_BAD_FLAG: begin
+								bad_flag <= 0;
 								state <= READY;
 							end
 							
