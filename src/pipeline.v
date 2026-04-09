@@ -250,7 +250,7 @@ module dsp_pipeline #(
 	wire [data_width - 1 : 0] filter_coef_target = ctrl_data_in[39: 24];
 	wire [17 : 0] filter_coef_data = ctrl_data_in[17:0];
 	
-	filter_master #(.data_width(data_width), .n_filters(32), .mem_size(2048)) filters (
+	filter_master #(.data_width(data_width), .n_filters(32), .mem_size(1024)) filters (
 		.clk(clk),
 		.reset(reset | resetting),
 		

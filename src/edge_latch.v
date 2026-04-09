@@ -21,7 +21,7 @@ module pulse_latch (
 	always @(posedge clk) begin
 		if (reset) begin
 			in_prev <= 0;
-			in_posedge <= 0;
+			in_posedge_latched <= 0;
 		end else if (enable) begin
 			in_prev <= in;
 			
